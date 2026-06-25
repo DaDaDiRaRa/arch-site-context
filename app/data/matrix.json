@@ -1,0 +1,28 @@
+{
+  "_meta": {
+    "desc": "용도별 KOSIS 항목. 건축가가 코드 없이 이 JSON만 수정 (절대 원칙 7).",
+    "source": "통계청 KOSIS OpenAPI. 확정 테이블 DT_1B04005N=행정구역(시군구)별/5세별 주민등록인구 (orgId 101).",
+    "method": "direct(itmId 값) | age_share(연령대 비율) | age_dependency(노년부양비) | unconfirmed(KOSIS 테이블 미확정 — 건너뜀)",
+    "fields": "item, method, kosis{orgId,tblId,itmId,objL2}, age_min/age_max, priority(1필수~3보조), min_resolution, freq, unit, note",
+    "updated": "2026-06-25"
+  },
+  "주거": [
+    {"item": "고령인구비율", "method": "age_share", "age_min": 65, "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL"}, "priority": 1, "min_resolution": "시군구", "freq": "1년", "unit": "%", "note": "65세이상/총인구 (주민등록 5세별)"},
+    {"item": "총인구수", "method": "direct", "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL", "objL2_pick": "0"}, "priority": 2, "min_resolution": "시군구", "freq": "1년", "unit": "명", "note": "주민등록 총인구 (계)"},
+    {"item": "유소년인구비율", "method": "age_share", "age_min": 0, "age_max": 14, "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL"}, "priority": 3, "min_resolution": "시군구", "freq": "1년", "unit": "%", "note": "0~14세/총인구"},
+    {"item": "1인가구비율", "method": "unconfirmed", "priority": 1, "min_resolution": "읍면동", "freq": "5년", "unit": "%", "note": "인구주택총조사 — KOSIS tblId 확정 필요 (P5 후속)"},
+    {"item": "평균가구원수", "method": "unconfirmed", "priority": 2, "min_resolution": "읍면동", "freq": "5년", "unit": "명", "note": "인구주택총조사 — tblId 확정 필요"}
+  ],
+  "상업": [
+    {"item": "총인구수", "method": "direct", "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL", "objL2_pick": "0"}, "priority": 1, "min_resolution": "시군구", "freq": "1년", "unit": "명", "note": "배후 인구규모"},
+    {"item": "생산가능인구비율", "method": "age_share", "age_min": 15, "age_max": 64, "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL"}, "priority": 2, "min_resolution": "시군구", "freq": "1년", "unit": "%", "note": "15~64세/총인구"},
+    {"item": "인구밀도", "method": "unconfirmed", "priority": 1, "min_resolution": "시군구", "freq": "1년", "unit": "명/㎢", "note": "tblId 확정 필요 (면적 결합)"},
+    {"item": "사업체수", "method": "unconfirmed", "priority": 1, "min_resolution": "시군구", "freq": "1년", "unit": "개", "note": "전국사업체조사 — tblId 확정 필요"}
+  ],
+  "의료": [
+    {"item": "고령인구비율", "method": "age_share", "age_min": 65, "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL"}, "priority": 1, "min_resolution": "시군구", "freq": "1년", "unit": "%", "note": "65세이상/총인구"},
+    {"item": "노년부양비", "method": "age_dependency", "age_old_min": 65, "work_min": 15, "work_max": 64, "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL"}, "priority": 1, "min_resolution": "시군구", "freq": "1년", "unit": "%", "note": "65세이상/생산가능인구 ×100"},
+    {"item": "유소년인구비율", "method": "age_share", "age_min": 0, "age_max": 14, "kosis": {"orgId": "101", "tblId": "DT_1B04005N", "itmId": "T2", "objL2": "ALL"}, "priority": 3, "min_resolution": "시군구", "freq": "1년", "unit": "%", "note": "0~14세/총인구 (소아 수요)"},
+    {"item": "1인가구비율", "method": "unconfirmed", "priority": 2, "min_resolution": "읍면동", "freq": "5년", "unit": "%", "note": "독거 가구 — tblId 확정 필요"}
+  ]
+}

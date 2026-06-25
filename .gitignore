@@ -1,0 +1,26 @@
+# 키·비밀 — 절대 커밋 금지
+.env
+
+# venv (풀경로 생성)
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# 캐시·산출물 (KOSIS 캐시 등은 GCS, 로컬 캐시는 무시)
+.cache/
+# 합성 PNG·타일 캐시 등 런타임 생성물 (gitignore 는 인라인 주석 미지원 — 주석은 별도 줄)
+out/
+node_modules/
+*.png
+!app/**/*.png
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

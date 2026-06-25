@@ -1,0 +1,44 @@
+[
+  {
+    "when": {"item": "고령인구비율", "op": ">", "vs": "national", "margin": 5},
+    "use_types": ["주거", "의료"],
+    "then": "무장애 동선·휴게공간·1층 접근성 검토",
+    "tag": "참고"
+  },
+  {
+    "when": {"item": "노년부양비", "op": ">", "vs": "national", "margin": 5},
+    "use_types": ["의료"],
+    "then": "돌봄·재활 동선과 보호자 대기공간 검토",
+    "tag": "참고"
+  },
+  {
+    "when": {"item": "1인가구비율", "op": ">", "vs": "national", "margin": 3},
+    "use_types": ["주거"],
+    "then": "소형 평형·공유공간(주방·세탁·라운지) 검토",
+    "tag": "참고"
+  },
+  {
+    "when": {"item": "유소년인구비율", "op": ">", "vs": "national", "margin": 2},
+    "use_types": ["주거", "의료"],
+    "then": "아동·가족 대상 공간(대기·수유·놀이) 수요 검토",
+    "tag": "참고"
+  },
+  {
+    "when": {"item": "인구밀도", "op": ">", "vs": "national", "margin": 0},
+    "use_types": ["상업", "주거"],
+    "then": "배후 보행수요 높음 — 저층부 활성화·진입동선 검토",
+    "tag": "참고"
+  },
+  {
+    "when": {"item": "사업체수", "op": ">", "vs": "national", "margin": 0},
+    "use_types": ["상업"],
+    "then": "주변 상업 집적 — 업종 보완·주차/하역 동선 검토",
+    "tag": "참고"
+  },
+  {
+    "when": {"item": "1인가구비율", "op": "<", "vs": "national", "margin": 3},
+    "use_types": ["주거"],
+    "then": "가족 단위 비중 높음 — 중대형 평형·생활편의 검토",
+    "tag": "참고"
+  }
+]
