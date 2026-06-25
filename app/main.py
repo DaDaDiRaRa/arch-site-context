@@ -1,33 +1,30 @@
 """arch-site-context (터읽기) — FastAPI 진입점.
 
-P0: 골격 + 스키마 스텁. 모든 엔드포인트는 하드코딩 샘플 JSON을 200으로 반환한다.
-실제 API 호출·계산은 P1 이후. (CLAUDE.md 7장 로드맵)
+모드 A(지역 통계)·모드 B(주변 시설) 백엔드 + 빌드된 프론트 정적 서빙(단일 서비스).
 """
 
 from __future__ import annotations
-
-from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.config import FRONTEND_DIST, OUT_DIR
 from app.routers import analyze, facilities, health, matrix
 
-load_dotenv()  # .env 로드 (키는 다음 Phase부터 사용)
+load_dotenv()  # 로컬 .env 로드 (배포는 Secret Manager → env 주입)
 
-# 합성 PNG 저장·서빙 경로 (out/). 없으면 생성.
-_OUT_DIR = Path(__file__).resolve().parent.parent / "out"
-_OUT_DIR.mkdir(exist_ok=True)
+# 합성 PNG 저장·서빙 경로. Cloud Run 은 OUT_DIR=/tmp/out 등 쓰기 가능 경로 지정.
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="arch-site-context (터읽기)",
     description="대지 주소로 동네를 읽어주는 대지 분석 보조 — 모드 A(지역 통계)·모드 B(주변 시설).",
-    version="0.0.1-P0",
+    version="1.0.0",
 )
 
-# 프론트(React+Vite) 로컬 개발용. 배포 시 도메인 제한 예정.
+# 단일 서비스(프론트 정적 서빙)면 CORS 불필요하나, 별도 호스팅 대비 허용 유지.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -35,22 +32,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.get("/api")
+def api_info() -> dict:
+    """서비스 안내 (루트 / 는 프론트가 차지)."""
+    return {
+        "service": "arch-site-context",
+        "team": "터읽기",
+        "docs": "/docs",
+        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix"],
+    }
+
+
 app.include_router(health.router)
 app.include_router(facilities.router)
 app.include_router(analyze.router)
 app.include_router(matrix.router)
 
 # 합성된 위성 PNG 다운로드/표시용 정적 서빙 (예: /files/maps/map_xxx.png)
-app.mount("/files", StaticFiles(directory=str(_OUT_DIR)), name="files")
+app.mount("/files", StaticFiles(directory=str(OUT_DIR)), name="files")
 
-
-@app.get("/")
-def root() -> dict:
-    """루트 안내."""
-    return {
-        "service": "arch-site-context",
-        "team": "터읽기",
-        "phase": "P0",
-        "docs": "/docs",
-        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix"],
-    }
+# 빌드된 프론트가 있으면 루트에 정적 서빙(SPA). 반드시 마지막에 마운트(catch-all).
+# 로컬 개발은 Vite(5173) 사용 — dist 없으면 / 는 비활성.
+if FRONTEND_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIST), html=True), name="frontend")

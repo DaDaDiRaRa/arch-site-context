@@ -7,10 +7,10 @@
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
+from app.config import OUT_DIR
 from app.schemas import FacilityRequest, FacilityResult, MapRequest
 from app.schemas.facility import DEFAULT_KINDS, DEFAULT_RADII
 from app.services.facilities import build_facility_result
@@ -20,10 +20,9 @@ from app.services.tiles import BasemapError
 
 router = APIRouter(tags=["mode-b"])
 
-# 저장 위치: out/maps (StaticFiles 로 /files 에 마운트 — main.py). 타일 캐시: out/tile_cache
-_OUT = Path(__file__).resolve().parent.parent.parent / "out"
-_MAPS_DIR = _OUT / "maps"
-_TILE_CACHE = _OUT / "tile_cache"
+# 저장 위치: OUT_DIR/maps (StaticFiles 로 /files 에 마운트). 타일 캐시: OUT_DIR/tile_cache
+_MAPS_DIR = OUT_DIR / "maps"
+_TILE_CACHE = OUT_DIR / "tile_cache"
 
 
 @router.post("/facilities", response_model=FacilityResult)

@@ -19,6 +19,9 @@ node_modules/
 *.png
 !app/**/*.png
 
+# Claude Code 로컬 설정 (머신별 — 커밋 금지)
+.claude/settings.local.json
+
 # IDE/OS
 .vscode/
 .idea/

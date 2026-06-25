@@ -62,9 +62,18 @@ matrix.json 에서 `method:"unconfirmed"` 인 지표들 — 추정 않고 건너
 ### D8. KOSIS 캐시 무효화 정책 없음
 - 현재 FileCache 는 만료(TTL) 없음. 통계는 연 1회 갱신이라 당장 문제 없으나, 배포 시 GCS 캐시 + 갱신주기(연 1회) 고려.
 
-### D9. 프론트 운영 서빙 (P8 배포 때)
-- 현재는 dev: Vite 프록시로 백엔드(8000) 연결. 운영은 `npm run build` → `dist/` 를 FastAPI StaticFiles 로 서빙하거나 별도 호스팅 + 백엔드 CORS 설정 필요.
+### D9. 프론트 운영 서빙 (P8) — ✅ 해결
+- 단일 서비스로 결정: Dockerfile 멀티스테이지가 프론트 빌드 → 백엔드가 `frontend/dist` 정적 서빙. `main.py` 가 dist 있으면 `/` 에 마운트.
 - dev 포트: 5173 점유 시 Vite 가 자동으로 다음 포트(5174…)로 띄움. 터미널에 찍힌 실제 URL 사용.
+
+### D10. 합성 PNG 다중 인스턴스 (P8 배포 후 확장 시)
+- 현재 `/facilities/map` 은 PNG 를 `OUT_DIR=/tmp/out` 에 저장 후 `/files/...` URL 반환. **인스턴스 로컬·임시**.
+- 같은 인스턴스에서 생성+조회는 OK(완료 기준 충족). 인스턴스 2개 이상 + 생성/조회가 다른 인스턴스로 가면 `/files` URL 이 404 가능.
+- **저트래픽**(min/max-instances=1)이면 문제 없음. 확장 시: 맵도 GCS 에 저장하거나 `/facilities/map` 이 PNG 를 인라인 반환하도록 변경.
+
+### D11. 실제 gcloud 배포는 사용자 액션
+- Dockerfile·시크릿·GCS캐시·배포 README 까지 준비·**로컬 컨테이너로 두 모드 검증 완료**.
+- 남은 것: 사용자가 GCP 프로젝트·과금·인증 후 README "배포(GCP Cloud Run)" 절차 실행. VWorld 도메인은 1차 배포 URL 확정 후 등록/`VWORLD_REFERER` 주입.
 
 ---
 

@@ -1,0 +1,16 @@
+# 빌드 컨텍스트에서 제외 (이미지 작게·비밀 차단)
+.env
+.git
+.venv
+out
+__pycache__
+**/__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+tests
+frontend/node_modules
+frontend/dist
+.vscode
+.idea
+*.md

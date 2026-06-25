@@ -79,4 +79,76 @@ copy .env.example .env   # 그리고 값 채우기
 D:\APPS\arch-site-context\.venv\Scripts\python.exe -m pytest -q
 ```
 
+---
+
+## 배포 (GCP Cloud Run)
+
+**단일 서비스** — 프론트(`frontend/dist`)를 백엔드가 정적 서빙한다. URL 하나, CORS 불필요, 배포·시크릿 한 번. (Dockerfile 멀티스테이지: node 로 프론트 빌드 → python 이미지에 복사)
+
+키는 **이미지에 굽지 않고** Secret Manager → 런타임 env 주입. 캐시는 `GCS_CACHE_BUCKET` 지정 시 GCS, 아니면 로컬파일. 산출물(PNG)은 `OUT_DIR=/tmp/out`(Cloud Run 쓰기 가능 경로).
+
+### 0. 준비 (1회)
+
+```bash
+gcloud config set project <PROJECT_ID>
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  secretmanager.googleapis.com storage.googleapis.com
+
+# 캐시용 GCS 버킷
+gcloud storage buckets create gs://<PROJECT_ID>-arch-cache --location=asia-northeast3
+```
+
+### 1. 시크릿 등록 (.env 값을 Secret Manager 로 — 커밋 금지)
+
+```bash
+for K in KAKAO_KEY VWORLD_KEY KOSIS_KEY ANTHROPIC_API_KEY JUSO_API_KEY; do
+  printf "%s" "$(grep "^$K=" .env | cut -d= -f2-)" | \
+    gcloud secrets create $K --data-file=- 2>/dev/null || \
+  printf "%s" "$(grep "^$K=" .env | cut -d= -f2-)" | \
+    gcloud secrets versions add $K --data-file=-
+done
+```
+
+### 2. 배포
+
+```bash
+gcloud run deploy arch-site-context \
+  --source . \
+  --region asia-northeast3 \
+  --allow-unauthenticated \
+  --memory 512Mi \
+  --set-env-vars OUT_DIR=/tmp/out,GCS_CACHE_BUCKET=<PROJECT_ID>-arch-cache \
+  --set-secrets KAKAO_KEY=KAKAO_KEY:latest,VWORLD_KEY=VWORLD_KEY:latest,KOSIS_KEY=KOSIS_KEY:latest,ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest,JUSO_API_KEY=JUSO_API_KEY:latest
+```
+
+### 3. GCS 캐시 권한
+
+배포 후 서비스 계정에 버킷 쓰기 권한:
+
+```bash
+SA=$(gcloud run services describe arch-site-context --region asia-northeast3 \
+     --format='value(spec.template.spec.serviceAccountName)')
+gcloud storage buckets add-iam-policy-binding gs://<PROJECT_ID>-arch-cache \
+  --member="serviceAccount:$SA" --role=roles/storage.objectAdmin
+```
+
+### 4. VWorld 도메인 잠금 처리 (P2 방식)
+
+VWorld 키가 도메인 잠금이면 둘 중 하나:
+- **(권장)** VWorld 포털에서 배포된 Cloud Run URL 을 키의 **허용 도메인**에 등록, 또는
+- 서비스 URL 을 `VWORLD_REFERER` env 로 주입(코드가 Referer 헤더로 전송 — `tiles.py`):
+  ```bash
+  gcloud run services update arch-site-context --region asia-northeast3 \
+    --update-env-vars VWORLD_REFERER=https://<서비스-URL>
+  ```
+  (URL 은 1차 배포 후 확정되므로, 배포 → URL 확인 → 등록/주입 순서.)
+
+### 5. 확인 (완료 기준)
+
+배포 URL 접속 → [지역 통계] 표·문단 / [주변 시설] 목록·지도PNG 가 둘 다 끝까지 나오면 통과.
+
+> JUSO 는 현재 **개발키**(개발서버 전용) — 운영에선 운영키 필요(DEFERRED D2). `EUM_*`·`DATA_GO_KR_API_KEY` 는 해당 기능 활성화 시 같은 방식으로 시크릿 추가.
+
+---
+
 P0 완료 기준: `uvicorn`으로 띄우고 `/health`와 `/facilities`가 샘플 JSON을 반환하면 통과.
