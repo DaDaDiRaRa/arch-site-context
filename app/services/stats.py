@@ -80,6 +80,15 @@ def _compute(item: dict, rows: List[dict]) -> Optional[float]:
             return None
         return round(old / work * 100, 1)
 
+    if method == "ratio":
+        # 같은 분류(objL2_pick) 안에서 두 itmId의 비율 ×100 (예: 1인가구/일반가구).
+        c2 = k.get("objL2_pick", "0")
+        num = _direct(rows, k.get("num_itm"), c2)
+        den = _direct(rows, k.get("den_itm"), c2)
+        if num is None or not den:
+            return None
+        return round(num / den * 100, 1)
+
     return None  # unconfirmed 등
 
 
@@ -88,28 +97,86 @@ def collect_facts(
     use_type: str,
     year: Optional[int] = None,
     cache: Optional[Cache] = None,
+    *,
+    sigungu: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
-    """(facts, notes, year) 반환. facts 비어있으면 라우터가 ErrorBlock 처리."""
+    """(facts, notes, year) 반환. facts 비어있으면 라우터가 ErrorBlock 처리.
+
+    sigungu: 시군구명 (census 계열 테이블의 지역코드 역추출용 — 행안부코드와 다름).
+    """
     items = matrix.list_items(use_type)
     if items is None:
         return [], [f"알 수 없는 용도: {use_type}"], None
+    return _facts_from_items(items, sgg_code, year, cache, sigungu)
 
-    # (orgId,tblId,objL2) 로 그룹화 → 그룹당 지역 1콜 + 전국 1콜
-    groups: dict[Tuple[str, str, Optional[str]], List[dict]] = {}
+
+def collect_facts_by_items(
+    sgg_code: str,
+    item_names: List[str],
+    *,
+    sigungu: str = "",
+    year: Optional[int] = None,
+    cache: Optional[Cache] = None,
+) -> Tuple[List[dict], List[str], Optional[int]]:
+    """이름으로 지정한 지표들의 facts 수집 (용도 무관 — P11 수급진단 demand용).
+
+    matrix.json 전체에서 이름이 일치하는 항목을 찾아(이름당 첫 매치) 재사용한다.
+    matrix 에 없거나 미확정인 지표는 추정 않고 notes 에 정직하게 기록 (절대 원칙 3).
+    """
+    all_by_ut = matrix.list_items()  # {용도: [항목...]}
+    by_name: dict[str, dict] = {}
+    for ut_items in all_by_ut.values():
+        for it in ut_items:
+            by_name.setdefault(it["item"], it)
+
+    items: List[dict] = []
+    notes: List[str] = []
+    for name in item_names:
+        it = by_name.get(name)
+        if it is None:
+            notes.append(f"'{name}': matrix.json 에 정의 없음 — 건너뜀.")
+            continue
+        items.append(it)
+
+    facts, fnotes, year_used = _facts_from_items(items, sgg_code, year, cache, sigungu)
+    return facts, notes + fnotes, year_used
+
+
+def _facts_from_items(
+    items: List[dict],
+    sgg_code: str,
+    year: Optional[int],
+    cache: Optional[Cache],
+    sigungu: str,
+) -> Tuple[List[dict], List[str], Optional[int]]:
+    """항목 리스트 → facts. 용도별/이름별 진입점이 공유하는 KOSIS 수집 코어."""
+    # (orgId,tblId,objL2,지역체계) 로 그룹화 → 그룹당 지역 1콜 + 전국 1콜
+    groups: dict[Tuple[str, str, Optional[str], str], List[dict]] = {}
     notes: List[str] = []
     for it in items:
         if it.get("method") in (None, "unconfirmed") or not it.get("kosis"):
             notes.append(f"'{it['item']}': KOSIS 테이블 미확정 — 건너뜀 (추정 금지).")
             continue
         k = it["kosis"]
-        gk = (k["orgId"], k["tblId"], k.get("objL2"))
+        gk = (k["orgId"], k["tblId"], k.get("objL2"), it.get("region_scheme", "reg"))
         groups.setdefault(gk, []).append(it)
 
     facts: List[dict] = []
     year_used: Optional[int] = year
-    for (org_id, tbl_id, obj_l2), grp in groups.items():
+    for (org_id, tbl_id, obj_l2, scheme), grp in groups.items():
+        # census 계열은 행안부 시군구코드를 못 쓰므로 테이블 지역목록에서 역추출.
+        if scheme == "census":
+            region_code = kosis.resolve_census_region(
+                org_id, tbl_id, sgg_code[:2], sigungu, obj_l2=obj_l2, cache=cache
+            )
+            if not region_code:
+                names = ", ".join(it["item"] for it in grp)
+                notes.append(f"'{names}': census 지역코드 미확인({sigungu}) — 건너뜀.")
+                continue
+        else:
+            region_code = sgg_code
         try:
-            reg = kosis.fetch_table(org_id, tbl_id, sgg_code, year, obj_l2=obj_l2, cache=cache)
+            reg = kosis.fetch_table(org_id, tbl_id, region_code, year, obj_l2=obj_l2, cache=cache)
             nat = kosis.fetch_table(org_id, tbl_id, _NATIONAL, reg["year"], obj_l2=obj_l2, cache=cache)
         except kosis.KosisError as e:
             notes.append(f"테이블 {tbl_id} 조회 실패: {e}")

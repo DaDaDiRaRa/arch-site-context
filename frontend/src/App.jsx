@@ -1,6 +1,7 @@
 import { useState } from "react";
 import TabA from "./TabA.jsx";
 import TabB from "./TabB.jsx";
+import TabC from "./TabC.jsx";
 
 export default function App() {
   const [address, setAddress] = useState("");
@@ -36,6 +37,7 @@ export default function App() {
           {[
             ["A", "지역 통계"],
             ["B", "주변 시설"],
+            ["C", "수급진단"],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -53,6 +55,9 @@ export default function App() {
         </div>
         <div className={tab === "B" ? "" : "hidden"}>
           <TabB address={address} />
+        </div>
+        <div className={tab === "C" ? "" : "hidden"}>
+          <TabC address={address} />
         </div>
 
         <footer className="mt-10 text-xs text-slate-400">

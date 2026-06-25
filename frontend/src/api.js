@@ -38,3 +38,6 @@ export const facilities = (address, kinds, radii) =>
 
 export const facilitiesMap = (address, kinds, radii, basemap = "vworld") =>
   post("/facilities/map", { address, kinds, radii, basemap });
+
+export const diagnose = (address, radius) =>
+  post("/diagnose", { address, radius });

@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIST, OUT_DIR
-from app.routers import analyze, facilities, health, matrix
+from app.routers import analyze, diagnose, facilities, health, matrix
 
 load_dotenv()  # 로컬 .env 로드 (배포는 Secret Manager → env 주입)
 
@@ -40,7 +40,7 @@ def api_info() -> dict:
         "service": "arch-site-context",
         "team": "터읽기",
         "docs": "/docs",
-        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix"],
+        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix", "/diagnose"],
     }
 
 
@@ -48,6 +48,7 @@ app.include_router(health.router)
 app.include_router(facilities.router)
 app.include_router(analyze.router)
 app.include_router(matrix.router)
+app.include_router(diagnose.router)
 
 # 합성된 위성 PNG 다운로드/표시용 정적 서빙 (예: /files/maps/map_xxx.png)
 app.mount("/files", StaticFiles(directory=str(OUT_DIR)), name="files")

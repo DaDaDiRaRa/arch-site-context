@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "desc": "P11 수급진단 규칙. A(인구 수요지표) × B(반경 내 시설 공급수) 교차. 건축가가 코드 없이 이 JSON만 수정 (절대 원칙 7).",
+    "logic": "demand level = fact.value vs (national_avg ± demand_margin) → 높음/평이/낮음/불명. supply level = 반경내 합계 count vs supply_low_max/supply_high_min → 적음/보통/많음. 조합으로 signal·소견(코드 매트릭스). 모두 '참고' — 판단은 사람 (절대 원칙 5).",
+    "fields": "name, demand_item(matrix.json 항목명과 일치), supply_kinds(카카오 키워드), demand_margin(전국±), supply_low_max(이하=적음), supply_high_min(이상=많음), tag",
+    "note": "demand_item 이 matrix.json 에서 확정(method≠unconfirmed)된 지표여야 facts 가 채워진다. 미확정이면 해당 규칙은 정직하게 건너뜀(notes 표시).",
+    "updated": "2026-06-25"
+  },
+  "rules": [
+    {
+      "name": "보육시설 수급",
+      "demand_item": "유소년인구비율",
+      "supply_kinds": ["어린이집", "유치원"],
+      "demand_margin": 1,
+      "supply_low_max": 3,
+      "supply_high_min": 10,
+      "tag": "참고"
+    },
+    {
+      "name": "노인복지시설 수급",
+      "demand_item": "고령인구비율",
+      "supply_kinds": ["경로당", "노인복지관"],
+      "demand_margin": 2,
+      "supply_low_max": 3,
+      "supply_high_min": 12,
+      "tag": "참고"
+    },
+    {
+      "name": "1인가구 생활시설 수급",
+      "demand_item": "1인가구비율",
+      "supply_kinds": ["편의점", "코인세탁"],
+      "demand_margin": 3,
+      "supply_low_max": 5,
+      "supply_high_min": 20,
+      "tag": "참고"
+    }
+  ]
+}

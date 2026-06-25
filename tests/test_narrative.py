@@ -43,9 +43,12 @@ def test_fallback_when_no_api_key(monkeypatch) -> None:
     assert _preserves_facts(text)  # 폴백이어도 facts 보존
 
 
-def test_fallback_empty_facts() -> None:
-    # facts 없으면 라우터가 ErrorBlock 처리하지만, 서술 자체는 안전해야 함
+def test_fallback_empty_facts(monkeypatch) -> None:
+    # facts 없으면 라우터가 ErrorBlock 처리하지만, 서술 자체는 안전해야 함.
+    # 규칙 폴백 경로를 검증하므로 AI 키를 지워 비결정적 AI 호출을 배제 (결정적 테스트).
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     text, source = compose_narrative("영등포구", 2025, "주거", [], [])
+    assert source == "rule_based_fallback"
     assert "영등포구 기준" in text
 
 

@@ -38,7 +38,9 @@ def analyze(req: AnalyzeRequest):
         return _error("NO_REGION_CODE", "시군구 코드를 확인할 수 없습니다.")
 
     # 2) matrix 항목을 KOSIS로 채워 facts (캐시 우선)
-    facts, notes, year = collect_facts(loc.sgg_code, req.use_type, req.year)
+    facts, notes, year = collect_facts(
+        loc.sgg_code, req.use_type, req.year, sigungu=loc.sigungu
+    )
     if not facts:
         return _error(
             "NO_DATA",

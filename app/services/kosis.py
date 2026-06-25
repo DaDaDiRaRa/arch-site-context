@@ -122,3 +122,78 @@ def fetch_table(
 def _latest_year(rows: List[dict]) -> Optional[int]:
     years = [int(r["prd_de"]) for r in rows if r.get("prd_de") and r["prd_de"].isdigit()]
     return max(years) if years else None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# census 지역코드 리졸버 (인구총조사 등)
+#
+# 주민등록 테이블(DT_1B04005N)은 행안부 시군구코드(영등포구=11560)를 그대로 쓰지만,
+# 인구총조사 계열 테이블은 통계청 census 지역코드(영등포구=11190)를 써서 코드가 다르다.
+# 둘은 시도 2자리 접두만 공유(서울=11)하므로, 테이블 자신의 지역목록(objL1=ALL)을 1회
+# 호출(캐시)해 '시도접두 + 시군구명'으로 census 코드를 역추출한다 (추정 아님, 절대 원칙 1·3).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _region_map(
+    org_id: str, tbl_id: str, obj_l2: Optional[str], cache: Cache
+) -> dict:
+    """테이블의 지역목록 {"시도접두|지역명": C1코드}. 캐시 우선, 없을 때만 1회 호출."""
+    ckey = make_key("kosis_regmap", org_id, tbl_id, obj_l2)
+    cached = cache.get(ckey)
+    if cached is not None:
+        return cached
+
+    params = {
+        "method": "getList",
+        "apiKey": _key(),
+        "format": "json",
+        "jsonVD": "Y",
+        "orgId": org_id,
+        "tblId": tbl_id,
+        "itmId": "ALL",
+        "objL1": "ALL",
+        "prdSe": "Y",
+        "newEstPrdCnt": "1",
+    }
+    if obj_l2 is not None:
+        params["objL2"] = obj_l2
+
+    global NETWORK_CALLS
+    NETWORK_CALLS += 1
+    try:
+        r = httpx.get(_BASE, params=params, timeout=25.0)
+    except Exception as e:
+        raise KosisError(f"KOSIS 지역목록 네트워크 오류: {e}")
+
+    import json as _json
+
+    try:
+        data = _json.loads(r.text)
+    except Exception:
+        raise KosisError(f"KOSIS 지역목록 파싱 실패: {r.text[:200]}")
+    if isinstance(data, dict):
+        raise KosisError(f"KOSIS 지역목록 오류 {data.get('err')}: {data.get('errMsg')}")
+
+    out: dict = {}
+    for row in data:
+        c1 = row.get("C1")
+        nm = row.get("C1_NM")
+        if c1 and nm:
+            out.setdefault(f"{c1[:2]}|{nm}", c1)
+    cache.set(ckey, out)
+    return out
+
+
+def resolve_census_region(
+    org_id: str,
+    tbl_id: str,
+    sido_prefix: str,
+    sigungu_name: str,
+    *,
+    obj_l2: Optional[str] = None,
+    cache: Optional[Cache] = None,
+) -> Optional[str]:
+    """행안부 시군구명 → 이 테이블의 census 지역코드. 못 찾으면 None (추정 금지)."""
+    cache = cache if cache is not None else default_cache
+    m = _region_map(org_id, tbl_id, obj_l2, cache)
+    return m.get(f"{sido_prefix}|{sigungu_name}")

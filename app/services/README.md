@@ -16,6 +16,7 @@
 | `kosis.py` | A | `fetch_stats` KOSIS 조회 + 캐시 | ⬜ P5 |
 | `implications.py` | A | `derive_implications` implications.json 규칙 | ⬜ P4 |
 | `narrative.py` | A | `compose_narrative` Claude 1회 + 규칙 폴백 | ⬜ P6 |
+| `diagnose.py` | P11 | `build_diagnosis` 수급진단 — A수요(stats)×B공급(facilities) 교차, supply_demand.json 규칙 | ✅ P11 |
 
 원칙: 값은 실제 API에서 추출, 숫자는 코드/규칙, 데이터 밖이면 '확인 불가'로 멈춤.
 
