@@ -22,9 +22,9 @@
 - **할 일(사용자)**: 운영 배포 전 juso.go.kr 에서 **운영키** 발급 → .env 교체.
 - **영향**: 로컬·개발은 지금 키로 OK. Cloud Run(P8) 배포 시에만 필요.
 
-### D3. VWorld 키 도메인 잠금 여부 (배포 전, P8)
-- **현황**: 로컬에선 Referer 없이 통과(잠금 아님). 배포 도메인에서도 되는지는 배포 후 확인.
-- **할 일**: 배포 후 위성 타일 안 나오면 .env 에 `VWORLD_REFERER` 설정하거나 카카오 스카이뷰 폴백(자리 마련됨).
+### D3. VWorld 키 도메인 잠금 여부 — ✅ 확인됨 (불필요)
+- 배포된 Cloud Run(arch-diagnose/서울)에서 **Referer 없이 위성 타일 정상 수신** 확인.
+- 도메인 등록·`VWORLD_REFERER` 주입 불필요. (안 되면 카카오 스카이뷰 폴백 자리 있음)
 
 ---
 
@@ -71,9 +71,11 @@ matrix.json 에서 `method:"unconfirmed"` 인 지표들 — 추정 않고 건너
 - 같은 인스턴스에서 생성+조회는 OK(완료 기준 충족). 인스턴스 2개 이상 + 생성/조회가 다른 인스턴스로 가면 `/files` URL 이 404 가능.
 - **저트래픽**(min/max-instances=1)이면 문제 없음. 확장 시: 맵도 GCS 에 저장하거나 `/facilities/map` 이 PNG 를 인라인 반환하도록 변경.
 
-### D11. 실제 gcloud 배포는 사용자 액션
-- Dockerfile·시크릿·GCS캐시·배포 README 까지 준비·**로컬 컨테이너로 두 모드 검증 완료**.
-- 남은 것: 사용자가 GCP 프로젝트·과금·인증 후 README "배포(GCP Cloud Run)" 절차 실행. VWorld 도메인은 1차 배포 URL 확정 후 등록/`VWORLD_REFERER` 주입.
+### D11. 실제 배포 — ✅ 완료
+- arch-diagnose / 서울 리전에 Cloud Run 서비스 `arch-site-context` 라이브.
+- URL: https://arch-site-context-dqj4exlefq-du.a.run.app
+- 콘솔(저장소 연결)로 배포, GitHub main push 시 Cloud Build 자동 재배포. 시크릿 5개 주입(KAKAO/VWORLD/KOSIS/ANTHROPIC/JUSO), OUT_DIR=/tmp/out.
+- 모드 A·B·위성 PNG 전부 공개 URL 에서 검증 완료. (GCS 캐시는 미적용 — 파일캐시, D10 참고)
 
 ---
 
