@@ -7,13 +7,18 @@
 
 ## 1. 이 앱이 무엇인가
 
-**대지 주소만 넣으면, 그 동네가 어떤 곳인지 두 방식으로 읽어주는 웹앱.**
+**대지 주소만 넣으면, 그 동네가 어떤 곳인지 여러 방식으로 읽어주는 웹앱.**
 건축가가 설계 시작 전에 만드는 '대지 분석 보드'의 인문·주변 파트를 자동으로 채운다.
+
+기본 두 모드 위에, 둘을 교차·확장한 세 기능이 더 있다(P9~P11 완료):
 
 - **모드 A — 지역 통계**: 주소 + 건물 용도 → 그 지역의 인구·세대·경제·고령화 등 통계를 *용도에 맞는 것만* 골라 → 표 + 참고 시사점 + 한 문단 초안.
 - **모드 B — 주변 시설**: 주소 + 시설종류 + 반경(500/1000/2000m) → 반경 내 시설 목록·개수 + 위성사진에 핀·반경 찍은 PNG.
+- **수급진단 (P11, ★간판)**: A(인구 수요)×B(시설 공급) 교차 → "무엇이 부족/과잉인가"를 근거+'참고'로. 시장에 없는 조합 — A·B 둘 다 있어야 가능.
+- **후보지 비교 (P9)**: 여러 대지를 한 번에 A·B·수급진단으로 나란히 + 컬럼 정렬. 종합점수는 안 매김(판단은 사람).
+- **물어보기 (P10)**: 위 데이터 *위에서만* 자연어 질문에 답. 데이터 밖이면 '확인 불가'로 멈추고, 사용자가 켤 때만 웹검색(외부·참고) 폴백.
 
-쉬운 비유: "신입이 반나절 걸려 하던 대지 주변조사를, 주소 한 줄로 표·문단·지도까지." 단, 최종 설계 판단은 사람이 한다.
+쉬운 비유: "신입이 반나절 걸려 하던 대지 주변조사를, 주소 한 줄로 표·문단·지도·진단·비교까지." 단, 최종 설계 판단은 사람이 한다.
 
 이름: 레포 `arch-site-context` / 팀 호칭 **터읽기**.
 
@@ -24,7 +29,7 @@
 이걸 어기면 "그냥 비싼 ChatGPT 래퍼"가 된다. 차별점은 전적으로 여기서 나온다.
 
 1. **추출, 해석하지 않는다** — 값은 실제 API(KOSIS·카카오)에서 *호출해 가져온다*. AI 기억·추정 금지.
-2. **숫자는 코드·규칙, 표현만 AI** — facts(수치)와 implications(함의)는 코드/룩업이 만든다. LLM은 마지막 '한 문단'만.
+2. **숫자는 코드·규칙, 표현만 AI** — facts(수치)·implications(함의)·수급 signal은 코드/룩업이 만든다. LLM은 *표현*만 담당한다: 모드 A 한 문단 서술(P6), 물어보기 답변(P10, 우리 데이터 위에서만). 새 숫자를 만들지 않는다.
 3. **확인 불가 하드블록** — 데이터로 답할 수 없으면 추정하지 말고 "확인 불가"로 멈춘다. 환각 금지.
 4. **출처·기준 명시** — 모든 수치에 출처(통계표ID/API)·기준연도. 통계는 시군구 평균이므로 출력에 **'○○구 기준'** 항상 표기 (대지 고유값 아님).
 5. **판단은 사람** — 좋다/나쁘다·사업성 단정 금지. 재료와 근거만 제시.
@@ -58,13 +63,14 @@
 - 배포: GCP Cloud Run + Secret Manager(키) + GCS(캐시 버킷)
 - **MCP 아님** — 순수 FastAPI HTTP 엔드포인트. (파이프라인 연결은 나중에 project_seed JSON)
 - 로컬: Windows, 프로젝트 `D:\APPS\arch-site-context`. **venv는 풀경로로 생성, Microsoft Store python 금지.**
-- 키(.env, 절대 커밋 금지): `KAKAO_KEY`, `VWORLD_KEY`, `KOSIS_KEY`, (선택)`VWORLD_REFERER`, `ANTHROPIC_API_KEY`
+- 키(.env, 절대 커밋 금지): `KAKAO_KEY`, `JUSO_API_KEY`(주소 폴백·현재 dev키), `VWORLD_KEY`, `KOSIS_KEY`, `ANTHROPIC_API_KEY`, (선택)`VWORLD_REFERER`, (보류)`DATA_GO_KR_API_KEY`(경로당 보강·§8.5)
 
 ### 외부 API
 - **카카오 로컬**: 주소→좌표, 키워드 반경검색 (모드 B)
+- **JUSO(행안부 도로명주소)**: 카카오 주소검색 0건 시 정규화·법정동코드 폴백 (P1.6)
 - **VWorld**: 항공영상 타일 `https://api.vworld.kr/req/wmts/1.0.0/{KEY}/Satellite/{z}/{y}/{x}.jpeg` (jpeg). 키가 도메인 잠금일 수 있음 → 안 되면 카카오 스카이뷰로 폴백.
 - **KOSIS OpenAPI**: 지역 통계 (모드 A). HTTPS 필수, 분당 호출 제한 있음 → 캐시 우선.
-- **Claude API**: 한 문단 서술 1회 (모드 A P6).
+- **Claude API**: ① 한 문단 서술 1회 (모드 A P6) ② 물어보기 그라운디드 답변 (P10) ③ 물어보기 웹검색 폴백 — Claude 내장 `web_search` 서버툴 (P10, opt-in. 모델은 Claude 하나 유지 — 원칙 6).
 
 ---
 
@@ -79,6 +85,15 @@
               → fetch_stats(KOSIS+캐시) → facts[]
               → derive_implications(implications.json, 규칙) → implications[]
               → compose_narrative(Claude 1회 + 규칙 폴백)    → /analyze
+
+[P11 수급]  주소 → A수요(facts) + B공급(반경 counts)
+              → cross_rules(supply_demand.json 임계값) → 진단[]  → /diagnose
+
+[P9 비교]   주소 N개 → 각 후보지 gather_bundle(A·B·P11) → 나란히  → /compare
+              (후보지당 resolve·시설검색 1회, 실패 격리)
+
+[P10 물어보기] 주소+질문 → gather_bundle(A·B·P11) → answer_grounded(Claude, 데이터 위에서만)
+              → 데이터 밖이면 '확인 불가'; web=true 면 web_search 폴백(외부·참고) → /ask
 ```
 
 ### 엔드포인트
@@ -118,16 +133,52 @@
 
 // ErrorBlock (데이터 없을 때 하드블록)
 { "code":"NO_DATA", "message":"제공된 데이터로는 확인 불가" }
+
+// DiagnoseResult (P11) — 전체 정의는 app/schemas/diagnose.py
+{
+  "center":{...}, "region":{...}, "radius":1000,
+  "diagnoses":[{"name":"보육시설 수급",
+    "demand":{"item":"유소년인구비율","value":8.3,"national_avg":10.3,"unit":"%","level":"낮음","source_tbl":"...","year":2025},
+    "supply":{"kinds":["어린이집","유치원"],"count":23,"radius":1000,"level":"많음"},
+    "signal":"수요 낮음·공급 많음","note":"...","tag":"참고"}],
+  "source":"kakao+kosis", "base_date":"...", "notes":[]
+}
+
+// CompareResult (P9) — app/schemas/compare.py
+{ "use_type":"주거","radius":1000,"kinds":["어린이집","경로당"],
+  "sites":[{"address":"...","region":{...},"facts":[...],"counts":{"어린이집":21},
+            "diagnoses":[...],"error":null,"notes":[]}],   // 후보지 실패는 error 격리
+  "base_date":"..." }
+
+// AskResult (P10) — app/schemas/ask.py. 답은 동봉된 번들 위에서만 (투명성)
+{ "question":"...","answer":"...","answerable":true,
+  "source":"ai",          // ai(그라운디드) | ai_web(외부폴백) | no_data | ai_unavailable
+  "region":{...},"facts":[...],"counts":{...},"diagnoses":[...],
+  "web_sources":[{"title":"...","url":"..."}], "base_date":"...","notes":[] }
 ```
 
 ### 설정 파일 (외부 JSON, 건축가 편집)
 ```jsonc
-// app/data/matrix.json — 용도별 KOSIS 항목
-{"주거":[{"item":"1인가구비율","tbl_id":"DT_1...","priority":1,"min_resolution":"읍면동","freq":"5년"}]}
+// app/data/matrix.json — 용도별 KOSIS 항목 (kosis 블록 + method + region_scheme)
+//   method: direct | age_share | age_dependency | ratio | unconfirmed
+//   region_scheme: reg(행안부코드, 기본) | census(통계청코드 역추출, §8.6)
+{"주거":[
+  {"item":"고령인구비율","method":"age_share","age_min":65,
+   "kosis":{"orgId":"101","tblId":"DT_1B04005N","itmId":"T2","objL2":"ALL"},
+   "priority":1,"min_resolution":"시군구","freq":"1년","unit":"%"},
+  {"item":"1인가구비율","method":"ratio","region_scheme":"census",
+   "kosis":{"orgId":"101","tblId":"DT_1JC1511","num_itm":"T210","den_itm":"T100","objL2":"000","objL2_pick":"000"},
+   "priority":1,"min_resolution":"시군구","freq":"1년","unit":"%"}
+]}
 
 // app/data/implications.json — 함의 규칙
 [{"when":{"item":"고령인구비율","op":">","vs":"national","margin":5},
   "use_types":["주거","의료","문화"],"then":"무장애 동선·휴게공간 검토","tag":"참고"}]
+
+// app/data/supply_demand.json — P11 수급진단 규칙 (임계값은 JSON, signal 문구는 코드)
+{"rules":[{"name":"보육시설 수급","demand_item":"유소년인구비율",
+  "supply_kinds":["어린이집","유치원"],"demand_margin":1,
+  "supply_low_max":3,"supply_high_min":10,"tag":"참고"}]}
 ```
 
 ---
@@ -161,11 +212,13 @@
 
 ---
 
-## 8. P11 — 수급 진단 (간판 기능, 나중) 메모
+## 8. P11 — 수급 진단 (★간판 기능) 설계 메모 ✅ 완료
 
 A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/과잉한가"를 근거와 함께 제시.
-예: "반경 1km 어린이집 2개 + 영유아가구 비율 전국평균 +8%p → 보육시설 수요 대비 공급 부족(참고)".
+예: "반경 1km 어린이집 2개 + 유소년인구비율 전국평균 대비 높음 → 보육시설 수요 대비 공급 부족(참고)".
 시장에 없는 조합. A·B 둘 다 있어야 가능 → 우리 구조에서만 나온다. 단 '부족/과잉'은 휴리스틱이므로 '참고' 태그 + 판단은 사람.
+
+**구현 완료** — `/diagnose`, `services/diagnose.py`(`cross_rules` 순수로직은 P9·P10 공용), 규칙은 `app/data/supply_demand.json`(임계값), 프론트 C탭. 데이터계약은 §6 DiagnoseResult.
 
 ---
 
