@@ -27,12 +27,16 @@ def build_facility_result(
     kinds: List[str],
     radii: List[int],
     client: Optional[httpx.Client] = None,
+    loc=None,
 ) -> FacilityResult:
-    """입력을 받아 FacilityResult를 구성한다."""
+    """입력을 받아 FacilityResult를 구성한다.
+
+    loc: 이미 해석된 주소(ResolvedAddress)가 있으면 재해석 생략 (P9 비교 — 후보지당 1회).
+    """
     own = client is None
     client = client or httpx.Client(timeout=10.0)
     try:
-        loc = resolve_address(address, client=client)
+        loc = loc or resolve_address(address, client=client)
         clat, clon = loc.lat, loc.lon
 
         radii_sorted = sorted(set(int(r) for r in radii))

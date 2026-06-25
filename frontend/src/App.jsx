@@ -2,6 +2,8 @@ import { useState } from "react";
 import TabA from "./TabA.jsx";
 import TabB from "./TabB.jsx";
 import TabC from "./TabC.jsx";
+import TabD from "./TabD.jsx";
+import TabE from "./TabE.jsx";
 
 export default function App() {
   const [address, setAddress] = useState("");
@@ -21,8 +23,8 @@ export default function App() {
           </p>
         </header>
 
-        {/* 주소 입력 (공통) */}
-        <div className="mb-5">
+        {/* 주소 입력 (공통 — 비교 탭은 자체 다중입력 사용) */}
+        <div className={`mb-5 ${tab === "D" ? "hidden" : ""}`}>
           <label className="block text-sm text-slate-500 mb-1">대지 주소</label>
           <input
             value={address}
@@ -38,6 +40,8 @@ export default function App() {
             ["A", "지역 통계"],
             ["B", "주변 시설"],
             ["C", "수급진단"],
+            ["D", "후보지 비교"],
+            ["E", "물어보기"],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -58,6 +62,12 @@ export default function App() {
         </div>
         <div className={tab === "C" ? "" : "hidden"}>
           <TabC address={address} />
+        </div>
+        <div className={tab === "D" ? "" : "hidden"}>
+          <TabD />
+        </div>
+        <div className={tab === "E" ? "" : "hidden"}>
+          <TabE address={address} />
         </div>
 
         <footer className="mt-10 text-xs text-slate-400">

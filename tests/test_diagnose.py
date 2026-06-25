@@ -52,7 +52,7 @@ def _fake_facts(*_a, **_k):
     return facts, [], 2025
 
 
-def _fake_facility_result(address, kinds, radii, client=None):
+def _fake_facility_result(address, kinds, radii, client=None, loc=None):
     return FacilityResult(
         center=Center(lat=37.52, lon=126.92, address="서울 영등포구 (모의)"),
         results=[],

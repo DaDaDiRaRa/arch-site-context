@@ -41,3 +41,9 @@ export const facilitiesMap = (address, kinds, radii, basemap = "vworld") =>
 
 export const diagnose = (address, radius) =>
   post("/diagnose", { address, radius });
+
+export const compare = (addresses, use_type, radius, kinds) =>
+  post("/compare", { addresses, use_type, radius, kinds });
+
+export const ask = (address, question, use_type, radius, kinds, web = false) =>
+  post("/ask", { address, question, use_type, radius, kinds, web });

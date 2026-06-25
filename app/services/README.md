@@ -16,7 +16,9 @@
 | `kosis.py` | A | `fetch_stats` KOSIS 조회 + 캐시 | ⬜ P5 |
 | `implications.py` | A | `derive_implications` implications.json 규칙 | ⬜ P4 |
 | `narrative.py` | A | `compose_narrative` Claude 1회 + 규칙 폴백 | ⬜ P6 |
-| `diagnose.py` | P11 | `build_diagnosis` 수급진단 — A수요(stats)×B공급(facilities) 교차, supply_demand.json 규칙 | ✅ P11 |
+| `diagnose.py` | P11 | `build_diagnosis` 수급진단 — A수요(stats)×B공급(facilities) 교차, supply_demand.json 규칙. `cross_rules`는 P9 공용 | ✅ P11 |
+| `compare.py` | P9 | `build_comparison` 여러 후보지 A·B·P11 나란히 (후보지당 resolve·시설검색 1회, 실패 격리). `gather_bundle`은 P10 공용 | ✅ P9 |
+| `ask.py` | P10 | `build_answer` 물어보기 — 번들(A·B·P11) 위에서만 그라운디드 답변, 확인불가 하드블록, web=True 시 내장 web_search 폴백(외부·참고) | ✅ P10 |
 
 원칙: 값은 실제 API에서 추출, 숫자는 코드/규칙, 데이터 밖이면 '확인 불가'로 멈춤.
 

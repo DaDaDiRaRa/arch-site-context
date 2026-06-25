@@ -6,6 +6,8 @@
 from .facility import FacilityRequest, FacilityResult, MapRequest
 from .region import AnalyzeRequest, RegionStat
 from .diagnose import DiagnoseRequest, DiagnoseResult
+from .compare import CompareRequest, CompareResult
+from .ask import AskRequest, AskResult
 from .errors import ErrorBlock
 
 __all__ = [
@@ -16,5 +18,9 @@ __all__ = [
     "RegionStat",
     "DiagnoseRequest",
     "DiagnoseResult",
+    "CompareRequest",
+    "CompareResult",
+    "AskRequest",
+    "AskResult",
     "ErrorBlock",
 ]
