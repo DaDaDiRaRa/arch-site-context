@@ -2,6 +2,10 @@
 
 facts는 코드가 만든다 (절대 원칙 2). 좌표·거리·집계 전부 코드 계산, WGS84.
 0건도 정상 (빈 배열 + 0). 데이터로 답 못하면 멈추지만, '결과 없음'은 유효한 답.
+
+P12: OSM Overpass 보완 — 카카오 누락 공공시설(경로당·도서관 등) 보완.
+     OSM 매핑 없는 시설(식당·카페 등)은 카카오만 사용 (OSM이 더 불완전).
+     오류 시 graceful — 카카오 결과만 반환, notes에 기록.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import httpx
 from app.schemas.facility import Center, Facility, FacilityResult
 from app.services import kakao
 from app.services.geo import bbox, haversine_m, radius_band
+from app.services.osm import KIND_TO_OSM, search_osm
 from app.services.resolve import resolve_address
 
 
@@ -49,6 +54,7 @@ def build_facility_result(
         results: List[Facility] = []
         notes: List[str] = list(loc.notes)
 
+        # ── 카카오 검색 ─────────────────────────────────────────────────────
         for kind in kinds:
             res = kakao.search_keyword_complete(kind, bbox_rect, client=client)
             for d in res["docs"]:
@@ -58,7 +64,6 @@ def build_facility_result(
                 dist = haversine_m(clat, clon, d["lat"], d["lon"])
                 band = radius_band(dist, radii_sorted)
                 if band is None:
-                    # 사각형 모서리 등 최대 반경 밖 → 제외 (원형 반경으로 정확히 자름)
                     continue
                 seen.add(key)
                 results.append(
@@ -69,12 +74,45 @@ def build_facility_result(
                         lon=d["lon"],
                         dist_m=round(dist),
                         radius_band=band,
+                        src="kakao",
                     )
                 )
             if res["capped"]:
                 notes.append(
                     f"'{kind}': 일부 영역이 카카오 검색 상한에 도달해 누락 가능 (참고)."
                 )
+
+        # ── OSM Overpass 보완 (공공시설 위주) ──────────────────────────────
+        osm_kinds = [k for k in kinds if k in KIND_TO_OSM]
+        osm_contributed = False
+        if osm_kinds:
+            try:
+                osm_results = search_osm(clat, clon, max_radius, osm_kinds, client=client)
+                for d in osm_results:
+                    key = _dedup_key(d["name"], d["lat"], d["lon"])
+                    if key in seen:
+                        continue
+                    dist = haversine_m(clat, clon, d["lat"], d["lon"])
+                    band = radius_band(dist, radii_sorted)
+                    if band is None:
+                        continue
+                    seen.add(key)
+                    osm_contributed = True
+                    results.append(
+                        Facility(
+                            kind=d["kind"],
+                            name=d["name"],
+                            lat=d["lat"],
+                            lon=d["lon"],
+                            dist_m=round(dist),
+                            radius_band=band,
+                            src="osm",
+                        )
+                    )
+                if osm_contributed:
+                    notes.append("OSM Overpass 보완 데이터 포함 (공공시설 — 카카오 미수록 건).")
+            except Exception as e:
+                notes.append(f"OSM 보완 실패 ({type(e).__name__}) — 카카오 결과만 사용.")
 
         results.sort(key=lambda f: f.dist_m)
 
@@ -87,11 +125,13 @@ def build_facility_result(
                     per_kind[f.kind] = per_kind.get(f.kind, 0) + 1
             counts[str(r)] = per_kind
 
+        source = "kakao+osm" if osm_contributed else "kakao"
+
         return FacilityResult(
             center=Center(lat=clat, lon=clon, address=loc.address),
             results=results,
             counts=counts,
-            source="kakao",
+            source=source,
             base_date=date.today().isoformat(),
             notes=notes,
         )

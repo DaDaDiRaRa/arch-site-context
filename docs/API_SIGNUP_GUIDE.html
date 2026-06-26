@@ -1,0 +1,984 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>터읽기 — API 신청 가이드</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3250;
+    --text: #e2e4ef;
+    --muted: #8b90b0;
+    --accent: #6c8bff;
+    --accent2: #4ecca3;
+    --star3: #ffd700;
+    --star2: #a0c4ff;
+    --star1: #6b7db0;
+    --tag-new: #2d6a4f;
+    --tag-new-text: #74c69d;
+    --tag-warn: #7b4b00;
+    --tag-warn-text: #ffd166;
+    --tag-paid: #5a2d82;
+    --tag-paid-text: #c77dff;
+    --tag-check: #1a3a5c;
+    --tag-check-text: #90c4ff;
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .wrapper {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .page-header {
+    border-left: 4px solid var(--accent);
+    padding: 24px 28px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    margin-bottom: 32px;
+  }
+  .page-header h1 { font-size: 24px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .page-header .subtitle { color: var(--muted); font-size: 14px; }
+
+  /* Summary cards */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 14px;
+    margin-bottom: 40px;
+  }
+  .summary-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.2s;
+  }
+  .summary-card:hover { border-color: var(--accent); }
+  .summary-card .portal-name { font-weight: 600; font-size: 14px; color: #fff; }
+  .summary-card .portal-url { font-size: 12px; color: var(--accent); }
+  .summary-card .portal-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+  .count-badge {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 20px;
+    padding: 1px 9px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  /* Priority legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 28px;
+    padding: 14px 18px;
+    background: var(--surface);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+
+  /* Sections */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+    overflow: hidden;
+  }
+  .section-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .section-header:hover { background: var(--surface2); }
+  .section-num {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .section-title-wrap { flex: 1; }
+  .section-title { font-size: 17px; font-weight: 700; color: #fff; }
+  .section-url { font-size: 12px; color: var(--accent); margin-top: 2px; }
+  .section-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .chevron {
+    color: var(--muted);
+    font-size: 18px;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .section.open .chevron { transform: rotate(180deg); }
+
+  .section-body { display: none; padding: 20px 22px; }
+  .section.open .section-body { display: block; }
+
+  /* How-to steps */
+  .how-to {
+    background: var(--surface2);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    margin-bottom: 18px;
+  }
+  .how-to h4 { font-size: 13px; color: var(--muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .steps { list-style: none; counter-reset: step; display: flex; flex-direction: column; gap: 8px; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .steps li::before {
+    content: counter(step);
+    background: var(--border);
+    color: var(--accent);
+    border-radius: 50%;
+    min-width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* Note box */
+  .note {
+    background: var(--tag-check);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--tag-check-text);
+    margin-bottom: 16px;
+  }
+  .note strong { color: #fff; }
+
+  /* Sub-sections */
+  .sub-section { margin-bottom: 20px; }
+  .sub-section h4 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent2);
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* Tables */
+  .api-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .api-table th {
+    background: var(--surface2);
+    color: var(--muted);
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .api-table td {
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  .api-table tr:last-child td { border-bottom: none; }
+  .api-table tr:hover td { background: var(--surface2); }
+
+  .num-cell { color: var(--muted); font-size: 12px; }
+  .data-cell { color: var(--text); font-weight: 500; }
+  .note-cell { color: var(--muted); font-size: 12px; }
+
+  /* Tags */
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .tag-p12 { background: #1a3a1a; color: var(--star3); }
+  .tag-p13 { background: #1a2a4a; color: var(--star2); }
+  .tag-p15 { background: #25253a; color: var(--star1); }
+  .tag-warn { background: var(--tag-warn); color: var(--tag-warn-text); }
+  .tag-key { background: var(--tag-new); color: var(--tag-new-text); }
+
+  /* Roadmap */
+  .roadmap { display: flex; flex-direction: column; gap: 16px; }
+  .roadmap-phase {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .roadmap-phase-header {
+    padding: 12px 16px;
+    font-weight: 700;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .roadmap-phase.p12 .roadmap-phase-header { background: #1a2a0a; color: var(--star3); }
+  .roadmap-phase.p13 .roadmap-phase-header { background: #0e1a35; color: var(--star2); }
+  .roadmap-phase.p15 .roadmap-phase-header { background: #1a1a2a; color: var(--star1); }
+  .roadmap-items { padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .roadmap-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13.5px;
+  }
+  .checkbox {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+    flex-shrink: 0;
+    margin-top: 3px;
+  }
+
+  /* Tips */
+  .tips-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .tip-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+    font-size: 13.5px;
+  }
+  .tip-card .tip-icon { font-size: 18px; margin-bottom: 6px; }
+  .tip-card .tip-title { font-weight: 600; color: #fff; margin-bottom: 4px; font-size: 14px; }
+  .tip-card .tip-body { color: var(--muted); }
+
+  /* Footer */
+  .page-footer {
+    margin-top: 48px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .summary-grid { grid-template-columns: 1fr; }
+    .tips-grid { grid-template-columns: 1fr; }
+    .api-table { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <!-- Header -->
+  <div class="page-header">
+    <h1>터읽기 — API 신청 가이드</h1>
+    <p class="subtitle">
+      <code>API_MASTER_LIST.md</code> 기준 🔑 새 키 발급 필요 항목 전체 정리 &nbsp;|&nbsp;
+      포털별로 묶어 최소 방문으로 최대 커버리지
+    </p>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <span style="color:#fff; font-weight:600; font-size:13px;">우선순위:</span>
+    <span class="legend-item"><span class="tag tag-p12">★★★</span> P12 바로 필요</span>
+    <span class="legend-item"><span class="tag tag-p13">★★</span> P13–14</span>
+    <span class="legend-item"><span class="tag tag-p15">★</span> P15 이후</span>
+    <span class="legend-item"><span class="tag tag-warn">⚠️</span> 형태 확인 필요</span>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="summary-grid">
+    <div class="summary-card">
+      <div class="portal-name">1. 공공데이터포털</div>
+      <div class="portal-url">data.go.kr</div>
+      <div class="portal-count"><span class="count-badge">~37개</span> 1회 가입으로 처리 가능</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">2. 기상청 기상자료개방포털</div>
+      <div class="portal-url">data.kma.go.kr</div>
+      <div class="portal-count"><span class="count-badge">5개</span> 기상 전용 포털</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">3. 한국부동산원 R-ONE</div>
+      <div class="portal-url">reb.or.kr / r-one.co.kr</div>
+      <div class="portal-count"><span class="count-badge">3개</span> 부동산 전용</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">4. HIRA 개방포털</div>
+      <div class="portal-url">opendata.hira.or.kr</div>
+      <div class="portal-count"><span class="count-badge">2개</span> 의료기관·약국</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">5. 서울 열린데이터광장</div>
+      <div class="portal-url">data.seoul.go.kr</div>
+      <div class="portal-count"><span class="count-badge">2개</span> 생활인구·지하철</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">6. 도서관정보나루</div>
+      <div class="portal-url">data4library.kr</div>
+      <div class="portal-count"><span class="count-badge">1개</span> 즉시 발급</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">7. 소상공인마당 (소진공)</div>
+      <div class="portal-url">sg.sbiz.or.kr</div>
+      <div class="portal-count"><span class="count-badge">2개</span> 상권분석·빈상가</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">8. 국가교통데이터포털</div>
+      <div class="portal-url">ntis.go.kr</div>
+      <div class="portal-count"><span class="count-badge">1개</span> 교통량</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">9. 도로교통공단 TAAS</div>
+      <div class="portal-url">taas.koroad.or.kr</div>
+      <div class="portal-count"><span class="count-badge">1개</span> 교통사고</div>
+    </div>
+    <div class="summary-card">
+      <div class="portal-name">10. T map Developers (SKT)</div>
+      <div class="portal-url">openapi.sk.com</div>
+      <div class="portal-count"><span class="count-badge">1개</span> 대중교통 경로</div>
+    </div>
+  </div>
+
+  <!-- Section 1: data.go.kr -->
+  <div class="section open" id="sec1">
+    <div class="section-header" onclick="toggle('sec1')">
+      <div class="section-num">1</div>
+      <div class="section-title-wrap">
+        <div class="section-title">공공데이터포털 <span style="font-weight:400;color:var(--muted);">— 가장 많은 API, 1회 가입</span></div>
+        <div class="section-url">https://www.data.go.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p12">★★★ P12</span>
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-p15">★ P15</span>
+          <span class="tag tag-key">약 37개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://www.data.go.kr</strong> 접속 → 우상단 [회원가입] 클릭</li>
+          <li>개인 / 기관 선택 → 이메일 인증 완료</li>
+          <li>원하는 데이터셋 검색 → [활용신청] 버튼 클릭</li>
+          <li>활용목적 기재 → 자동 즉시 승인 또는 1~3 영업일 심사</li>
+          <li>[마이페이지] → 개발계정 → <code>serviceKey</code> 확인</li>
+          <li>운영 전환: [마이페이지] → [운영계정 전환 신청]으로 트래픽 상향</li>
+        </ol>
+      </div>
+      <div class="note">
+        ⚠️ <strong>키는 1개 공용</strong>이지만, 데이터셋마다 개별 <strong>[활용신청]</strong>을 따로 해야 사용 가능.
+      </div>
+
+      <!-- 1-1 도시계획 -->
+      <div class="sub-section">
+        <h4>1-1. 건축·도시계획 <span class="tag tag-p12">★★★ P12 바로 필요</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="num-cell">50</td>
+              <td class="data-cell">토지이용규제 (용도지역·지구·구역)</td>
+              <td class="note-cell">토지이용규제정보서비스 LURIS</td>
+              <td class="note-cell">luris.go.kr에서도 직접 신청 가능</td>
+            </tr>
+            <tr>
+              <td class="num-cell">51</td>
+              <td class="data-cell">도시계획시설 결정 현황</td>
+              <td class="note-cell">도시계획정보서비스 UPIS</td>
+              <td class="note-cell">upis.go.kr 별도 연동 가능</td>
+            </tr>
+            <tr>
+              <td class="num-cell">52</td>
+              <td class="data-cell">도시계획도로 현황</td>
+              <td class="note-cell">도시계획도로 결정현황</td>
+              <td class="note-cell">결정 vs 미개설 구분</td>
+            </tr>
+            <tr>
+              <td class="num-cell">61</td>
+              <td class="data-cell">역세권 개발사업 현황</td>
+              <td class="note-cell">역세권 개발사업</td>
+              <td class="note-cell"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-2 문화재 -->
+      <div class="sub-section">
+        <h4>1-2. 문화재청 <span class="tag tag-p12">★★★ P12 바로 필요</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">75</td><td class="data-cell">문화재 보호구역</td><td class="note-cell">문화재공간정보서비스</td><td class="note-cell">cha.go.kr에서도 신청 가능</td></tr>
+            <tr><td class="num-cell">76</td><td class="data-cell">역사문화환경 보존지역 경계</td><td class="note-cell">역사문화환경 보존지역</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">77</td><td class="data-cell">매장문화재 유존지역</td><td class="note-cell">매장문화재 유존지역</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">78</td><td class="data-cell">근현대건축 등록문화재</td><td class="note-cell">등록문화재 현황</td><td class="note-cell"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-3 환경 -->
+      <div class="sub-section">
+        <h4>1-3. 환경부 <span class="tag tag-p12">★★★ P12 바로 필요</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">87</td><td class="data-cell">소음지도 (도로·철도변 등급)</td><td class="note-cell">국가소음정보시스템 소음지도</td><td class="note-cell">egis.me.go.kr에서도 GIS 제공</td></tr>
+            <tr><td class="num-cell">88</td><td class="data-cell">토양오염 현황</td><td class="note-cell">토양환경정보시스템 토양오염</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">89</td><td class="data-cell">생태자연도 (개발제한 등급)</td><td class="note-cell">생태자연도 등급</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">91</td><td class="data-cell">수질 정보</td><td class="note-cell">물환경정보시스템 수질</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">93</td><td class="data-cell">환경오염물질 배출 현황</td><td class="note-cell">환경부 PRTR 화학물질배출이동량</td><td class="note-cell"></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-4 소방 -->
+      <div class="sub-section">
+        <h4>1-4. 소방청 <span class="tag tag-p13">★★ P13–14</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">83</td><td class="data-cell">위험물 저장·취급 시설 현황</td><td class="note-cell">위험물 저장시설 현황</td></tr>
+            <tr><td class="num-cell">114</td><td class="data-cell">소방서 위치·출동 시간</td><td class="note-cell">119소방서 위치정보</td></tr>
+            <tr><td class="num-cell">150</td><td class="data-cell">소방서 위치</td><td class="note-cell">소방관서 위치</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-5 원안위 -->
+      <div class="sub-section">
+        <h4>1-5. 원자력안전위원회 <span class="tag tag-p13">★★ P13–14</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">84</td><td class="data-cell">방사선 이용시설 현황</td><td class="note-cell">방사선 이용시설 현황</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-6 교육 -->
+      <div class="sub-section">
+        <h4>1-6. 교육 <span class="tag tag-p13">★★ P13–14</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">117</td><td class="data-cell">학교 현황 (학생수·학급수)</td><td class="note-cell">학교기본정보 NEIS</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">119</td><td class="data-cell">유치원 현황 (정원·현원)</td><td class="note-cell">유치원알리미 유치원 현황</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">120</td><td class="data-cell">교원 1인당 학생 수</td><td class="note-cell">KEDI 교육통계 교원학생비율</td><td class="note-cell"></td></tr>
+            <tr><td class="num-cell">121</td><td class="data-cell">평생교육기관</td><td class="note-cell">평생교육기관 현황</td><td class="note-cell"><span class="tag tag-warn">⚠️ 품질 불균일</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-7 의료복지 -->
+      <div class="sub-section">
+        <h4>1-7. 의료·복지 <span class="tag tag-p13">★★ P13–14</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">125</td><td class="data-cell">응급의료기관 위치·정보</td><td class="note-cell">응급의료기관 현황 E-GEN</td></tr>
+            <tr><td class="num-cell">126</td><td class="data-cell">어린이집·요양원 공식 현황</td><td class="note-cell">보육통합정보시스템 어린이집</td></tr>
+            <tr><td class="num-cell">127</td><td class="data-cell">아동복지시설</td><td class="note-cell">아동복지시설 현황</td></tr>
+            <tr><td class="num-cell">128</td><td class="data-cell">사회복지관 현황</td><td class="note-cell">사회복지시설 현황</td></tr>
+            <tr><td class="num-cell">129</td><td class="data-cell">지역사회 건강통계</td><td class="note-cell">국민건강보험공단 건강통계</td></tr>
+            <tr><td class="num-cell">131</td><td class="data-cell">감염병 발생 현황</td><td class="note-cell">질병관리청 감염병 발생통계</td></tr>
+            <tr><td class="num-cell">132</td><td class="data-cell">예방접종률</td><td class="note-cell">질병관리청 예방접종 현황</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-8 문화여가 -->
+      <div class="sub-section">
+        <h4>1-8. 문화·여가 <span class="tag tag-p15">★ P15 이후</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">134</td><td class="data-cell">문화시설·공연·전시</td><td class="note-cell">문화체육관광부 문화시설 현황</td><td></td></tr>
+            <tr><td class="num-cell">135</td><td class="data-cell">체육시설</td><td class="note-cell">체육시설업 현황</td><td></td></tr>
+            <tr><td class="num-cell">136</td><td class="data-cell">관광지 현황</td><td class="note-cell">한국관광공사 TourAPI 관광지정보</td><td></td></tr>
+            <tr><td class="num-cell">139</td><td class="data-cell">등산로 현황</td><td class="note-cell">산림청 등산로 현황</td><td></td></tr>
+            <tr><td class="num-cell">140</td><td class="data-cell">국공립공원</td><td class="note-cell">국립공원공단 공원정보</td><td><span class="tag tag-warn">⚠️ 확인 필요</span></td></tr>
+            <tr><td class="num-cell">141</td><td class="data-cell">해수욕장</td><td class="note-cell">해양수산부 해수욕장 현황</td><td><span class="tag tag-warn">⚠️ 확인 필요</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-9 에너지 -->
+      <div class="sub-section">
+        <h4>1-9. 에너지·인프라 <span class="tag tag-p15">★ P15 이후</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">142</td><td class="data-cell">전력 소비량 패턴</td><td class="note-cell">한국전력공사 전력빅데이터 OPEN API</td></tr>
+            <tr><td class="num-cell">143</td><td class="data-cell">도시가스 공급 현황</td><td class="note-cell">한국가스공사 도시가스 공급 현황</td></tr>
+            <tr><td class="num-cell">145</td><td class="data-cell">5G 통신 커버리지</td><td class="note-cell">과학기술정보통신부 5G 커버리지</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 1-10 교통·지형 -->
+      <div class="sub-section">
+        <h4>1-10. 교통·지형 <span class="tag tag-p13">★★ P13–14</span></h4>
+        <table class="api-table">
+          <thead><tr><th>#</th><th>데이터</th><th>검색 키워드</th><th>비고</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">116</td><td class="data-cell">산업단지·공장 현황</td><td class="note-cell">산업단지공단 산업단지현황</td><td></td></tr>
+            <tr><td class="num-cell">157</td><td class="data-cell">지형 고도 DEM (경사도·향)</td><td class="note-cell">국토지리정보원 수치표고모델</td><td>map.ngii.go.kr도 가능. 래스터 형태 확인 필요</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Section 2: 기상청 -->
+  <div class="section" id="sec2">
+    <div class="section-header" onclick="toggle('sec2')">
+      <div class="section-num">2</div>
+      <div class="section-title-wrap">
+        <div class="section-title">기상청 기상자료개방포털</div>
+        <div class="section-url">https://data.kma.go.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-key">5개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://data.kma.go.kr</strong> 접속 (data.go.kr와 <strong>별개</strong>)</li>
+          <li>우상단 [회원가입] → 이메일 인증</li>
+          <li>[자료] 메뉴 → 원하는 서비스 선택 → [활용신청]</li>
+          <li>목적 기재 → 심사 (1~2 영업일)</li>
+          <li>[마이페이지] → API Key 확인</li>
+        </ol>
+      </div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th><th>서비스명</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">97</td><td class="data-cell">동네예보 (현재 날씨)</td><td class="note-cell">단기예보 조회 서비스</td><td class="note-cell">별도 신청</td></tr>
+          <tr><td class="num-cell">98</td><td class="data-cell">기후 통계 (연간 강수·기온 평균)</td><td class="note-cell">기후 통계분석 서비스</td><td class="note-cell">98~101 묶어 신청 가능</td></tr>
+          <tr><td class="num-cell">99</td><td class="data-cell">일사량·일조시간</td><td class="note-cell">지상 기후 관측자료 서비스</td><td class="note-cell"></td></tr>
+          <tr><td class="num-cell">100</td><td class="data-cell">바람장미 (주풍향·풍속)</td><td class="note-cell">지상 기후 관측자료 서비스</td><td class="note-cell"></td></tr>
+          <tr><td class="num-cell">101</td><td class="data-cell">폭염·한파 일수 (연간)</td><td class="note-cell">특보 / 기후 통계 서비스</td><td class="note-cell"></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 3: 부동산원 -->
+  <div class="section" id="sec3">
+    <div class="section-header" onclick="toggle('sec3')">
+      <div class="section-num">3</div>
+      <div class="section-title-wrap">
+        <div class="section-title">한국부동산원 R-ONE</div>
+        <div class="section-url">https://www.reb.or.kr &nbsp;또는&nbsp; https://r-one.co.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-key">3개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://www.reb.or.kr</strong> → R-ONE 부동산통계 메뉴, 또는 <strong>https://r-one.co.kr</strong> 직접 접속</li>
+          <li>[오픈API] 또는 [데이터 서비스] 메뉴 → 회원가입</li>
+          <li>활용신청 → 기관/용도 기재 → 심사 (3~5 영업일)</li>
+          <li>승인 후 API Key 이메일 수령</li>
+        </ol>
+      </div>
+      <div class="note">⚠️ 상업적 이용 시 별도 계약 필요할 수 있음. 신청 시 <strong>"연구·개발 목적"</strong> 명시 권장.</div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">39</td><td class="data-cell">상업용 부동산 임대료·공실률</td><td class="note-cell">분기별, 상권 단위 제공</td></tr>
+          <tr><td class="num-cell">40</td><td class="data-cell">지가변동률</td><td class="note-cell">시군구 단위</td></tr>
+          <tr><td class="num-cell">41</td><td class="data-cell">주택매매가격지수·전세가율</td><td class="note-cell">시군구 단위</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 4: HIRA -->
+  <div class="section" id="sec4">
+    <div class="section-header" onclick="toggle('sec4')">
+      <div class="section-num">4</div>
+      <div class="section-title-wrap">
+        <div class="section-title">HIRA 개방포털 (건강보험심사평가원)</div>
+        <div class="section-url">https://opendata.hira.or.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-key">2개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://opendata.hira.or.kr</strong> 접속 (data.go.kr와 <strong>별개</strong>)</li>
+          <li>[회원가입] → 이메일 인증</li>
+          <li>[오픈API] → 원하는 서비스 → [활용신청]</li>
+          <li>심사 (1~3 영업일) → 마이페이지에서 Key 확인</li>
+        </ol>
+      </div>
+      <div class="note">HIRA 포털에서 직접 신청 시 data.go.kr 연동보다 <strong>상세 필드 더 많이 제공</strong>됨.</div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th><th>서비스명</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">123</td><td class="data-cell">의료기관 (병상 수·진료과목 포함)</td><td class="note-cell">병원정보서비스</td></tr>
+          <tr><td class="num-cell">124</td><td class="data-cell">약국 현황</td><td class="note-cell">약국정보서비스</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 5: 서울 열린데이터 -->
+  <div class="section" id="sec5">
+    <div class="section-header" onclick="toggle('sec5')">
+      <div class="section-num">5</div>
+      <div class="section-title-wrap">
+        <div class="section-title">서울 열린데이터광장</div>
+        <div class="section-url">https://data.seoul.go.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p15">★ P15 이후</span>
+          <span class="tag tag-key">2개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://data.seoul.go.kr</strong> 접속</li>
+          <li>[회원가입] → 서울시 통합회원 연동 가능</li>
+          <li>검색: '생활인구' 또는 '지하철 혼잡도' → 데이터셋 → [Open API] 탭 → [인증키 신청]</li>
+          <li>즉시 발급 또는 1~2 영업일</li>
+        </ol>
+      </div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">22</td><td class="data-cell">생활인구 (실제 체류 인구, 서울)</td><td class="note-cell">서울 한정. 전국은 통신사 유료 계약 필요 💰</td></tr>
+          <tr><td class="num-cell">105</td><td class="data-cell">지하철 혼잡도 (시간대별)</td><td class="note-cell"><span class="tag tag-warn">⚠️ 수도권 한정</span> 서울교통공사 운영</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 6: 도서관정보나루 -->
+  <div class="section" id="sec6">
+    <div class="section-header" onclick="toggle('sec6')">
+      <div class="section-num">6</div>
+      <div class="section-title-wrap">
+        <div class="section-title">도서관정보나루</div>
+        <div class="section-url">https://www.data4library.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p15">★ P15 이후</span>
+          <span class="tag tag-key">1개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://www.data4library.kr</strong> 접속</li>
+          <li>[Open API] 메뉴 → [회원가입]</li>
+          <li>[인증키 신청] → <strong>즉시 발급</strong></li>
+        </ol>
+      </div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">122</td><td class="data-cell">도서관 정보 (위치·운영시간·장서 수)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 7: 소상공인마당 -->
+  <div class="section" id="sec7">
+    <div class="section-header" onclick="toggle('sec7')">
+      <div class="section-num">7</div>
+      <div class="section-title-wrap">
+        <div class="section-title">소상공인마당 (소진공 상권정보시스템)</div>
+        <div class="section-url">https://sg.sbiz.or.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p12">★★★ P12 바로 필요</span>
+          <span class="tag tag-key">2개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://sg.sbiz.or.kr</strong> 접속 (소상공인 상권정보 시스템)</li>
+          <li>[오픈API 안내] 메뉴 → 회원가입 → 활용신청</li>
+          <li>또는 <strong>data.go.kr</strong>에서 "소상공인마당 상권분석" 검색 후 신청도 가능</li>
+        </ol>
+      </div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">29</td><td class="data-cell">상권분석 (매출·점포수·폐업률·창업률)</td><td class="note-cell">시군구·행정동 단위 제공</td></tr>
+          <tr><td class="num-cell">30</td><td class="data-cell">빈상가 현황</td><td class="note-cell">상가 공실 현황</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 8: NTIS -->
+  <div class="section" id="sec8">
+    <div class="section-header" onclick="toggle('sec8')">
+      <div class="section-num">8</div>
+      <div class="section-title-wrap">
+        <div class="section-title">국가교통데이터포털 (NTIS)</div>
+        <div class="section-url">https://www.ntis.go.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-key">1개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://www.ntis.go.kr</strong> 접속</li>
+          <li>[회원가입] → [Open API] 메뉴</li>
+          <li>원하는 서비스 선택 → 활용신청 → 심사 (1~3 영업일)</li>
+        </ol>
+      </div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">106</td><td class="data-cell">교통량 현황 (도로별 시간대 통행량)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 9: TAAS -->
+  <div class="section" id="sec9">
+    <div class="section-header" onclick="toggle('sec9')">
+      <div class="section-num">9</div>
+      <div class="section-title-wrap">
+        <div class="section-title">도로교통공단 TAAS</div>
+        <div class="section-url">https://taas.koroad.or.kr</div>
+        <div class="section-meta">
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-key">1개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://taas.koroad.or.kr</strong> 접속</li>
+          <li>[Open API] → [회원가입] → 활용신청</li>
+          <li>또는 data.go.kr에서 "도로교통공단 교통사고 분석" 검색</li>
+        </ol>
+      </div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">107</td><td class="data-cell">교통사고 다발지점·사고 현황</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 10: Tmap -->
+  <div class="section" id="sec10">
+    <div class="section-header" onclick="toggle('sec10')">
+      <div class="section-num">10</div>
+      <div class="section-title-wrap">
+        <div class="section-title">T map Developers (SKT)</div>
+        <div class="section-url">https://openapi.sk.com</div>
+        <div class="section-meta">
+          <span class="tag tag-p13">★★ P13–14</span>
+          <span class="tag tag-key">1개</span>
+        </div>
+      </div>
+      <div class="chevron">▼</div>
+    </div>
+    <div class="section-body">
+      <div class="how-to">
+        <h4>신청 방법</h4>
+        <ol class="steps">
+          <li><strong>https://openapi.sk.com</strong> 또는 T map Developers 사이트 접속</li>
+          <li>SKT 개발자 계정 생성 (이메일 가입 가능)</li>
+          <li>[프로젝트 생성] → App Key 발급</li>
+          <li>무료 플랜: 일 10,000건. 초과 시 유료 전환 필요</li>
+        </ol>
+      </div>
+      <div class="note">카카오모빌리티도 대안 가능 — <strong>카카오 개발자 콘솔</strong>(developers.kakao.com)에서 기존 카카오 앱에 모빌리티 API 추가 신청.</div>
+      <table class="api-table">
+        <thead><tr><th>#</th><th>데이터</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td class="num-cell">103</td><td class="data-cell">대중교통 이동시간 (경로 탐색)</td><td class="note-cell">T map 또는 카카오모빌리티 선택</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Roadmap -->
+  <h2 style="margin: 40px 0 16px; font-size:18px; font-weight:700;">신청 우선순위 로드맵</h2>
+  <div class="roadmap">
+    <div class="roadmap-phase p12">
+      <div class="roadmap-phase-header">★★★ P12 착수 전 — 즉시 신청</div>
+      <div class="roadmap-items">
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr 가입</strong> (1회) → 토지이용규제 LURIS (#50, 51, 52) 활용신청</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr</strong> → 문화재청 4종 (#75, 76, 77, 78) 활용신청</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr</strong> → 환경부 소음지도·토양오염·생태자연도 (#87, 88, 89) 활용신청</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>sg.sbiz.or.kr</strong> → 소상공인 상권분석·빈상가 (#29, 30) 신청</div></div>
+      </div>
+    </div>
+    <div class="roadmap-phase p13">
+      <div class="roadmap-phase-header">★★ P13–14 착수 전</div>
+      <div class="roadmap-items">
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.kma.go.kr</strong> 가입 → 기상 5종 (#97~101)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>r-one.co.kr</strong> 가입 → 부동산원 3종 (#39, 40, 41)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>opendata.hira.or.kr</strong> 가입 → 의료기관·약국 (#123, 124)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr</strong> 추가 → 교육 4종 (#117, 119, 120, 121)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr</strong> 추가 → 복지·의료 7종 (#125~129, 131, 132)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr</strong> 추가 → 소방·방재 3종 (#83, 84, 114)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>ntis.go.kr / taas.koroad.or.kr</strong> → 교통량·사고 (#106, 107)</div></div>
+      </div>
+    </div>
+    <div class="roadmap-phase p15">
+      <div class="roadmap-phase-header">★ P15 이후</div>
+      <div class="roadmap-items">
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>openapi.sk.com</strong> → T map 대중교통 (#103)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.seoul.go.kr</strong> → 생활인구·지하철 혼잡도 (#22, 105)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data4library.kr</strong> → 도서관 (#122)</div></div>
+        <div class="roadmap-item"><div class="checkbox"></div><div><strong>data.go.kr</strong> → 문화·여가·에너지 (#134~143, 145)</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tips -->
+  <h2 style="margin: 40px 0 16px; font-size:18px; font-weight:700;">신청 시 공통 팁</h2>
+  <div class="tips-grid">
+    <div class="tip-card">
+      <div class="tip-icon">📝</div>
+      <div class="tip-title">활용목적 문구</div>
+      <div class="tip-body">"건축 대지 분석 연구 개발 목적. 비상업용." 으로 통일하면 심사 통과가 빠름. 거절 시 구체적 활용 시나리오 재작성 후 재신청.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">🔐</div>
+      <div class="tip-title">키 저장</div>
+      <div class="tip-body"><code>.env</code>에 <code>{서비스명}_KEY</code> 형태로 추가. <strong>절대 커밋 금지.</strong> Cloud Run 배포 시 GCP Secret Manager에도 등록 필요.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">📊</div>
+      <div class="tip-title">트래픽 한도</div>
+      <div class="tip-body">개발계정은 1,000~10,000건/일 제한. 운영 전 <strong>운영계정 전환 신청</strong> 필수. data.go.kr 기준 자동 전환 메뉴 있음.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">⚠️</div>
+      <div class="tip-title">⚠️ 형태 불확실 항목</div>
+      <div class="tip-body">⚠️ 표시 항목은 신청 전 포털에서 <strong>샘플 응답 확인 후</strong> 진행 권장. 일부는 래스터(GeoTIFF) 형태만 존재.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">🗂️</div>
+      <div class="tip-title">키 1개, 신청은 여러 개</div>
+      <div class="tip-body">data.go.kr는 계정당 serviceKey 1개 공용이지만, <strong>데이터셋마다 개별 활용신청</strong>을 따로 해야 실제 호출 가능.</div>
+    </div>
+    <div class="tip-card">
+      <div class="tip-icon">📋</div>
+      <div class="tip-title">신청 기록 관리</div>
+      <div class="tip-body">신청일·승인일·서비스명을 스프레드시트에 기록해두면 운영 전환 시기 관리에 편리.</div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    기준일: 2026-06-26 &nbsp;|&nbsp; 출처: API_MASTER_LIST.md &nbsp;|&nbsp; 💰 유료 및 ❌ API 없음 항목은 이 가이드에서 제외
+  </div>
+</div>
+
+<script>
+  function toggle(id) {
+    const el = document.getElementById(id);
+    el.classList.toggle('open');
+  }
+</script>
+</body>
+</html>

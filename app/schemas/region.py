@@ -41,8 +41,9 @@ class Fact(BaseModel):
     value: float = Field(..., examples=[38.2])
     national_avg: Optional[float] = Field(None, description="전국 평균(비교용)", examples=[33.4])
     unit: str = Field(..., examples=["%"])
-    source_tbl: str = Field(..., description="KOSIS 통계표 ID (출처 명시)", examples=["DT_1IN1502"])
-    year: int = Field(..., description="기준연도", examples=[2024])
+    source_tbl: str = Field(..., description="출처 식별자 (KOSIS 통계표 ID 또는 API 출처명)", examples=["DT_1IN1502"])
+    year: int = Field(..., description="기준연도 또는 측정연도", examples=[2024])
+    source_type: Optional[str] = Field(None, description="데이터 소스 유형 (kosis|airkorea|data_go_kr|...)", examples=["kosis"])
 
 
 class Implication(BaseModel):

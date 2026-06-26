@@ -1,8 +1,10 @@
-"""통계 조립 — matrix 항목을 KOSIS로 채워 facts[] 생성 (모드 A, P5).
+"""통계 조립 — matrix 항목을 source_type별로 채워 facts[] 생성 (모드 A, P5·P12).
 
-흐름: sgg_code → 항목을 (orgId,tblId,objL2)로 묶어 KOSIS 1회씩 호출(지역+전국)
-      → 레시피(method)로 값 계산 → Fact{item,value,national_avg,unit,source_tbl,year}.
-숫자는 코드/규칙이 만든다 (절대 원칙 2). 확정 못한 항목은 추정 않고 건너뛴다 (절대 원칙 3).
+흐름: sgg_code + source_type 디스패처
+  - "kosis"(기본 또는 미지정) → KOSIS 1콜/그룹 (지역+전국)
+  - "airkorea" / method="realtime" → 에어코리아 일평균 (시군구명 기반)
+  - _common 항목은 collect_common_facts()로 별도 수집해 병합 (모든 용도 공통)
+숫자는 코드/규칙이 만든다 (절대 원칙 2). 확정 못한 항목은 추정 않고 건너뜀 (절대 원칙 3).
 """
 
 from __future__ import annotations
@@ -14,6 +16,10 @@ from app.services.cache import Cache
 
 _NATIONAL = "00"  # KOSIS 전국 코드
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# KOSIS 계산 헬퍼
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _age_start(c2: Optional[str]) -> Optional[int]:
     """연령밴드 코드(C2) → 밴드 시작나이. '0'(계)·비숫자는 None.
@@ -63,8 +69,7 @@ def _compute(item: dict, rows: List[dict]) -> Optional[float]:
     itm_id = k.get("itmId", "T2")
 
     if method == "direct":
-        v = _direct(rows, itm_id, k.get("objL2_pick", "0"))
-        return v
+        return _direct(rows, itm_id, k.get("objL2_pick", "0"))
 
     if method == "age_share":
         total = _age_total(rows, itm_id)
@@ -81,7 +86,6 @@ def _compute(item: dict, rows: List[dict]) -> Optional[float]:
         return round(old / work * 100, 1)
 
     if method == "ratio":
-        # 같은 분류(objL2_pick) 안에서 두 itmId의 비율 ×100 (예: 1인가구/일반가구).
         c2 = k.get("objL2_pick", "0")
         num = _direct(rows, k.get("num_itm"), c2)
         den = _direct(rows, k.get("den_itm"), c2)
@@ -92,6 +96,10 @@ def _compute(item: dict, rows: List[dict]) -> Optional[float]:
     return None  # unconfirmed 등
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 공개 API
+# ─────────────────────────────────────────────────────────────────────────────
+
 def collect_facts(
     sgg_code: str,
     use_type: str,
@@ -99,15 +107,17 @@ def collect_facts(
     cache: Optional[Cache] = None,
     *,
     sigungu: str = "",
+    sido: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
     """(facts, notes, year) 반환. facts 비어있으면 라우터가 ErrorBlock 처리.
 
-    sigungu: 시군구명 (census 계열 테이블의 지역코드 역추출용 — 행안부코드와 다름).
+    sigungu: census 계열 지역코드 역추출 + 에어코리아 측정소 검색용.
+    sido: 에어코리아 측정소 검색 폴백용.
     """
     items = matrix.list_items(use_type)
     if items is None:
         return [], [f"알 수 없는 용도: {use_type}"], None
-    return _facts_from_items(items, sgg_code, year, cache, sigungu)
+    return _facts_from_items(items, sgg_code, year, cache, sigungu, sido)
 
 
 def collect_facts_by_items(
@@ -115,6 +125,7 @@ def collect_facts_by_items(
     item_names: List[str],
     *,
     sigungu: str = "",
+    sido: str = "",
     year: Optional[int] = None,
     cache: Optional[Cache] = None,
 ) -> Tuple[List[dict], List[str], Optional[int]]:
@@ -138,9 +149,28 @@ def collect_facts_by_items(
             continue
         items.append(it)
 
-    facts, fnotes, year_used = _facts_from_items(items, sgg_code, year, cache, sigungu)
+    facts, fnotes, year_used = _facts_from_items(items, sgg_code, year, cache, sigungu, sido)
     return facts, notes + fnotes, year_used
 
+
+def collect_common_facts(
+    sido: str,
+    sigungu: str,
+    cache: Optional[Cache] = None,
+) -> Tuple[List[dict], List[str]]:
+    """_common 항목(용도 무관) 수집. /analyze 라우터가 결과를 facts[]에 병합한다."""
+    common_items = matrix.list_items("_common")
+    if not common_items:
+        return [], []
+    airkorea_items = [it for it in common_items if it.get("source_type") == "airkorea"]
+    if not airkorea_items:
+        return [], []
+    return _collect_airkorea_facts(airkorea_items, sido, sigungu, cache)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 내부 구현
+# ─────────────────────────────────────────────────────────────────────────────
 
 def _facts_from_items(
     items: List[dict],
@@ -148,23 +178,64 @@ def _facts_from_items(
     year: Optional[int],
     cache: Optional[Cache],
     sigungu: str,
+    sido: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
-    """항목 리스트 → facts. 용도별/이름별 진입점이 공유하는 KOSIS 수집 코어."""
-    # (orgId,tblId,objL2,지역체계) 로 그룹화 → 그룹당 지역 1콜 + 전국 1콜
-    groups: dict[Tuple[str, str, Optional[str], str], List[dict]] = {}
+    """항목 리스트 → facts. source_type별 디스패처 (P12)."""
+    kosis_items: List[dict] = []
+    airkorea_items: List[dict] = []
+    notes: List[str] = []
+
+    for it in items:
+        method = it.get("method")
+        if method in (None, "unconfirmed"):
+            notes.append(f"'{it['item']}': 데이터 소스 미확정 — 건너뜀 (추정 금지).")
+            continue
+        st = it.get("source_type", "kosis")
+        if st == "airkorea" or method == "realtime":
+            airkorea_items.append(it)
+        else:
+            if not it.get("kosis"):
+                notes.append(f"'{it['item']}': KOSIS 테이블 미확정 — 건너뜀.")
+                continue
+            kosis_items.append(it)
+
+    facts: List[dict] = []
+
+    # KOSIS
+    kosis_facts, kosis_notes, year_used = _collect_kosis_facts(
+        kosis_items, sgg_code, year, cache, sigungu
+    )
+    facts.extend(kosis_facts)
+    notes.extend(kosis_notes)
+
+    # 에어코리아 (용도별 항목에 직접 포함된 경우)
+    if airkorea_items:
+        ak_facts, ak_notes = _collect_airkorea_facts(airkorea_items, sido, sigungu, cache)
+        facts.extend(ak_facts)
+        notes.extend(ak_notes)
+
+    return facts, notes, year_used
+
+
+def _collect_kosis_facts(
+    items: List[dict],
+    sgg_code: str,
+    year: Optional[int],
+    cache: Optional[Cache],
+    sigungu: str,
+) -> Tuple[List[dict], List[str], Optional[int]]:
+    """KOSIS 항목 → facts + notes + 사용된 연도."""
+    groups: dict = {}
     notes: List[str] = []
     for it in items:
-        if it.get("method") in (None, "unconfirmed") or not it.get("kosis"):
-            notes.append(f"'{it['item']}': KOSIS 테이블 미확정 — 건너뜀 (추정 금지).")
-            continue
         k = it["kosis"]
         gk = (k["orgId"], k["tblId"], k.get("objL2"), it.get("region_scheme", "reg"))
         groups.setdefault(gk, []).append(it)
 
     facts: List[dict] = []
     year_used: Optional[int] = year
+
     for (org_id, tbl_id, obj_l2, scheme), grp in groups.items():
-        # census 계열은 행안부 시군구코드를 못 쓰므로 테이블 지역목록에서 역추출.
         if scheme == "census":
             region_code = kosis.resolve_census_region(
                 org_id, tbl_id, sgg_code[:2], sigungu, obj_l2=obj_l2, cache=cache
@@ -196,6 +267,21 @@ def _facts_from_items(
                     "unit": it.get("unit", ""),
                     "source_tbl": tbl_id,
                     "year": reg["year"],
+                    "source_type": "kosis",
                 }
             )
     return facts, notes, year_used
+
+
+def _collect_airkorea_facts(
+    items: List[dict],
+    sido: str,
+    sigungu: str,
+    cache: Optional[Cache],
+) -> Tuple[List[dict], List[str]]:
+    """에어코리아 항목 → facts."""
+    if not sigungu:
+        return [], ["에어코리아: 시군구명 없음 — 건너뜀."]
+    from app.services.airkorea import fetch_air_quality
+    requested = [it["item"] for it in items]
+    return fetch_air_quality(sido, sigungu, requested_items=requested, cache=cache)

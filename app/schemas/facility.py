@@ -50,6 +50,7 @@ class Facility(BaseModel):
     lon: float = Field(..., examples=[126.9245])
     dist_m: int = Field(..., description="중심(대지)으로부터 하버사인 거리(m)", examples=[420])
     radius_band: RadiusBand = Field(..., description="이 시설이 속한 가장 작은 반경 밴드(m)")
+    src: str = Field("kakao", description="데이터 출처 (kakao|osm|gov)", examples=["kakao"])
 
 
 class Center(BaseModel):
