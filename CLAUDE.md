@@ -223,9 +223,9 @@
 | **나중 확장** | P9 | 정렬·필터·여러 후보지 비교 | ✅ 완료 (/compare + 프론트 D탭, 후보지별 A·B·P11 나란히·컬럼정렬, 영등포vs강남 검증) |
 | | P10 | '물어보기' 모드 (데이터 위에서만) | ✅ 완료 (/ask + 프론트 E탭, 그라운디드 답변·확인불가 하드블록·웹검색 opt-in 폴백 검증) |
 | | P11 | 수급 진단 (A×B 교차) ★간판기능 | ✅ 완료 (/diagnose + supply_demand.json + 프론트 C탭, 영등포 실데이터 검증) |
-| **데이터 확장** | P12 | matrix.json 멀티소스 구조 확장 (source_type 필드, KOSIS 외 소스 통합 설계) | 🔜 다음 |
+| **데이터 확장** | P12 | matrix.json 멀티소스 구조 확장 (source_type 필드, KOSIS 외 소스 통합 설계) | 🟡 골격 완료·검증 후 막힘 (§8.7) |
 | | P13 | 용도별 API 세트 매핑 (용도 선택 → 관련 소스만 호출, `API_MASTER_LIST.md` 기반) | 예정 |
-| | P14 | 우선순위 소스 통합 ① 에어코리아·건축물대장·실거래가·문화재청 등 | 예정 |
+| | P14 | 우선순위 소스 통합 ① 에어코리아·건축물대장·실거래가·문화재청 등 | ⚠️ 데이터셋 미승인 — §8.7 선결 |
 | | P15 | 우선순위 소스 통합 ② 기상청·LURIS·HIRA·소상공인마당 등 | 예정 |
 | | P16 | 용도 확장 (숙박·공공·산업·복합 등 신규 용도 추가) | 예정 |
 
@@ -306,3 +306,49 @@ KOSIS 키 동작 확인. **단, 지역코드 체계가 테이블마다 다름**(
 
 - `services/cache.py` Cache 인터페이스(get/set) + FileCache(out/kosis_cache). GCS 교체 가능.
   키 = (orgId,tblId,지역,연도,objL2,itmId). 동일요청 재호출 0콜 확인.
+
+---
+
+## 8.7 API 연결 검증 현황 (2026-06-26)
+
+`.env` 17개 키를 전부 **실제 엔드포인트로 실호출**해 분류함. 재현 스크립트는 `scripts/verify_apis.py`(+ 정밀 2차 `verify_apis2.py`), 결과 JSON은 `out/verify_apis_result.json`, **상세 표·근거는 [docs/API_VERIFICATION_2026-06-26.md](docs/API_VERIFICATION_2026-06-26.md)**. (키 값은 어디에도 출력 안 함.)
+
+> 한 줄 결론: **기존 기능(모드 A·B·diagnose·compare·ask)은 정상(pytest 65 통과). 새로 키 붙인 data.go.kr 확장이 "데이터셋 미승인"으로 전부 막혀 실데이터가 0이다.**
+
+### ✅ 작동 확인 (9키)
+
+KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub, `authKey=`) · **RONE**(SttsApiTblData, `KEY=`) · **SEOUL**(INFO-000) · **NEIS**(schoolInfo) · **KOPIS**(`prfplc`). + OSM(무료, 이미 `facilities.py` 연결).
+
+### 🟡 DATA_GO_KR — 키는 유효, 데이터셋별 승인이 갈림 (★중요)
+
+- **판정 근거**: data.go.kr 는 *미승인 데이터셋*을 게이트웨이가 **403 Forbidden / 500 Unexpected**(평문)로 막음. *키가 틀리면* 표준 XML `resultCode=30`. 우리는 30이 아니라 403/500을 받았고 **동일 키로 7종이 정상** → 키 OK, 데이터셋 승인이 갈린 것.
+- **작동**: 상가(상권)정보(B553077) · 응급의료기관(B552657) · HIRA병원(B551182) · 토지매매 · 연립다세대매매 · 아파트전월세 · 오피스텔전월세.
+- **미승인(=코드는 있는데 실데이터 0)**: 에어코리아 #86(403) · 아파트**매매** #33(403) · 표준지공시지가 #35(500) · 건축물대장 #48(500) · 공장창고매매(403) · 경로당/마을회관(code30) · 어린이집(code30) · 문화기반시설총람 B553457(500).
+- **영향**:
+  - `services/airkorea.py` (matrix `_common` PM2.5/PM10/O3/NO2) → **모든 `/analyze` 가 광고한 대기질 4항목을 조용히 빈값 처리**.
+  - `services/molit.py` + **`/site` 라우터**(아파트매매·공시지가·건축물대장) → 전부 빈 응답. ※ `/site` 는 CLAUDE.md §5 엔드포인트 표에 없는 신규 + 테스트 없음.
+  - 전부 graceful 처리라 앱은 안 죽음(절대 원칙 3 준수), 단 "광고는 하는데 데이터 없음" 상태.
+
+### 🔴 키/계정 미활성·인증실패 (사용자 액션 필요)
+
+- **TMAP #103**: 쿼리·헤더 둘 다 `403 INVALID_API_KEY` → SK OpenAPI 콘솔에서 앱 활성화/해당 API 구독 확인.
+- **LIBRARY #122**: "API 활성화 상태가 아닙니다" → data4library 계정 OpenAPI 활성화 승인.
+- **CULTURE #134**: data.go.kr B553457 미승인(500) + kcisa(`API_CCA_###`) 401. ※ `API_CCA` 계열은 공연·전시 *콘텐츠*이지 시설총람 아님 → 진짜 #134는 **data.go.kr B553457(DATA_GO_KR키) 활용신청** 경로. 둘 중 하나 확정 필요.
+
+### ⚫ SBIZ365 #29·#30 — REST API 자체 없음 (재분류)
+
+소상공인365는 대시보드+파일(CSV/PDF)만. `SBIZ365_KEY`=포털용(fetch 불가). 매출/폐업/창업·빈상가는 **fileData 주기적 적재**가 유일 경로. 상권 실API는 이미 쓰는 data.go.kr B553077(점포분포)뿐 → §2 차별점 체크리스트 1번 불충족.
+
+### ⬜ EUM(EUM_ID/EUM_KEY) — 범위 밖
+
+규제정보 = arch-law-diagnose 담당(INTEGRATION.md §2, DEFERRED D6). 의도적으로 SKIP — 미검증 보류.
+
+### 발견한 코드 버그
+
+- `app/services/airkorea.py`: 측정소 목록을 `ArpltnInforInqireSvc/getMsrstnList` 로 호출 — `getMsrstnList` 정식 서비스는 **`MsrstnInfoInqireSvc`**(측정값만 `ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`). 승인 후 측정소 검색이 실패할 자리 → 서비스 경로 분리 필요.
+
+### 다음 액션 (두 갈래)
+
+- **(사용자) 포털**: data.go.kr 활용신청 — 에어코리아 B552584 · 표준지공시지가 · 건축물대장(BldRgstService_v2) · 아파트매매(RTMSDataSvcAptTradeDev) · 경로당 · 어린이집. TMAP 앱 활성화. LIBRARY 활성화. #134 경로 택1.
+- **(코드)**: ① `molit.py`/`/site` 를 *승인된* 토지·전월세·연립다세대 실거래로 재배선(지금 실데이터 나오게) ② `airkorea.py` 서비스경로 수정 ③ 검증된 신규 5키(KMA·RONE·SEOUL·NEIS·KOPIS) 서비스 골격 추가(P14) ④ `verify_apis.py` 를 주기 점검 자산으로 유지(키 만료·승인전파 감지).
+- 새 소스 배선 시 **반드시 `docs/API_VERIFICATION` 에서 작동 확인된 엔드포인트만** 사용.
