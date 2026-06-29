@@ -53,17 +53,20 @@ def _fake_facts(*_a, **_k):
          "source_tbl": "DT_1B04005N", "year": 2025},
         {"item": "1인가구비율", "value": 45.1, "national_avg": 36.1, "unit": "%",
          "source_tbl": "DT_1JC1511", "year": 2024},
+        {"item": "생산가능인구비율", "value": 72.5, "national_avg": 68.5, "unit": "%",
+         "source_tbl": "DT_1B04005N", "year": 2025},
     ]
     return facts, [], 2025
 
 
-# 의료시설·초등학교 수급 규칙이 추가된 mock band
+# 의료시설·초등학교·문화시설 수급 규칙이 추가된 mock band
 _MOCK_BAND = {
     "어린이집": 2, "유치원": 1,
     "경로당": 15, "노인복지관": 1,
     "편의점": 30, "코인세탁": 4,
     "병원": 5, "의원": 10, "약국": 8,   # 합계 23 → 보통(10<23<30)
     "초등학교": 1,                        # 보통(0<1<3)
+    "도서관": 4, "미술관": 1, "박물관": 1, "문화센터": 2, "공연장": 1, "영화관": 1,  # 합계 10 → 보통(2<10<12)
 }
 
 
@@ -102,7 +105,7 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     assert res.region.name == "영등포구"
     assert res.radius == 1000
     assert res.source == "kakao+kosis"
-    assert len(res.diagnoses) == 5
+    assert len(res.diagnoses) == 6
     # 모든 진단 '참고' (판단은 사람 — 절대 원칙 5)
     assert all(d.tag == "참고" for d in res.diagnoses)
 
@@ -130,6 +133,11 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     school = by_name["초등학교 수급"]
     assert school.demand.level == "낮음" and school.supply.level == "보통"
     assert school.supply.count == 1
+    # 문화: 생산가능 72.5 > 68.5+2 → 높음, 문화시설 합계 10개, 2<10<12 → 보통
+    culture = by_name["문화시설 수급"]
+    assert culture.demand.level == "높음" and culture.supply.level == "보통"
+    assert culture.supply.count == 10
+    assert culture.demand.item == "생산가능인구비율"
     # 원수치가 소견에 인용되는지 (재료·근거 제시)
     assert "8.3%" in boyuk.note and "전국 10.3%" in boyuk.note
 

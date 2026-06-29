@@ -1,12 +1,12 @@
 """공연시설 — KOPIS 공연예술통합전산망 OpenAPI (KOPIS_KEY).
 
 prfplc(공연시설 목록) → 시설명·지역·공연장수. XML 응답.
-⚠️ 현재 키가 returncode 02(SERVICE KEY NOT REGISTERED)로 거부됨(2026-06-29) — 재등록 필요.
-   골격은 완성, 키 활성화 시 바로 작동. 오류는 graceful (절대 원칙 3).
 
-★시군구 매핑: KOPIS signgucode(자체 코드체계)는 키가 죽어 실API로 검증 불가 →
-  추정하지 않고(절대 원칙 3) **응답의 sidonm/gugunnm 이름으로 필터**한다(코드표 불필요·견고).
-  검증된 KOPIS 시군구코드가 확보되면 signgucode 인자로 서버측 필터(효율) 추가 가능.
+★시군구 매핑 (2026-06-29 실API 검증): **KOPIS signgucode = 행안부 시군구코드 앞 4자리**.
+  영등포 11560→1156(61건 전부 영등포), 관악 11620→1162, 부산해운대 26350→2635,
+  성남분당 41135→4113 모두 server-side 정확 필터. → site.sgg_code[:4] 그대로 사용.
+  이름필터(sidonm/gugunnm)는 코드 없을 때만 쓰는 폴백 (전국 페이징·1000건 상한·누락 가능).
+  rows 최대 100 (초과 시 returncode 06).
 캐시 키: kopis:{sido}:{sigungu}:{signgucode}.
 검증된 엔드포인트만 사용 (docs/API_VERIFICATION_2026-06-26).
 """
@@ -23,8 +23,8 @@ from app.services.cache import Cache, make_key
 from app.services.http_retry import request_with_retry
 
 _URL = "http://www.kopis.or.kr/openApi/restful/prfplc"
-_ROWS = 100
-_MAX_PAGES = 10  # 시군구 이름필터용 전국 페이징 상한 (= 최대 1000건)
+_ROWS = 100  # KOPIS rows 상한 (초과 시 returncode 06)
+_MAX_PAGES = 10  # 페이징 상한 (이름필터=전국 1000건, signgucode=시군구당 1000건 — 충분)
 
 
 def _key() -> str:
@@ -51,10 +51,11 @@ def fetch_venues(
     cache: Optional[Cache] = None,
     client: Optional[httpx.Client] = None,
 ) -> Tuple[Optional[dict], List[str]]:
-    """공연시설 목록 — 시군구명(gugunnm) 필터.
+    """공연시설 목록.
 
-    sigungu 지정 시: 전국 페이징(상한 _MAX_PAGES) 후 gugunnm 일치분만(+sido 일치 시 교차).
-    signgucode 지정 시: 검증된 KOPIS 코드로 서버측 필터(이름필터 생략).
+    signgucode 지정 시(권장): KOPIS 서버측 정확 필터(= 행안부 sgg_code[:4], 2026-06-29 검증).
+        페이징하되 시군구 단위라 보통 1페이지(<100건)면 충분 — 상한·누락 없음.
+    signgucode 없고 sigungu 만 있으면: 전국 페이징(상한 _MAX_PAGES) 후 gugunnm 이름필터(폴백).
     Returns:
         ({count, scope, venues[{name, sido, gugun, id, hall_count}]}, notes) 또는 (None, notes)
     """
@@ -70,9 +71,9 @@ def fetch_venues(
         if cached:
             return cached.get("data"), cached.get("notes", [])
 
-    # signgucode(서버필터) 있으면 1회, 없고 sigungu 이름필터면 페이징, 둘 다 없으면 1페이지.
+    # signgucode(서버필터)·이름필터 둘 다 페이징. 코드 없고 이름도 없으면 1페이지(전국 표본).
     name_filter = bool(sigungu) and not signgucode
-    max_pages = _MAX_PAGES if name_filter else 1
+    max_pages = _MAX_PAGES if (name_filter or signgucode) else 1
 
     own = client is None
     client = client or httpx.Client(timeout=15.0)
@@ -104,18 +105,18 @@ def fetch_venues(
             if len(dbs) < _ROWS:
                 break  # 마지막 페이지
             if cpage == max_pages:
-                truncated = name_filter  # 상한 도달(이름필터 시 일부 누락 가능)
+                truncated = name_filter  # 이름필터만 전국 상한 도달 시 누락 가능
 
-        # 시군구명 필터 (KOPIS 코드체계 미검증 → 이름 매칭)
+        # scope 라벨 + (이름필터일 때만) 후처리 필터. signgucode 는 서버에서 이미 정확 필터됨.
         scope = "전국"
-        if name_filter:
+        if signgucode:
+            scope = f"{sido} {sigungu}".strip() or f"signgucode {signgucode}"
+        elif name_filter:
             venues = [v for v in venues
                       if sigungu in v["gugun"] and (not sido or sido[:2] in v["sido"])]
             scope = f"{sido} {sigungu}".strip()
             if truncated:
                 notes.append(f"공연시설: 전국 {max_pages * _ROWS}건 상한 내 검색 — 일부 누락 가능(참고).")
-        elif signgucode:
-            scope = f"signgucode {signgucode}"
 
         if not venues:
             notes.append(f"공연시설: {scope} 데이터 없음.")

@@ -98,6 +98,29 @@ export default function TabC({ address }) {
                     <span className="text-slate-400 text-xs block">공급 · 반경 {d.supply.radius}m</span>
                     {d.supply.kinds.join("·")}{" "}
                     <span className="font-semibold text-slate-900">{d.supply.count}개</span>
+                    {/* 시군구 정원(어린이집 등) — 반경 개수와 단위 다름, 참고 */}
+                    {d.supply.capacity != null && (
+                      <span className="text-slate-500">
+                        {" · "}정원{" "}
+                        <span className="font-semibold text-slate-700">
+                          {d.supply.capacity.toLocaleString("ko-KR")}명
+                        </span>
+                        {d.supply.capacity_scope && (
+                          <span className="text-slate-400"> ({d.supply.capacity_scope})</span>
+                        )}
+                      </span>
+                    )}
+                    {/* 전국 대비 밀도 — 분모 시군구 전체인구, 참고용 */}
+                    {d.supply.vs_national_pct != null && (
+                      <span className="block text-xs text-slate-400 mt-0.5">
+                        {d.supply.density_per_10k}개/만명 · 전국{" "}
+                        {d.supply.national_density_per_10k}개/만명 대비{" "}
+                        <span className={d.supply.vs_national_pct < 100 ? "text-amber-600" : "text-emerald-600"}>
+                          {d.supply.vs_national_pct}%
+                        </span>
+                        <span className="text-slate-300"> (참고·시군구 인구 기준)</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 

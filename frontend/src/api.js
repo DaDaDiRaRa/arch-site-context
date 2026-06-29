@@ -47,3 +47,9 @@ export const compare = (addresses, use_type, radius, kinds) =>
 
 export const ask = (address, question, use_type, radius, kinds, web = false) =>
   post("/ask", { address, question, use_type, radius, kinds, web });
+
+export const site = (address) =>
+  post("/site", { address });
+
+export const seed = (address, radius = 1000) =>
+  post("/seed", { address, radius });

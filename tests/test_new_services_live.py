@@ -108,9 +108,28 @@ def test_kopis_venues_graceful() -> None:
 
     d, notes = kopis.fetch_venues(sido="서울특별시", sigungu="종로구")
     if d is None:
-        # 현재 키 returncode 02 상태 — 정직한 note 확인
+        # 키 미등록(02) 등 — 정직한 note 확인 (graceful)
         assert notes and ("KOPIS" in notes[0] or "공연시설" in notes[0])
     else:
         assert d["count"] > 0
         # 이름 필터가 동작했으면 전부 종로구
         assert all("종로구" in v["gugun"] for v in d["venues"])
+
+
+@pytest.mark.skipif(not os.getenv("KOPIS_KEY"), reason="KOPIS_KEY 미설정")
+def test_kopis_signgucode_server_filter() -> None:
+    """signgucode = 행안부 sgg_code[:4] 서버측 정확 필터 (2026-06-29 검증).
+
+    이름필터(전국 1000건 상한)보다 정확·완전 — 영등포 11560→1156. 키 미등록이면 graceful.
+    """
+    from app.services import kopis
+
+    d, notes = kopis.fetch_venues(sido="서울", sigungu="영등포구", signgucode="1156")
+    if d is None:
+        assert notes and ("KOPIS" in notes[0] or "공연시설" in notes[0])
+    else:
+        assert d["count"] > 0
+        assert d["scope"] == "서울 영등포구"
+        # 서버측 필터라 전부 영등포구 — 누락 경고 note 없어야 함
+        assert all(v["gugun"] == "영등포구" for v in d["venues"])
+        assert not any("누락" in n for n in notes)

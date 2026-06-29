@@ -4,7 +4,7 @@
     "logic": "demand level = fact.value vs (national_avg ± demand_margin) → 높음/평이/낮음/불명. supply level 두 단계: ① total_pop + national_density_per_10k 있으면 밀도 기반(density_low_pct/density_high_pct) → 전국 대비 %; ② 없으면 반경 비례 개수(supply_low_max·supply_high_min은 radius=1000m 기준, 실반경 면적²로 스케일). 조합으로 signal·소견(코드 매트릭스). 모두 '참고' — 판단은 사람 (절대 원칙 5).",
     "density_fields": "national_density_per_10k: 만명당 전국 평균 시설수(반올림). national_density_source: 출처·기준연도. density_low_pct: 전국 대비 이 % 미만 → 적음. density_high_pct: 전국 대비 이 % 초과 → 많음.",
     "count_fields": "supply_low_max·supply_high_min: radius=1000m 기준 개수 임계값. 다른 반경은 (radius/1000)² 스케일 — 면적 비례.",
-    "note": "demand_item 이 matrix.json 에서 확정(method≠unconfirmed)된 지표여야 facts 가 채워진다. 미확정이면 해당 규칙은 정직하게 건너뜀(notes 표시).",
+    "note": "demand_item 이 matrix.json 에서 확정(method≠unconfirmed)된 지표여야 facts 가 채워진다. 미확정이면 해당 규칙은 정직하게 건너뜀(notes 표시). 현재 6개 규칙: 보육·노인복지·1인가구·의료·초등·문화.",
     "updated": "2026-06-29"
   },
   "rules": [
@@ -73,6 +73,19 @@
       "density_low_pct": 60,
       "density_high_pct": 150,
       "tag": "참고"
-    }
+    },
+    {
+      "name": "문화시설 수급",
+      "demand_item": "생산가능인구비율",
+      "supply_kinds": ["도서관", "미술관", "박물관", "문화센터", "공연장", "영화관"],
+      "demand_margin": 2,
+      "supply_low_max": 2,
+      "supply_high_min": 12,
+      "national_density_per_10k": 0.9,
+      "national_density_source": "공공도서관 1,236 + 박물관 909 + 미술관 286 + 생활문화센터 440 + 공연시설 1,280 + 영화상영관 574 ≈ 4,725개(문화기반시설총람·국가도서관통계·KOPIS·영진위 2023) / 전국인구 51,720,611명",
+      "density_low_pct": 60,
+      "density_high_pct": 150,
+      "tag": "참고",
+      "note": "수요 proxy=생산가능인구비율(문화 관람·참여 핵심 연령대 — 국민문화예술활동조사). 단일 proxy라 약함, 도심일수록 수요·공급 동반상승 가능(참고). 공급은 모드B 카카오 검색이라 문화센터·공연장에 사설·소규모 포함 → 밀도는 참고-only(primary는 반경비례 개수)."}
   ]
 }

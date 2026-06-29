@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 from typing import List, Optional, Tuple
 
 import httpx
@@ -32,12 +33,27 @@ def _rows(j: dict) -> List[dict]:
     return blk.get("row", []) or [] if isinstance(blk, dict) else []
 
 
-def _latest_date(key: str, client: httpx.Client) -> Optional[str]:
-    """가장 최근 STDR_DE_ID (데이터는 최신순). 실패 시 None."""
+def _latest_date(
+    key: str, client: httpx.Client, cache: Optional[Cache] = None
+) -> Optional[str]:
+    """가장 최근 STDR_DE_ID (데이터는 최신순). 실패 시 None.
+
+    이 1건 조회가 서울 서버에서 ~3초 걸리는데(전체 정렬), 결과(최신 가용일)는 하루 1회만
+    바뀌고 행정동과 무관 → 오늘 날짜로 캐시. 같은 날 두 번째 호출부터 0콜 (warm 즉시).
+    데이터는 ~5일 지연이라 하루 단위 캐시 무효화로 충분 (절대 원칙 4 — 참고값).
+    """
+    ck = make_key("seoul_latest", date.today().isoformat())
+    if cache:
+        c = cache.get(ck)
+        if c and c.get("date"):
+            return c["date"]
     r = request_with_retry(client, "GET", f"{_HOST}/{key}/json/{_SVC}/1/1/", timeout=15.0)
     r.raise_for_status()
     rows = _rows(r.json())
-    return rows[0].get("STDR_DE_ID") if rows else None
+    ymd = rows[0].get("STDR_DE_ID") if rows else None
+    if cache and ymd:
+        cache.set(ck, {"date": ymd})
+    return ymd
 
 
 def fetch_living_population(
@@ -74,7 +90,7 @@ def fetch_living_population(
         if not adstrd_code or not str(adstrd_code).startswith("11"):
             return None, [f"생활인구: 서울 행정동코드(11…)만 지원 — '{adstrd_code}' 건너뜀."]
 
-        ymd = date_id or _latest_date(key, client)
+        ymd = date_id or _latest_date(key, client, cache=cache)
         if not ymd:
             return None, ["생활인구: 최신 가용일 확인 실패 — 건너뜀."]
 
