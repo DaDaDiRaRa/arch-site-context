@@ -15,6 +15,7 @@ from app.schemas import AnalyzeRequest, ErrorBlock, RegionStat
 from app.schemas.region import Fact, Implication, Region
 from app.services.implications import derive_implications
 from app.services.kakao import KakaoError
+from app.services.matrix import list_items
 from app.services.narrative import compose_narrative
 from app.services.resolve import resolve_address
 from app.services.stats import collect_common_facts, collect_facts
@@ -37,6 +38,10 @@ def analyze(req: AnalyzeRequest):
         return _error("ADDR_UNRESOLVED", f"주소 해석 불가: {e}")
     if not loc.sgg_code:
         return _error("NO_REGION_CODE", "시군구 코드를 확인할 수 없습니다.")
+
+    # 1.5) 용도 유효성 — 알 수 없는 용도면 _common(대기질 등) 병합 전에 하드블록
+    if list_items(req.use_type) is None:
+        return _error("NO_DATA", f"알 수 없는 용도: {req.use_type}")
 
     # 2) matrix 항목을 source_type별로 채워 facts (캐시 우선, P12)
     facts, notes, year = collect_facts(

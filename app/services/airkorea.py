@@ -1,7 +1,8 @@
 """에어코리아 대기질 — 한국환경공단 OpenAPI (DATA_GO_KR_API_KEY).
 
-흐름: sigungu(시군구명) → getMsrstnList(측정소 검색) → stationName
-      → getMsrstnAcctoRltmMesureDnsty(일평균 측정값) → facts[].
+흐름: sido → getCtprvnRltmMesureDnsty(시도 전체 측정소+측정값) → 시군구명으로 측정소 선택 → facts[].
+  ※ 측정소 검색 서비스(MsrstnInfoInqireSvc/getMsrstnList)는 별도 활용신청이라 미승인(403)이 잦아
+    의존하지 않는다. 측정값 서비스(ArpltnInforInqireSvc)만으로 시도 목록을 받아 이름 매칭한다.
 값 없음('-') 또는 API 오류는 빈 list + notes — graceful (절대 원칙 3).
 캐시 키: airkorea:{sigungu}:{오늘날짜} → 하루 1회 호출.
 """
@@ -17,6 +18,22 @@ import httpx
 from app.services.cache import Cache, make_key
 
 _BASE = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
+
+# getCtprvnRltmMesureDnsty sidoName 은 축약형(서울/경기/충북…) 요구 → 정식 시도명 매핑
+_SIDO_SHORT = {
+    "서울특별시": "서울", "부산광역시": "부산", "대구광역시": "대구", "인천광역시": "인천",
+    "광주광역시": "광주", "대전광역시": "대전", "울산광역시": "울산", "세종특별자치시": "세종",
+    "경기도": "경기", "강원도": "강원", "강원특별자치도": "강원",
+    "충청북도": "충북", "충청남도": "충남",
+    "전라북도": "전북", "전북특별자치도": "전북", "전라남도": "전남",
+    "경상북도": "경북", "경상남도": "경남", "제주특별자치도": "제주",
+}
+
+
+def _sido_short(sido: str) -> str:
+    if not sido:
+        return ""
+    return _SIDO_SHORT.get(sido, sido[:2])
 
 # 항목별 에어코리아 응답 필드 매핑
 _ITEMS = [
@@ -51,51 +68,43 @@ def _check_result(body: dict, label: str) -> None:
     raise AirkoreError(f"에어코리아 API 오류 {code}: {msg}")
 
 
-def _find_station(sigungu: str, sido: str, key: str, client: httpx.Client) -> Optional[str]:
-    """시군구명 → 가장 가까운 측정소명. 없으면 sido로 재시도."""
-    for addr in [sigungu, sido]:
-        if not addr:
-            continue
-        r = client.get(
-            f"{_BASE}/getMsrstnList",
-            params={
-                "addr": addr,
-                "pageNo": 1,
-                "numOfRows": 5,
-                "returnType": "json",
-                "serviceKey": key,
-            },
-            timeout=10.0,
-        )
-        r.raise_for_status()
-        body = r.json()
-        _check_result(body, "측정소 목록")
-        items = body.get("response", {}).get("body", {}).get("items", []) or []
-        if items:
-            return items[0].get("stationName")
-    return None
-
-
-def _get_measurements(station: str, key: str, client: httpx.Client) -> Optional[dict]:
-    """측정소명 → 일평균 측정값 dict. 데이터 없으면 None."""
+def _fetch_sido_stations(sido: str, key: str, client: httpx.Client) -> List[dict]:
+    """시도 전체 측정소 실시간 측정값 목록 (측정값 동봉)."""
     r = client.get(
-        f"{_BASE}/getMsrstnAcctoRltmMesureDnsty",
+        f"{_BASE}/getCtprvnRltmMesureDnsty",
         params={
-            "stationName": station,
-            "dataTerm": "DAILY",
-            "pageNo": 1,
-            "numOfRows": 1,
+            "sidoName": _sido_short(sido) or "서울",
             "returnType": "json",
-            "serviceKey": key,
+            "numOfRows": 100,
+            "pageNo": 1,
             "ver": "1.0",
+            "serviceKey": key,
         },
         timeout=10.0,
     )
     r.raise_for_status()
     body = r.json()
-    _check_result(body, "측정값")
-    items = body.get("response", {}).get("body", {}).get("items", []) or []
-    return items[0] if items else None
+    _check_result(body, "시도 측정값")
+    return body.get("response", {}).get("body", {}).get("items", []) or []
+
+
+def _pick_station(items: List[dict], sigungu: str) -> Optional[dict]:
+    """시도 측정소 목록에서 시군구명에 해당하는 측정소 선택.
+
+    이름 매칭만 — 매칭 없으면 None(건너뜀). 임의 측정소로 대체하지 않는다 (절대 원칙 3).
+    ※ 좌표 기반 최근접은 측정소검색(MsrstnInfoInqireSvc) 승인 후 개선 가능 (현재 403).
+    """
+    if not items or not sigungu:
+        return None
+    for it in items:
+        if it.get("stationName") == sigungu:
+            return it
+    short = sigungu.rstrip("구시군")  # '영등포구'→'영등포'
+    if short:
+        for it in items:
+            if short in (it.get("stationName") or ""):
+                return it
+    return None
 
 
 def fetch_air_quality(
@@ -130,15 +139,12 @@ def fetch_air_quality(
     own = client is None
     client = client or httpx.Client(timeout=15.0)
     try:
-        station = _find_station(sigungu, sido, key, client)
-        if not station:
-            note = f"에어코리아: '{sigungu}' 근처 측정소 미발견 — 건너뜀."
-            return [], [note]
-
-        meas = _get_measurements(station, key, client)
+        items = _fetch_sido_stations(sido, key, client)
+        meas = _pick_station(items, sigungu)
         if not meas:
-            note = f"에어코리아: {station} 측정소 데이터 없음 — 건너뜀."
+            note = f"에어코리아: '{sigungu}' 일치 측정소 없음 — 건너뜀 (좌표기반 최근접은 측정소검색 승인 후)."
             return [], [note]
+        station = meas.get("stationName") or "?"
 
         today_year = date.today().year
         all_facts: List[dict] = []
@@ -165,7 +171,7 @@ def fetch_air_quality(
         if not all_facts:
             notes.append(f"에어코리아: {station} 측정소 전 항목 결측('-') — 건너뜀.")
         else:
-            notes.append(f"에어코리아: {station} 측정소 기준 일평균 (실시간, {date.today().isoformat()}).")
+            notes.append(f"에어코리아: {station} 측정소 기준 실시간 측정값 ({date.today().isoformat()}).")
 
         if cache and all_facts:
             cache.set(cache_key, {"facts": all_facts, "notes": notes})

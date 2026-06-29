@@ -327,12 +327,12 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 ### 🟡 DATA_GO_KR — 키는 유효, 데이터셋별 승인이 갈림 (★중요)
 
 - **판정 근거**: data.go.kr 는 *미승인 데이터셋*을 게이트웨이가 **403 Forbidden / 500 Unexpected**(평문)로 막음. *키가 틀리면* 표준 XML `resultCode=30`. 우리는 30이 아니라 403/500을 받았고 **동일 키로 7종이 정상** → 키 OK, 데이터셋 승인이 갈린 것.
-- **작동**: 상가(상권)정보(B553077) · 응급의료기관(B552657) · HIRA병원(B551182) · 토지매매 · 연립다세대매매 · 아파트전월세 · 오피스텔전월세.
-- **미승인(=코드는 있는데 실데이터 0)**: 에어코리아 #86(403) · 아파트**매매** #33(403) · 표준지공시지가 #35(500) · 건축물대장 #48(500) · 공장창고매매(403) · 경로당/마을회관(code30) · 어린이집(code30) · 문화기반시설총람 B553457(500).
-- **영향**:
-  - `services/airkorea.py` (matrix `_common` PM2.5/PM10/O3/NO2) → **모든 `/analyze` 가 광고한 대기질 4항목을 조용히 빈값 처리**.
-  - `services/molit.py` + **`/site` 라우터**(아파트매매·공시지가·건축물대장) → 전부 빈 응답. ※ `/site` 는 CLAUDE.md §5 엔드포인트 표에 없는 신규 + 테스트 없음.
-  - 전부 graceful 처리라 앱은 안 죽음(절대 원칙 3 준수), 단 "광고는 하는데 데이터 없음" 상태.
+- **작동**: 상가(상권)정보(B553077) · 응급의료기관(B552657) · HIRA병원(B551182) · 토지매매 · 연립다세대매매 · 아파트전월세 · 오피스텔전월세. **+ (2026-06-29 추가 승인 전파)** 아파트**매매** #33 · 건축HUB 건축물대장(`BldRgstHubService`) · 에어코리아 **측정값**(`ArpltnInforInqireSvc`, 단 측정소검색 `MsrstnInfoInqireSvc`는 여전히 403).
+- **미승인(=코드는 있는데 실데이터 0)**: 표준지공시지가 #35(500, **VWorld로 우회 완료 — 불필요**) · 구버전 건축물대장 `BldRgstService_v2` #48(500, **건축HUB로 대체**) · 공장창고매매(403) · 경로당/마을회관(code30, **VWorld 검색으로 우회 완료**) · 어린이집(code30) · 문화기반시설총람 B553457(500, 신청완료·대기).
+- **영향 (대부분 해소됨)**:
+  - ~~`services/airkorea.py`~~ → ✅ 해소: `getCtprvnRltmMesureDnsty`(승인됨)로 재배선, `/analyze` 대기질 4항목 실데이터(§9.1-3).
+  - ~~`services/molit.py` + `/site`~~ → ✅ 해소: 공시지가=VWorld, 실거래 4종·건축물대장=승인 데이터(§9.1-1). `/site` §5 표 등재+테스트 완료.
+  - 전부 graceful 처리라 앱은 안 죽음(절대 원칙 3 준수).
 
 ### 🔴 키/계정 미활성·인증실패 (사용자 액션 필요)
 
@@ -350,7 +350,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 
 ### 발견한 코드 버그
 
-- `app/services/airkorea.py`: 측정소 목록을 `ArpltnInforInqireSvc/getMsrstnList` 로 호출 — `getMsrstnList` 정식 서비스는 **`MsrstnInfoInqireSvc`**(측정값만 `ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`). 승인 후 측정소 검색이 실패할 자리 → 서비스 경로 분리 필요.
+- ~~`app/services/airkorea.py`: getMsrstnList 서비스경로 버그~~ → ✅ **수정완료** (2026-06-29, §9.1-3). 측정소검색(`MsrstnInfoInqireSvc`)이 미승인(403)이라 아예 의존 제거하고 `getCtprvnRltmMesureDnsty`(시도 전체, 승인됨)+이름매칭으로 재배선.
 
 ### 다음 액션 (두 갈래)
 
@@ -373,9 +373,18 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
    - ✅ **건축물대장 완료** (2026-06-29). 사용자가 **건축HUB**(`BldRgstHubService`) 활용신청 → 작동(구버전 `BldRgstService_v2`는 여전히 500). `molit.fetch_building(pnu)` = VWorld 공시지가의 `pnu`(필지)로 정확 조회: 표제부(`getBrTitleInfo`) 대표건물(연면적 최대) + 총괄표제부(`getBrRecapTitleInfo`) 단지 전체 건폐율·용적률 보정. `_parse_pnu`로 PNU 19자리→sigunguCd/bjdongCd/platGb/bun/ji. 검증: 여의대로24=에프케이아이타워 지상50/지하6, 건폐52.75% 용적940.36%. 라이브 테스트 2건.
    - ⬜ `/site` 1번 묶음 완료. `verify_apis.py`는 구버전 대장 엔드포인트를 봄 → 건축HUB로 갱신 권장(§9.3).
 2. ~~경로당/비상업시설 보강~~ → ✅ **완료** (2026-06-29). VWorld 검색 API로 모드 B 보강 (P1.5b·§8.5). `services/vworld.py search_vworld` + `facilities.py` 병합. 수급진단 노인복지 항목 정확화.
-3. **`airkorea.py` 서비스경로 버그 수정** — `getMsrstnList` 는 `MsrstnInfoInqireSvc`, 측정값은 `ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty`. 승인 전이라도 선반영(§8.7 코드버그).
-4. **검증된 신규 5키 서비스 골격 추가 (P14)** — KMA(날씨)·RONE(부동산지수)·SEOUL(생활인구)·NEIS(학교)·KOPIS(공연시설). `docs/API_VERIFICATION` 의 작동 엔드포인트만 사용 + matrix.json `source_type` 확장 + 캐시. 각 1개 지표부터.
-5. **SBIZ365 #29·#30 재분류** — REST API 없음(§8.7). 상권 매출/창업·폐업이 필요하면 data.go.kr fileData(15143517·15151047) **주기 CSV 적재** 경로로 설계, 아니면 목록에서 제외. `SBIZ365_KEY` 는 fetch 불가 명시.
+3. ~~`airkorea.py` 서비스경로 버그 수정~~ → ✅ **완료** (2026-06-29). 실측 결과: **측정값 서비스(`ArpltnInforInqireSvc`)는 승인됨(200), 측정소검색(`MsrstnInfoInqireSvc/getMsrstnList`)만 미승인(403)**. → 미승인 검색 의존을 버리고 `getCtprvnRltmMesureDnsty`(시도 전체 측정값, 승인됨)에서 시군구명 매칭(`_pick_station`)으로 측정소 선택. 매칭 없으면 임의 대체 없이 건너뜀(절대 원칙 3). 좌표기반 최근접은 측정소검색 승인 후 개선. **`/analyze` 대기질 4항목(PM2.5·PM10·O3·NO2) 실데이터로 채워짐** — "광고는 하는데 빈값" 해소. 라이브 테스트 `test_airkorea_live.py`.
+4. ~~검증된 신규 5키 서비스 골격 추가 (P14)~~ → ✅ **완료** (2026-06-29). 5개 서비스 모듈 + 라이브 테스트 8건. 각 graceful·캐시·검증 엔드포인트만:
+   - `services/kma.py` `fetch_weather(lat,lon)` — 좌표→기상청격자(`dfs_xy` LCC) → 단기예보 기온·강수확률·하늘(apihub, timeout 35s). ✅ 작동
+   - `services/rone.py` `fetch_price_index(region,statbl)` — 부동산원 R-ONE 매매가격지수, 지역명 매칭·최근시점(START/END_WRTTIME로 최신 확보). ✅ 작동
+   - `services/neis.py` `fetch_schools(sido,sigungu,level)` — 시도교육청별 학교, 도로명주소로 시군구 필터·종류별 집계. ✅ 작동(영등포 47교)
+   - `services/seoul.py` `fetch_living_population(행정동코드)` — 서울 생활인구(최신가용일 자동탐지+동·시간대 필터, 서울전용, ~5일지연). ✅ 작동
+   - `services/kopis.py` `fetch_venues(signgucode)` — 공연시설. ⚠️ **키 현재 `returncode 02`(미등록)** — 골격 완성, graceful, 키 재등록 시 작동.
+   - ⬜ 후속: 각 서비스를 엔드포인트/matrix `source_type`에 배선(소스별 타깃 다름 — KMA/RONE/SEOUL=모드A 통계, NEIS/KOPIS=모드B 시설). 주소→행정동코드(SEOUL)·KOPIS 시군구코드 매핑.
+5. ~~SBIZ365 #29·#30 재분류~~ → ✅ **완료** (2026-06-29). 판정: SBIZ365는 REST API 없음(`SBIZ365_KEY`=포털용, fetch 불가). **결정**:
+   - 점포 '분포'(업종별 점포수)는 작동하는 실API **B553077 상가(상권)정보**를 `services/sangwon.py`로 정식 승격(데모→서비스). `fetch_store_district(lat,lon,radius)` = 반경 내 점포수+업종 대분류 집계. 여의도 500m 2,275개 검증. 라이브 테스트 1건. §2 차별점 통과(실API·코드계산·출처).
+   - 매출/폐업/창업률·빈상가(#29b·#30)는 fileData CSV 적재만 가능 → **현재 제외**(§2 실시간 API 우선·bus-factor). 필요시 후속 CSV 적재 설계. API_MASTER_LIST.md 갱신.
+   - ⬜ 후속: `sangwon.py`를 모드 B/수급진단 업종분석에 배선.
 6. **INTEGRATION.md P12 연결 준비** — `request_with_retry`(diagnose에서 이식, 가장 싸고 효과 큼) → `project_seed.json` 스키마 확정 → `site` 해석 1곳 공통화.
 
 ### 9.2 확인할 것 (사용자 포털 액션 — 풀려야 코드가 의미 생김)
@@ -387,6 +396,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 - [ ] **LIBRARY #122**: data4library 계정 OpenAPI 활성화 승인 (현재 "API 미활성").
 - [ ] **CULTURE #134 경로 택1**: data.go.kr `B553457` 활용신청 **또는** kcisa 구독 데이터셋의 정확한 `API_CCA` 번호 확인.
 - [ ] **JUSO 운영키 (DEFERRED D2)**: 배포 전 dev키→운영키 교체.
+- [ ] **KOPIS 키 재등록**: 검증(6/26)땐 작동했으나 6/29 `returncode 02 (SERVICE KEY NOT REGISTERED)`로 거부. `kopis.py` 골격은 완성 — 키만 풀리면 작동.
 - [ ] **EUM 진행 여부 결정 (DEFERRED D6)**: 규제=arch-law-diagnose 담당 — 가져올지/말지 제품 결정.
 
 ### 9.3 하면 좋은 것 (개선·기술부채)
