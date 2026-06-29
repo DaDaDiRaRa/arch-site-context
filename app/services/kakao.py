@@ -14,9 +14,11 @@ from typing import Dict, List, Optional
 import httpx
 
 from app.services.geo import split_rect
+from app.services.http_retry import request_with_retry
 
 _ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 _KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json"
+_COORD2REGION_URL = "https://dapi.kakao.com/v2/local/geo/coord2regioncode.json"
 
 # 카카오 키워드 검색은 페이지당 15건, 최대 45건(3페이지)까지 조회 가능.
 _PAGE_SIZE = 15
@@ -49,15 +51,15 @@ def resolve_coord(address: str, client: Optional[httpx.Client] = None) -> Dict[s
     own = client is None
     client = client or httpx.Client(timeout=10.0)
     try:
-        r = client.get(_ADDRESS_URL, params={"query": address}, headers=_headers())
+        r = request_with_retry(client, "GET", _ADDRESS_URL, params={"query": address}, headers=_headers())
         if r.status_code != 200:
             raise KakaoError(f"주소 검색 실패 HTTP {r.status_code}: {r.text[:200]}")
         docs = r.json().get("documents", [])
 
         if not docs:
             # 폴백: 키워드 검색 첫 결과 좌표
-            rk = client.get(
-                _KEYWORD_URL, params={"query": address, "size": 1}, headers=_headers()
+            rk = request_with_retry(
+                client, "GET", _KEYWORD_URL, params={"query": address, "size": 1}, headers=_headers()
             )
             if rk.status_code == 200:
                 docs = rk.json().get("documents", [])
@@ -67,6 +69,32 @@ def resolve_coord(address: str, client: Optional[httpx.Client] = None) -> Dict[s
 
         d = docs[0]
         return {"lat": float(d["y"]), "lon": float(d["x"])}
+    finally:
+        if own:
+            client.close()
+
+
+def coord_to_hcode(
+    lat: float, lon: float, client: Optional[httpx.Client] = None
+) -> Optional[str]:
+    """좌표 → 행정동코드(H, 10자리). 결과 없으면 None.
+
+    coord2regioncode 는 법정동(B)·행정동(H) 둘 다 반환 — H(행정동)만 취한다.
+    (서울 생활인구 ADSTRD_CODE_SE 8자리 = 이 H코드[:8].)
+    """
+    own = client is None
+    client = client or httpx.Client(timeout=10.0)
+    try:
+        r = request_with_retry(
+            client, "GET", _COORD2REGION_URL,
+            params={"x": lon, "y": lat}, headers=_headers(),
+        )
+        if r.status_code != 200:
+            return None
+        for d in r.json().get("documents", []):
+            if d.get("region_type") == "H" and d.get("code"):
+                return d["code"]
+        return None
     finally:
         if own:
             client.close()
@@ -89,7 +117,9 @@ def search_keyword(
     out: List[Dict] = []
     try:
         for page in range(1, _MAX_PAGE + 1):
-            r = client.get(
+            r = request_with_retry(
+                client,
+                "GET",
                 _KEYWORD_URL,
                 params={
                     "query": keyword,
@@ -128,7 +158,9 @@ def _keyword_rect_page(
 ) -> Dict:
     """rect(사각형) 범위 키워드 검색 1페이지. 원본 JSON body 반환."""
     rect_str = ",".join(f"{c:.7f}" for c in rect)
-    r = client.get(
+    r = request_with_retry(
+        client,
+        "GET",
         _KEYWORD_URL,
         params={"query": keyword, "rect": rect_str, "page": page, "size": _PAGE_SIZE},
         headers=_headers(),

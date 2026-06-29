@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _BASE = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
 
@@ -70,7 +71,9 @@ def _check_result(body: dict, label: str) -> None:
 
 def _fetch_sido_stations(sido: str, key: str, client: httpx.Client) -> List[dict]:
     """시도 전체 측정소 실시간 측정값 목록 (측정값 동봉)."""
-    r = client.get(
+    r = request_with_retry(
+        client,
+        "GET",
         f"{_BASE}/getCtprvnRltmMesureDnsty",
         params={
             "sidoName": _sido_short(sido) or "서울",

@@ -13,6 +13,7 @@ from typing import List, Optional
 import httpx
 
 from app.services.cache import Cache, default_cache, make_key
+from app.services.http_retry import request_with_retry
 
 _BASE = "https://kosis.kr/openapi/Param/statisticsParameterData.do"
 
@@ -96,7 +97,8 @@ def fetch_table(
     global NETWORK_CALLS
     NETWORK_CALLS += 1
     try:
-        r = httpx.get(_BASE, params=params, timeout=25.0)
+        with httpx.Client(timeout=25.0) as _c:
+            r = request_with_retry(_c, "GET", _BASE, params=params, timeout=25.0)
     except Exception as e:
         raise KosisError(f"KOSIS 네트워크 오류: {e}")
 
@@ -161,7 +163,8 @@ def _region_map(
     global NETWORK_CALLS
     NETWORK_CALLS += 1
     try:
-        r = httpx.get(_BASE, params=params, timeout=25.0)
+        with httpx.Client(timeout=25.0) as _c:
+            r = request_with_retry(_c, "GET", _BASE, params=params, timeout=25.0)
     except Exception as e:
         raise KosisError(f"KOSIS 지역목록 네트워크 오류: {e}")
 

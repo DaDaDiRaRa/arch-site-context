@@ -88,6 +88,18 @@ def test_seoul_non_seoul_skipped() -> None:
     assert notes and "서울" in notes[0]
 
 
+@pytest.mark.skipif(not os.getenv("KAKAO_KEY"), reason="KAKAO_KEY 미설정")
+def test_seoul_auto_resolve_from_coord() -> None:
+    """좌표 → 카카오 행정동코드 H[:8] 자동 해석 → 생활인구."""
+    from app.services import seoul
+
+    d, notes = seoul.fetch_living_population(lat=37.5260, lon=126.9244)  # 여의도
+    if d is None:
+        pytest.skip(f"자동해석/데이터 없음: {notes}")
+    assert d["dong_code"].startswith("1156")  # 영등포구 행정동
+    assert d["value"] > 0
+
+
 # ── KOPIS ────────────────────────────────────────────────────────
 @pytest.mark.skipif(not os.getenv("KOPIS_KEY"), reason="KOPIS_KEY 미설정")
 def test_kopis_venues_graceful() -> None:

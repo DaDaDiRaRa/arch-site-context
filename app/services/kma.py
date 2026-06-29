@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _URL = "https://apihub.kma.go.kr/api/typ02/openApi/VilageFcstInfoService_2.0/getVilageFcst"
 # 단기예보 발표시각 (KST)
@@ -72,6 +73,7 @@ def fetch_weather(
     cache: Optional[Cache] = None,
     client: Optional[httpx.Client] = None,
     now: Optional[datetime] = None,
+    timeout: float = 35.0,
 ) -> Tuple[Optional[dict], List[str]]:
     """좌표 기준 단기예보 — 가장 이른 예보시점의 기온·강수확률·하늘상태.
 
@@ -93,16 +95,18 @@ def fetch_weather(
             return cached.get("data"), cached.get("notes", [])
 
     own = client is None
-    client = client or httpx.Client(timeout=35.0)
+    client = client or httpx.Client(timeout=timeout)
     try:
-        r = client.get(
+        r = request_with_retry(
+            client,
+            "GET",
             _URL,
             params={
                 "pageNo": 1, "numOfRows": 300, "dataType": "JSON",
                 "base_date": base_date, "base_time": base_time,
                 "nx": nx, "ny": ny, "authKey": key,
             },
-            timeout=35.0,
+            timeout=timeout,
         )
         r.raise_for_status()
         body = r.json().get("response", {})

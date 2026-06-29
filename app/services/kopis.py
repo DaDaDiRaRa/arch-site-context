@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _URL = "http://www.kopis.or.kr/openApi/restful/prfplc"
 
@@ -57,7 +58,7 @@ def fetch_venues(
     own = client is None
     client = client or httpx.Client(timeout=15.0)
     try:
-        r = client.get(_URL, params=params, timeout=15.0)
+        r = request_with_retry(client, "GET", _URL, params=params, timeout=15.0)
         r.raise_for_status()
         try:
             root = ET.fromstring(r.text)

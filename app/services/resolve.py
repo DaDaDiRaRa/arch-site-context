@@ -17,6 +17,7 @@ from typing import Dict, Optional
 import httpx
 
 from app.services import juso, kakao
+from app.services.http_retry import request_with_retry
 
 _ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json"
 
@@ -42,7 +43,9 @@ def _sgg_from_bcode(bcode: str) -> str:
 
 def _kakao_address(address: str, client: httpx.Client) -> Optional[Dict]:
     """카카오 주소검색 첫 결과(좌표 + 법정동코드 + 행정구역명). 0건이면 None."""
-    r = client.get(
+    r = request_with_retry(
+        client,
+        "GET",
         _ADDRESS_URL,
         params={"query": address},
         headers={"Authorization": f"KakaoAK {os.getenv('KAKAO_KEY', '')}"},

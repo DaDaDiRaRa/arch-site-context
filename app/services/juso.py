@@ -14,6 +14,8 @@ from typing import Dict, Optional
 
 import httpx
 
+from app.services.http_retry import request_with_retry
+
 _ADDR_URL = "https://business.juso.go.kr/addrlink/addrLinkApi.do"
 
 
@@ -38,7 +40,9 @@ def search_address(
     own = client is None
     client = client or httpx.Client(timeout=10.0)
     try:
-        r = client.get(
+        r = request_with_retry(
+            client,
+            "GET",
             _ADDR_URL,
             params={
                 "confmKey": _key(),

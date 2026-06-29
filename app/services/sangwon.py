@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _URL = "http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius"
 _MAX_PAGES = 10  # 페이지당 1000건 → 최대 1만건
@@ -60,7 +61,9 @@ def fetch_store_district(
     try:
         page = 1
         while page <= _MAX_PAGES:
-            r = client.get(
+            r = request_with_retry(
+                client,
+                "GET",
                 _URL,
                 params={"serviceKey": key, "radius": radius, "cx": lon, "cy": lat,
                         "type": "json", "numOfRows": 1000, "pageNo": page},

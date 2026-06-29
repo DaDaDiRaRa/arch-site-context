@@ -14,6 +14,7 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _HOST = "http://openapi.seoul.go.kr:8088"
 _SVC = "SPOP_LOCAL_RESD_DONG"
@@ -33,21 +34,24 @@ def _rows(j: dict) -> List[dict]:
 
 def _latest_date(key: str, client: httpx.Client) -> Optional[str]:
     """가장 최근 STDR_DE_ID (데이터는 최신순). 실패 시 None."""
-    r = client.get(f"{_HOST}/{key}/json/{_SVC}/1/1/", timeout=15.0)
+    r = request_with_retry(client, "GET", f"{_HOST}/{key}/json/{_SVC}/1/1/", timeout=15.0)
     r.raise_for_status()
     rows = _rows(r.json())
     return rows[0].get("STDR_DE_ID") if rows else None
 
 
 def fetch_living_population(
-    adstrd_code: str,
+    adstrd_code: Optional[str] = None,
     hour: str = "15",
     date_id: Optional[str] = None,
+    lat: Optional[float] = None,
+    lon: Optional[float] = None,
     cache: Optional[Cache] = None,
     client: Optional[httpx.Client] = None,
 ) -> Tuple[Optional[dict], List[str]]:
     """행정동 생활인구 — 최신 가용일의 대표 시간대(기본 15시) 총 생활인구.
 
+    adstrd_code 미지정 시 lat/lon 으로 자동 해석 (카카오 행정동코드 H[:8]).
     Returns:
         ({value, date, hour, dong_code}, notes) 또는 (None, notes)
     """
@@ -57,12 +61,19 @@ def fetch_living_population(
     except ValueError as e:
         return None, [str(e)]
 
-    if not adstrd_code or not str(adstrd_code).startswith("11"):
-        return None, [f"생활인구: 서울 행정동코드(11…)만 지원 — '{adstrd_code}' 건너뜀."]
-
     own = client is None
     client = client or httpx.Client(timeout=15.0)
     try:
+        # 좌표 → 행정동코드 자동 해석 (서울 ADSTRD_CODE_SE = 카카오 행정동 H코드[:8])
+        if not adstrd_code and lat is not None and lon is not None:
+            from app.services.kakao import coord_to_hcode
+            hcode = coord_to_hcode(lat, lon, client=client)
+            if hcode:
+                adstrd_code = hcode[:8]
+
+        if not adstrd_code or not str(adstrd_code).startswith("11"):
+            return None, [f"생활인구: 서울 행정동코드(11…)만 지원 — '{adstrd_code}' 건너뜀."]
+
         ymd = date_id or _latest_date(key, client)
         if not ymd:
             return None, ["생활인구: 최신 가용일 확인 실패 — 건너뜀."]
@@ -74,7 +85,7 @@ def fetch_living_population(
                 return cached.get("data"), cached.get("notes", [])
 
         url = f"{_HOST}/{key}/json/{_SVC}/1/5/{ymd}/{hour}/{adstrd_code}"
-        r = client.get(url, timeout=15.0)
+        r = request_with_retry(client, "GET", url, timeout=15.0)
         r.raise_for_status()
         rows = _rows(r.json())
         if not rows:

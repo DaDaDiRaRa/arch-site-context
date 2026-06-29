@@ -13,16 +13,21 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _URL = "https://open.neis.go.kr/hub/schoolInfo"
 
-# 시도명 → 시도교육청 코드(ATPT_OFCDC_SC_CODE)
+# 시도명 → 시도교육청 코드(ATPT_OFCDC_SC_CODE). 정식명 + 카카오 축약형 모두 매핑.
 _OFC_CODE = {
-    "서울특별시": "B10", "부산광역시": "C10", "대구광역시": "D10", "인천광역시": "E10",
-    "광주광역시": "F10", "대전광역시": "G10", "울산광역시": "H10", "세종특별자치시": "I10",
-    "경기도": "J10", "강원특별자치도": "K10", "강원도": "K10", "충청북도": "M10",
-    "충청남도": "N10", "전라북도": "P10", "전북특별자치도": "P10", "전라남도": "Q10",
-    "경상북도": "R10", "경상남도": "S10", "제주특별자치도": "T10",
+    "서울특별시": "B10", "서울": "B10", "부산광역시": "C10", "부산": "C10",
+    "대구광역시": "D10", "대구": "D10", "인천광역시": "E10", "인천": "E10",
+    "광주광역시": "F10", "광주": "F10", "대전광역시": "G10", "대전": "G10",
+    "울산광역시": "H10", "울산": "H10", "세종특별자치시": "I10", "세종": "I10",
+    "경기도": "J10", "경기": "J10", "강원특별자치도": "K10", "강원도": "K10", "강원": "K10",
+    "충청북도": "M10", "충북": "M10", "충청남도": "N10", "충남": "N10",
+    "전라북도": "P10", "전북특별자치도": "P10", "전북": "P10", "전라남도": "Q10", "전남": "Q10",
+    "경상북도": "R10", "경북": "R10", "경상남도": "S10", "경남": "S10",
+    "제주특별자치도": "T10", "제주": "T10",
 }
 _PSIZE = 1000
 _MAX_PAGES = 3
@@ -73,7 +78,7 @@ def fetch_schools(
                       "ATPT_OFCDC_SC_CODE": ofc}
             if level:
                 params["SCHUL_KND_SC_NM"] = level
-            r = client.get(_URL, params=params, timeout=15.0)
+            r = request_with_retry(client, "GET", _URL, params=params, timeout=15.0)
             r.raise_for_status()
             j = r.json()
             if "schoolInfo" not in j:

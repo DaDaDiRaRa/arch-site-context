@@ -17,6 +17,8 @@ from typing import Dict, List, Optional, Tuple
 
 import httpx
 
+from app.services.http_retry import request_with_retry
+
 _DATA_URL = "https://api.vworld.kr/req/data"
 _SEARCH_URL = "https://api.vworld.kr/req/search"
 # 등록 도메인 (배포 서비스 URL). VWORLD_DOMAIN 으로 override 가능.
@@ -53,7 +55,9 @@ def fetch_land_price(
     own = client is None
     client = client or httpx.Client(timeout=15.0)
     try:
-        r = client.get(
+        r = request_with_retry(
+            client,
+            "GET",
             _DATA_URL,
             params={
                 "service": "data",
@@ -168,7 +172,9 @@ def search_vworld(
             page = 1
             while page <= _SEARCH_MAX_PAGES:
                 try:
-                    r = client.get(
+                    r = request_with_retry(
+                        client,
+                        "GET",
                         _SEARCH_URL,
                         params={
                             "service": "search", "request": "search", "version": "2.0",

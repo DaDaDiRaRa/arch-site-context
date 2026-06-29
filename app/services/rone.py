@@ -15,6 +15,7 @@ from typing import List, Optional, Tuple
 import httpx
 
 from app.services.cache import Cache, make_key
+from app.services.http_retry import request_with_retry
 
 _URL = "https://www.reb.or.kr/r-one/openapi/SttsApiTblData.do"
 # 기본 통계표: 월간 아파트 매매가격지수 (시군구). 검증된 STATBL_ID.
@@ -68,7 +69,9 @@ def fetch_price_index(
     own = client is None
     client = client or httpx.Client(timeout=20.0)
     try:
-        r = client.get(
+        r = request_with_retry(
+            client,
+            "GET",
             _URL,
             params={"KEY": key, "STATBL_ID": statbl_id, "DTACYCLE_CD": cycle,
                     "Type": "json", "pIndex": 1, "pSize": 1000,

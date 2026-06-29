@@ -125,6 +125,7 @@
 | POST | `/compare` | P9 | 여러 후보지 A·B·P11 나란히 비교 |
 | POST | `/ask` | P10 | 물어보기 (데이터 위에서만 + 웹검색 opt-in 폴백) |
 | POST | `/site` | P14 | 대지 기본정보 (개별공시지가=VWorld·실거래·건축물대장). 공시지가는 data.go.kr 미승인 → VWorld `LP_PA_CBND_BUBUN` 우회 |
+| POST | `/seed` | P14 | 보드 합본 진입점 — 공유 site(좌표·pnu) + context(상권·학교·부동산지수·날씨·생활인구·공연시설). `schemas/project_seed.ProjectSeed`. law·knowledge는 형제앱 자리(INTEGRATION) |
 | GET | `/health` | - | 헬스체크 |
 
 ---
@@ -380,12 +381,17 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
    - `services/neis.py` `fetch_schools(sido,sigungu,level)` — 시도교육청별 학교, 도로명주소로 시군구 필터·종류별 집계. ✅ 작동(영등포 47교)
    - `services/seoul.py` `fetch_living_population(행정동코드)` — 서울 생활인구(최신가용일 자동탐지+동·시간대 필터, 서울전용, ~5일지연). ✅ 작동
    - `services/kopis.py` `fetch_venues(signgucode)` — 공연시설. ⚠️ **키 현재 `returncode 02`(미등록)** — 골격 완성, graceful, 키 재등록 시 작동.
-   - ⬜ 후속: 각 서비스를 엔드포인트/matrix `source_type`에 배선(소스별 타깃 다름 — KMA/RONE/SEOUL=모드A 통계, NEIS/KOPIS=모드B 시설). 주소→행정동코드(SEOUL)·KOPIS 시군구코드 매핑.
+   - ✅ **엔드포인트 배선 완료** (2026-06-29): 5키 전부 `POST /seed` 의 context 에 배선(아래 7번). ✅ **SEOUL 행정동코드 자동화** (2026-06-29): 좌표→`kakao.coord_to_hcode`(coord2regioncode H코드)→`[:8]`=서울 ADSTRD_CODE_SE. `seoul.fetch_living_population(lat,lon)` 자동 해석. ⬜ 잔여: KOPIS 시군구코드 매핑·matrix `source_type` 통합(모드A 편입은 선택).
 5. ~~SBIZ365 #29·#30 재분류~~ → ✅ **완료** (2026-06-29). 판정: SBIZ365는 REST API 없음(`SBIZ365_KEY`=포털용, fetch 불가). **결정**:
    - 점포 '분포'(업종별 점포수)는 작동하는 실API **B553077 상가(상권)정보**를 `services/sangwon.py`로 정식 승격(데모→서비스). `fetch_store_district(lat,lon,radius)` = 반경 내 점포수+업종 대분류 집계. 여의도 500m 2,275개 검증. 라이브 테스트 1건. §2 차별점 통과(실API·코드계산·출처).
    - 매출/폐업/창업률·빈상가(#29b·#30)는 fileData CSV 적재만 가능 → **현재 제외**(§2 실시간 API 우선·bus-factor). 필요시 후속 CSV 적재 설계. API_MASTER_LIST.md 갱신.
-   - ⬜ 후속: `sangwon.py`를 모드 B/수급진단 업종분석에 배선.
-6. **INTEGRATION.md P12 연결 준비** — `request_with_retry`(diagnose에서 이식, 가장 싸고 효과 큼) → `project_seed.json` 스키마 확정 → `site` 해석 1곳 공통화.
+   - ✅ 엔드포인트 배선: `sangwon.py` → `POST /seed` context.stores (7번). ⬜ 잔여: 수급진단 업종분석 편입(선택).
+6. ~~INTEGRATION.md P12 연결 준비~~ → ✅ **완료** (2026-06-29). 3종 준비물:
+   - `services/http_retry.py` `request_with_retry` — 5xx·네트워크만 재시도(지수백오프), 4xx 즉시. 단위테스트 5건(MockTransport). ✅ **기존 외부호출 전반 적용 완료** (2026-06-29): kakao·resolve·juso·kosis·vworld·molit·airkorea·sangwon·rone·neis·seoul·kopis·kma 의 GET 22곳. tiles(타일별 회색채움 설계)·osm(Overpass rate-limit)은 의도적 제외.
+   - `schemas/project_seed.py` `Site`/`ProjectSeed` — 세 앱 공유 계약(INTEGRATION §4). site=공유 식별자(좌표·bcode·sgg·pnu), context=터읽기, law/knowledge=형제앱(느슨 dict, 경계).
+   - `services/site_seed.py` `build_site`/`build_project_seed` — 주소 해석 단일진입점(resolve 1곳 + VWorld pnu 보강). 라이브테스트 3건.
+7. ✅ **신규 서비스 7종 엔드포인트 배선 완료** (2026-06-29). `POST /seed`(`routers/seed.py`) = 보드 합본 진입점. `build_site`(site_seed)로 공유 site + `context`에 6개 데이터 서비스 best-effort 배선: stores(sangwon)·schools(neis)·real_estate_index(rone)·weather(kma, timeout 12s)·living_population(seoul, adstrd_code 지정 시)·venues(kopis). 각 graceful(None+notes). 출력=`ProjectSeed`(law·knowledge는 형제앱 자리). §5 표 등재, 라이브 테스트 2건. 검증: 여의대로24 1km → 상권5922·학교47·지수89.9·날씨29℃·생활인구191469·공연None(키대기). 버그수정: resolve sido가 카카오 축약형("서울")이라 NEIS `_OFC_CODE`에 축약형 추가.
+   - ✅ http_retry 전반 적용·SEOUL 행정동코드 자동화 완료(2026-06-29). ⬜ 잔여: KOPIS 시군구코드, `verify_apis.py` 갱신, 죽은 `molit.fetch_land_price` 정리, 프론트 노출.
 
 ### 9.2 확인할 것 (사용자 포털 액션 — 풀려야 코드가 의미 생김)
 

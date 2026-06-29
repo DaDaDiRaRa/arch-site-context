@@ -14,6 +14,8 @@ from typing import List, Optional, Tuple
 
 import httpx
 
+from app.services.http_retry import request_with_retry
+
 _BASE = "https://apis.data.go.kr"
 
 
@@ -128,7 +130,9 @@ def fetch_trades(
         for ym in _deal_months(months):
             if len(trades) >= max_items:
                 break
-            r = client.get(
+            r = request_with_retry(
+                client,
+                "GET",
                 f"{_BASE}/1613000/{spec['path']}",
                 params={"serviceKey": key, "LAWD_CD": sgg_code, "DEAL_YMD": ym,
                         "pageNo": 1, "numOfRows": 20},
@@ -205,7 +209,9 @@ def fetch_land_price(
     client = client or httpx.Client(timeout=15.0)
 
     try:
-        r = client.get(
+        r = request_with_retry(
+            client,
+            "GET",
             f"{_BASE}/1613000/PblntfStdPclPriceService/getPblntfStdPclPriceAtXY",
             params={
                 "serviceKey": key,
@@ -225,7 +231,9 @@ def fetch_land_price(
             if "NODATA_ERROR" in str(e):
                 # 전년도로 재시도
                 if stdr_year > 2020:
-                    r2 = client.get(
+                    r2 = request_with_retry(
+                        client,
+                        "GET",
                         f"{_BASE}/1613000/PblntfStdPclPriceService/getPblntfStdPclPriceAtXY",
                         params={
                             "serviceKey": key,
@@ -287,7 +295,9 @@ def _hub_items(
     client: httpx.Client, key: str, op: str, params: dict
 ) -> List[ET.Element]:
     """건축HUB 한 오퍼레이션 호출 → item 리스트 (실패·무데이터는 빈 리스트)."""
-    r = client.get(
+    r = request_with_retry(
+        client,
+        "GET",
         f"{_HUB}/{op}",
         params={**params, "serviceKey": key, "_type": "xml", "numOfRows": 10, "pageNo": 1},
         timeout=12.0,
