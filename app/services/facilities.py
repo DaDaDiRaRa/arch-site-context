@@ -16,10 +16,11 @@ from typing import Dict, List, Optional
 import httpx
 
 from app.schemas.facility import Center, Facility, FacilityResult
-from app.services import kakao
+from app.services import kakao, vworld
 from app.services.geo import bbox, haversine_m, radius_band
 from app.services.osm import KIND_TO_OSM, search_osm
 from app.services.resolve import resolve_address
+from app.services.vworld import KIND_TO_VWORLD
 
 
 def _dedup_key(name: str, lat: float, lon: float) -> tuple:
@@ -114,6 +115,36 @@ def build_facility_result(
             except Exception as e:
                 notes.append(f"OSM 보완 실패 ({type(e).__name__}) — 카카오 결과만 사용.")
 
+        # ── VWorld 검색 보완 (경로당 등 비상업시설 — §8.5) ──────────────────
+        vw_kinds = [k for k in kinds if k in KIND_TO_VWORLD]
+        vw_contributed = False
+        if vw_kinds:
+            vw_results, vw_notes = vworld.search_vworld(clat, clon, max_radius, vw_kinds, client=client)
+            notes.extend(vw_notes)
+            for d in vw_results:
+                key = _dedup_key(d["name"], d["lat"], d["lon"])
+                if key in seen:
+                    continue
+                dist = haversine_m(clat, clon, d["lat"], d["lon"])
+                band = radius_band(dist, radii_sorted)
+                if band is None:
+                    continue
+                seen.add(key)
+                vw_contributed = True
+                results.append(
+                    Facility(
+                        kind=d["kind"],
+                        name=d["name"],
+                        lat=d["lat"],
+                        lon=d["lon"],
+                        dist_m=round(dist),
+                        radius_band=band,
+                        src="vworld",
+                    )
+                )
+            if vw_contributed:
+                notes.append("VWorld 검색 보완 데이터 포함 (경로당 등 — 카카오·OSM 미수록 건).")
+
         results.sort(key=lambda f: f.dist_m)
 
         # counts: 누적 — 반경 R 이내(dist<=R) 시설을 kind별로 센다.
@@ -125,7 +156,12 @@ def build_facility_result(
                     per_kind[f.kind] = per_kind.get(f.kind, 0) + 1
             counts[str(r)] = per_kind
 
-        source = "kakao+osm" if osm_contributed else "kakao"
+        srcs = ["kakao"]
+        if osm_contributed:
+            srcs.append("osm")
+        if vw_contributed:
+            srcs.append("vworld")
+        source = "+".join(srcs)
 
         return FacilityResult(
             center=Center(lat=clat, lon=clon, address=loc.address),

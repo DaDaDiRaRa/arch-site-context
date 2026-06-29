@@ -30,39 +30,47 @@ class SiteCenter(BaseModel):
     dong: str = ""
 
 
-class AptTrade(BaseModel):
-    """아파트 실거래가 1건."""
+class Transaction(BaseModel):
+    """실거래 1건 (매매·전월세 공통)."""
 
-    apt_name: str = Field(..., examples=["여의도파크원"])
-    area_sqm: float = Field(..., description="전용면적(㎡)", examples=[84.96])
-    price_10k: int = Field(..., description="거래금액(만원)", examples=[85000])
+    category: str = Field(..., description="종류", examples=["토지매매", "아파트매매", "아파트전월세"])
+    deal_type: str = Field("매매", description="거래유형", examples=["매매", "전세", "월세"])
+    name: str = Field("", description="단지/건물명 (토지는 지목)", examples=["여의도파크원"])
+    area_sqm: Optional[float] = Field(None, description="면적(㎡)", examples=[84.96])
+    price_10k: Optional[int] = Field(None, description="매매금액 또는 보증금(만원)", examples=[85000])
+    monthly_10k: Optional[int] = Field(None, description="월세(만원), 매매·전세는 None/0", examples=[180])
     floor: Optional[int] = Field(None, description="층", examples=[8])
-    deal_month: str = Field(..., description="거래년월 YYYYMM", examples=["202605"])
+    deal_ym: str = Field("", description="거래년월 YYYYMM", examples=["202605"])
     dong: str = Field("", description="법정동", examples=["여의도동"])
+    note: str = Field("", description="부가 (토지: 용도지역, 연립: 주택유형)", examples=["제2종일반주거지역"])
 
 
 class RealEstate(BaseModel):
-    """아파트 실거래가 요약."""
+    """실거래가 요약 (여러 종류 혼합)."""
 
-    transactions: List[AptTrade] = Field(default_factory=list)
-    source: str = Field("국토부_아파트실거래가(RTMS)", description="출처")
+    transactions: List[Transaction] = Field(default_factory=list)
+    kinds: List[str] = Field(default_factory=list, description="조회한 종류")
+    source: str = Field("국토부_실거래가(RTMS)", description="출처")
     period: str = Field("", description="조회 기간 (예: 최근 3개월)", examples=["최근 3개월"])
     note: str = Field("", description="주의사항")
 
 
 class LandPrice(BaseModel):
-    """표준지 공시지가."""
+    """개별공시지가 (좌표가 속한 필지)."""
 
     price_per_sqm: Optional[int] = Field(None, description="원/㎡", examples=[5800000])
     year: Optional[int] = Field(None, description="기준연도", examples=[2025])
     pnu: str = Field("", description="필지번호(PNU)")
-    source: str = Field("국토부_표준지공시지가", description="출처")
+    addr: str = Field("", description="필지 주소", examples=["서울특별시 영등포구 여의도동 24"])
+    jibun: str = Field("", description="지번", examples=["24대"])
+    source: str = Field("VWorld_개별공시지가", description="출처")
     note: str = Field("", description="주의사항")
 
 
 class BuildingInfo(BaseModel):
-    """건축물대장 기본 정보."""
+    """건축물대장 기본 정보 (건축HUB, PNU 기준)."""
 
+    name: Optional[str] = Field(None, description="건물명", examples=["에프케이아이타워"])
     purpose: Optional[str] = Field(None, description="주용도", examples=["업무시설"])
     floors_above: Optional[int] = Field(None, description="지상층수", examples=[20])
     floors_below: Optional[int] = Field(None, description="지하층수", examples=[3])
@@ -71,7 +79,7 @@ class BuildingInfo(BaseModel):
     site_area_sqm: Optional[float] = Field(None, description="대지면적(㎡)", examples=[1823.0])
     bcr: Optional[float] = Field(None, description="건폐율(%)", examples=[62.3])
     far: Optional[float] = Field(None, description="용적률(%)", examples=[395.0])
-    source: str = Field("국토부_건축물대장", description="출처")
+    source: str = Field("국토부_건축HUB_건축물대장", description="출처")
     note: str = Field("", description="주의사항")
 
 

@@ -52,4 +52,5 @@ def test_facilities_real_address() -> None:
         listed = sum(1 for f in res.results if f.kind == kind)
         assert res.counts["2000"][kind] == listed
 
-    assert res.source == "kakao"
+    # 카카오 기반 + OSM·VWorld 보완 (경로당은 VWorld 가 보완 — §8.5)
+    assert res.source.startswith("kakao")
