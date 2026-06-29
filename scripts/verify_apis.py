@@ -121,6 +121,36 @@ def probe_vworld():
         return rec("기존핵심", "VWorld 위성타일(WMTS)", env, "NETWORK_ERR", note=f"{type(e).__name__}: {e}")
 
 
+def probe_vworld_data():
+    """VWorld 데이터(2D) API — 개별공시지가(LP_PA_CBND_BUBUN). data.go.kr 공시지가 우회 핵심.
+
+    ★domain 파라미터가 등록 서비스URL과 일치해야 함(불일치 시 INCORRECT_KEY).
+    """
+    env = "VWORLD_KEY"
+    if not has(env):
+        return rec("기존핵심", "VWorld 데이터(개별공시지가)", env, "SKIP", note="키 없음")
+    domain = os.getenv("VWORLD_DOMAIN") or "arch-site-context-30350777436.asia-northeast3.run.app"
+    try:
+        r = httpx.get("https://api.vworld.kr/req/data", params={
+            "service": "data", "version": "2.0", "request": "GetFeature", "format": "json",
+            "size": 1, "page": 1, "data": "LP_PA_CBND_BUBUN",
+            "geomFilter": f"POINT({LON} {LAT})", "key": os.getenv(env), "domain": domain,
+        }, timeout=15)
+        body = r.json().get("response", {})
+        status = body.get("status")
+        if status == "OK":
+            feats = (body.get("result", {}) or {}).get("featureCollection", {}).get("features", [])
+            jiga = feats[0].get("properties", {}).get("jiga") if feats else None
+            return rec("기존핵심", "VWorld 데이터(개별공시지가)", env, "WORKS", 200,
+                       "status=OK", f"jiga={jiga}")
+        err = body.get("error", {}) or {}
+        v = "AUTH_FAIL" if err.get("code") == "INCORRECT_KEY" else "WRONG_ENDPOINT"
+        return rec("기존핵심", "VWorld 데이터(개별공시지가)", env, v, r.status_code,
+                   err.get("code", status), note=f"domain={domain}")
+    except Exception as e:
+        return rec("기존핵심", "VWorld 데이터(개별공시지가)", env, "NETWORK_ERR", note=f"{type(e).__name__}: {e}")
+
+
 def probe_kosis():
     env = "KOSIS_KEY"
     if not has(env):
@@ -219,7 +249,7 @@ def _datago_result_code(text):
 
 def _classify_datago(text):
     code, msg = _datago_result_code(text)
-    if code in ("00", "0"):
+    if code in ("00", "0", "000"):  # 000 = RTMS 실거래 계열 정상코드
         return "WORKS", code, msg
     if code in ("30", "31"):
         return "KEY_NOT_APPROVED", code, msg
@@ -267,16 +297,17 @@ def probe_datago_all():
     _datago_probe("아파트 실거래가(#33)",
                   "https://apis.data.go.kr/1613000/RTMSDataSvcAptTradeDev/getRTMSDataSvcAptTradeDev",
                   {"LAWD_CD": SGG_CODE, "DEAL_YMD": ym, "pageNo": 1, "numOfRows": 3})
-    # 4) 표준지 공시지가 (좌표)
-    _datago_probe("표준지 공시지가(#35)",
+    # 4) 표준지 공시지가 (좌표) — ※ 미승인이어도 무방: 운영은 VWorld 개별공시지가로 우회(probe_vworld_data)
+    _datago_probe("표준지 공시지가(#35·VWorld로 우회)",
                   "https://apis.data.go.kr/1613000/PblntfStdPclPriceService/getPblntfStdPclPriceAtXY",
                   {"xAddr": LON, "yAddr": LAT, "stdrYear": date.today().year - 1,
                    "pageNo": 1, "numOfRows": 1})
-    # 5) 건축물대장 기본
-    _datago_probe("건축물대장 기본(#48)",
-                  "https://apis.data.go.kr/1613000/BldRgstService_v2/getBldRgstInfoSearch",
-                  {"siDoNm": "서울특별시", "siGunGuNm": "영등포구", "bjdongNm": "여의도동",
-                   "pageNo": 1, "numOfRows": 3})
+    # 5) 건축물대장 — 건축HUB 표제부 (구버전 BldRgstService_v2 는 500, 건축HUB 로 전환됨)
+    #    PNU 1156011000100280001(여의대로24) → sigunguCd11560 bjdongCd11000 platGb0 bun0028 ji0001
+    _datago_probe("건축물대장 표제부(#48 건축HUB)",
+                  "https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo",
+                  {"sigunguCd": "11560", "bjdongCd": "11000", "platGbCd": "0",
+                   "bun": "0028", "ji": "0001", "pageNo": 1, "numOfRows": 3, "_type": "xml"})
     # 6) 상가(상권)정보 반경검색 (sangwon demo)
     _datago_probe("상가(상권)정보 반경(#29실API)",
                   "http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius",
@@ -465,7 +496,12 @@ def probe_kopis():
         except Exception:
             return rec("신규포털", "KOPIS 공연시설(#134b)", env, "WRONG_ENDPOINT", r.status_code,
                        "non-XML", _trunc(t))
-        # 오류: <returnReasonCode>/<errMsg> 또는 <msg>잘못된 서비스키</msg>
+        # 오류: <returncode>02</returncode>(키 미등록) / <returnReasonCode> / 서비스키 문구
+        rc = root.findtext(".//returncode")
+        if rc and rc != "00":
+            errmsg = root.findtext(".//errmsg") or ""
+            return rec("신규포털", "KOPIS 공연시설(#134b)", env, "KEY_NOT_APPROVED", r.status_code,
+                       f"returncode={rc}", errmsg or "키 미등록/재등록 필요")
         if "서비스키" in t or "errMsg" in t or root.findtext(".//returnReasonCode"):
             return rec("신규포털", "KOPIS 공연시설(#134b)", env, "AUTH_FAIL", r.status_code,
                        "service key err", _trunc(t))
@@ -571,7 +607,7 @@ def probe_eum():
 # ─────────────────────────────────────────────────────────────────────────────
 
 PROBES = [
-    probe_kakao, probe_vworld, probe_kosis, probe_juso, probe_anthropic,
+    probe_kakao, probe_vworld, probe_vworld_data, probe_kosis, probe_juso, probe_anthropic,
     probe_datago_all,
     probe_kma, probe_rone, probe_seoul, probe_tmap, probe_neis,
     probe_kopis, probe_library, probe_culture, probe_sbiz365, probe_eum,

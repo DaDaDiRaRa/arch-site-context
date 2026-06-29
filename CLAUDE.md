@@ -391,7 +391,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
    - `schemas/project_seed.py` `Site`/`ProjectSeed` — 세 앱 공유 계약(INTEGRATION §4). site=공유 식별자(좌표·bcode·sgg·pnu), context=터읽기, law/knowledge=형제앱(느슨 dict, 경계).
    - `services/site_seed.py` `build_site`/`build_project_seed` — 주소 해석 단일진입점(resolve 1곳 + VWorld pnu 보강). 라이브테스트 3건.
 7. ✅ **신규 서비스 7종 엔드포인트 배선 완료** (2026-06-29). `POST /seed`(`routers/seed.py`) = 보드 합본 진입점. `build_site`(site_seed)로 공유 site + `context`에 6개 데이터 서비스 best-effort 배선: stores(sangwon)·schools(neis)·real_estate_index(rone)·weather(kma, timeout 12s)·living_population(seoul, adstrd_code 지정 시)·venues(kopis). 각 graceful(None+notes). 출력=`ProjectSeed`(law·knowledge는 형제앱 자리). §5 표 등재, 라이브 테스트 2건. 검증: 여의대로24 1km → 상권5922·학교47·지수89.9·날씨29℃·생활인구191469·공연None(키대기). 버그수정: resolve sido가 카카오 축약형("서울")이라 NEIS `_OFC_CODE`에 축약형 추가.
-   - ✅ http_retry 전반 적용·SEOUL 행정동코드 자동화 완료(2026-06-29). ⬜ 잔여: KOPIS 시군구코드, `verify_apis.py` 갱신, 죽은 `molit.fetch_land_price` 정리, 프론트 노출.
+   - ✅ http_retry 전반 적용·SEOUL 행정동코드 자동화·KOPIS 시군구 매핑·`verify_apis.py` 갱신 완료(2026-06-29). KOPIS는 키 미등록(02)으로 signgucode 체계 검증 불가 → 추정 않고 응답 `gugunnm` **이름 필터**(`fetch_venues(sido,sigungu)`). `verify_apis.py`: 건축HUB 표제부·VWorld 개별공시지가 프로브 추가, 아파트매매 `resultCode=000` 정상인식, KOPIS 02 정확분류. 실행결과 WORKS=15. ⬜ 잔여: 죽은 `molit.fetch_land_price` 정리, 프론트 노출.
 
 ### 9.2 확인할 것 (사용자 포털 액션 — 풀려야 코드가 의미 생김)
 
@@ -407,8 +407,8 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 
 ### 9.3 하면 좋은 것 (개선·기술부채)
 
-- **`verify_apis.py` 주기 점검 자산화** — CI/cron 으로 키 만료·승인 전파 자동 감지. ⚠️ VWorld 개발키 **2026-12-26 만료**(INTEGRATION.md §5) 추적.
+- **`verify_apis.py` 주기 점검 자산화** — CI/cron 으로 키 만료·승인 전파 자동 감지. ✅ 2026-06-29 현황 반영(건축HUB·VWorld 공시지가 프로브 추가, 아파트매매 000 인식, KOPIS 02 분류). 실행 WORKS=15. ⚠️ VWorld 개발키 **2026-12-26 만료**(INTEGRATION.md §5) 추적.
+- **테스트 보강** — `/site` 무테스트. → ✅ 해소(test_site_live·test_seed_live·신규서비스 live 추가).
 - **KOSIS 미확정 지표 확정 (DEFERRED D4, §8.6)** — 인구밀도·사업체수·주택보급률 등. 면적/인구 결합은 P11 수급진단에서 함께.
 - **matrix.json / implications.json 건축가 검수 (DEFERRED D5)** — 항목·우선순위·함의 규칙 실설계 관점 보강(코드 수정 없이 JSON만).
-- **테스트 보강** — `/site` 무테스트. 신규 서비스 추가 시 live 테스트 동반.
 - **인프라 부채** — StarletteDeprecation httpx 경고(D7), GCS 캐시+TTL(D8), 합성 PNG 다중인스턴스(D10).

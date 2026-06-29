@@ -103,13 +103,14 @@ def test_seoul_auto_resolve_from_coord() -> None:
 # ── KOPIS ────────────────────────────────────────────────────────
 @pytest.mark.skipif(not os.getenv("KOPIS_KEY"), reason="KOPIS_KEY 미설정")
 def test_kopis_venues_graceful() -> None:
-    """KOPIS — 작동 시 시설 목록, 키 미등록(02)이면 graceful None+note."""
+    """KOPIS — 시군구명 필터. 작동 시 해당 시군구 시설, 키 미등록(02)이면 graceful None+note."""
     from app.services import kopis
 
-    d, notes = kopis.fetch_venues()
+    d, notes = kopis.fetch_venues(sido="서울특별시", sigungu="종로구")
     if d is None:
         # 현재 키 returncode 02 상태 — 정직한 note 확인
         assert notes and ("KOPIS" in notes[0] or "공연시설" in notes[0])
     else:
         assert d["count"] > 0
-        assert d["venues"][0]["name"]
+        # 이름 필터가 동작했으면 전부 종로구
+        assert all("종로구" in v["gugun"] for v in d["venues"])

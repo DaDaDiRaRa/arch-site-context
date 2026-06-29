@@ -56,6 +56,7 @@ def build_facility_result(
         notes: List[str] = list(loc.notes)
 
         # ── 카카오 검색 ─────────────────────────────────────────────────────
+        kakao_contributed = False
         for kind in kinds:
             res = kakao.search_keyword_complete(kind, bbox_rect, client=client)
             for d in res["docs"]:
@@ -67,6 +68,7 @@ def build_facility_result(
                 if band is None:
                     continue
                 seen.add(key)
+                kakao_contributed = True
                 results.append(
                     Facility(
                         kind=kind,
@@ -156,12 +158,11 @@ def build_facility_result(
                     per_kind[f.kind] = per_kind.get(f.kind, 0) + 1
             counts[str(r)] = per_kind
 
-        srcs = ["kakao"]
-        if osm_contributed:
-            srcs.append("osm")
-        if vw_contributed:
-            srcs.append("vworld")
-        source = "+".join(srcs)
+        # 실제 기여한 소스만 표기 (출처 정확성 — 절대 원칙 4)
+        srcs = [s for s, used in
+                (("kakao", kakao_contributed), ("osm", osm_contributed), ("vworld", vw_contributed))
+                if used]
+        source = "+".join(srcs) if srcs else "none"
 
         return FacilityResult(
             center=Center(lat=clat, lon=clon, address=loc.address),

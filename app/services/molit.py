@@ -1,8 +1,9 @@
-"""국토부 data.go.kr API — 아파트 실거래가 · 표준지 공시지가 · 건축물대장.
+"""국토부 data.go.kr API — 실거래가(RTMS) · 건축물대장(건축HUB).
 
 DATA_GO_KR_API_KEY 사용. 각 데이터셋별 활용신청 완료 필요.
 미등록(code 30) 등 오류는 graceful 반환 (절대 원칙 3 — 추정 금지, 정직 표시).
 XML 응답 → ElementTree 파싱.
+※ 공시지가는 data.go.kr 미승인 → VWorld 개별공시지가로 우회 (services/vworld.py).
 """
 
 from __future__ import annotations
@@ -185,97 +186,8 @@ def fetch_trades(
             client.close()
 
 
-# ── 표준지 공시지가 ─────────────────────────────────────────────────────────
-
-def fetch_land_price(
-    lon: float,
-    lat: float,
-    year: Optional[int] = None,
-    client: Optional[httpx.Client] = None,
-) -> Tuple[Optional[dict], List[str]]:
-    """좌표 기반 표준지 공시지가 조회.
-
-    Returns:
-        ({price_per_sqm, year, pnu}, notes)  또는 (None, notes)
-    """
-    notes: List[str] = []
-    try:
-        key = _key()
-    except ValueError as e:
-        return None, [str(e)]
-
-    stdr_year = year or date.today().year
-    own = client is None
-    client = client or httpx.Client(timeout=15.0)
-
-    try:
-        r = request_with_retry(
-            client,
-            "GET",
-            f"{_BASE}/1613000/PblntfStdPclPriceService/getPblntfStdPclPriceAtXY",
-            params={
-                "serviceKey": key,
-                "xAddr": lon,
-                "yAddr": lat,
-                "stdrYear": stdr_year,
-                "pageNo": 1,
-                "numOfRows": 1,
-            },
-            timeout=12.0,
-        )
-        r.raise_for_status()
-        root = ET.fromstring(r.text)
-        try:
-            _check_xml_result(root, "표준지공시지가")
-        except ValueError as e:
-            if "NODATA_ERROR" in str(e):
-                # 전년도로 재시도
-                if stdr_year > 2020:
-                    r2 = request_with_retry(
-                        client,
-                        "GET",
-                        f"{_BASE}/1613000/PblntfStdPclPriceService/getPblntfStdPclPriceAtXY",
-                        params={
-                            "serviceKey": key,
-                            "xAddr": lon,
-                            "yAddr": lat,
-                            "stdrYear": stdr_year - 1,
-                            "pageNo": 1,
-                            "numOfRows": 1,
-                        },
-                        timeout=12.0,
-                    )
-                    root = ET.fromstring(r2.text)
-                    _check_xml_result(root, "표준지공시지가(전년)")
-                    stdr_year -= 1
-                else:
-                    raise
-            else:
-                raise
-
-        item = root.find(".//item")
-        if item is None:
-            return None, ["표준지공시지가: 해당 좌표 데이터 없음."]
-
-        raw_price = (item.findtext("stdPclc") or "").replace(",", "").strip()
-        if not raw_price:
-            return None, ["표준지공시지가: 가격 필드 없음."]
-
-        price = int(raw_price)
-        pnu = (item.findtext("pnu") or "").strip()
-        notes.append(f"표준지공시지가: {stdr_year}년 기준 (국토부, 개별 필지 아닐 수 있음 — 참고).")
-        return {"price_per_sqm": price, "year": stdr_year, "pnu": pnu}, notes
-
-    except ValueError as e:
-        return None, [str(e)]
-    except Exception as e:
-        return None, [f"표준지공시지가 오류: {type(e).__name__}: {str(e)[:120]}"]
-    finally:
-        if own:
-            client.close()
-
-
 # ── 건축물대장 (건축HUB, PNU 기준) ──────────────────────────────────────────
+# (표준지공시지가는 data.go.kr 미승인 → VWorld 개별공시지가로 우회: services/vworld.py)
 _HUB = "https://apis.data.go.kr/1613000/BldRgstHubService"
 
 

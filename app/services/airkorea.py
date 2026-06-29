@@ -102,8 +102,9 @@ def _pick_station(items: List[dict], sigungu: str) -> Optional[dict]:
     for it in items:
         if it.get("stationName") == sigungu:
             return it
+    # 부분일치 폴백: 1글자 어간(중구→'중', 서구→'서')은 무관 측정소 오매칭 위험 → 2글자 이상만.
     short = sigungu.rstrip("구시군")  # '영등포구'→'영등포'
-    if short:
+    if len(short) >= 2:
         for it in items:
             if short in (it.get("stationName") or ""):
                 return it
