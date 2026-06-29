@@ -37,12 +37,18 @@ class DemandSignal(BaseModel):
 
 
 class SupplySignal(BaseModel):
-    """공급 신호 (모드 B — 반경 내 시설 개수)."""
+    """공급 신호 (모드 B — 반경 내 시설 개수). 일부 규칙은 시군구 정원(capacity) 보강."""
 
     kinds: List[str] = Field(..., examples=[["어린이집", "유치원"]])
     count: int = Field(..., description="반경 내 합계 개수", examples=[12])
     radius: int = Field(..., examples=[1000])
     level: str = Field(..., description="공급 수준", examples=["보통"])  # 적음|보통|많음
+    capacity: Optional[int] = Field(
+        None, description="시군구 공급 정원(어린이집 정원 등 — 반경 아님, 참고)", examples=[2785]
+    )
+    capacity_scope: str = Field(
+        "", description="정원 출처 범위 (시군구명 — 반경 개수와 단위 다름)", examples=["영등포구"]
+    )
 
 
 class Diagnosis(BaseModel):

@@ -24,7 +24,7 @@ from app.schemas.diagnose import (
 )
 from app.schemas.facility import Center
 from app.schemas.region import Region
-from app.services import stats
+from app.services import childcare, stats
 from app.services.cache import Cache
 from app.services.facilities import build_facility_result
 from app.services.resolve import resolve_address
@@ -80,14 +80,20 @@ def _verdict(dlevel: str, slevel: str) -> str:
 
 
 def cross_rules(
-    fact_by_item: dict, band: dict, radius: int, rules: Optional[List[dict]] = None
+    fact_by_item: dict,
+    band: dict,
+    radius: int,
+    rules: Optional[List[dict]] = None,
+    capacity_data: Optional[dict] = None,
 ) -> tuple:
     """수요 facts × 공급 개수(band)를 규칙과 교차 → (diagnoses, notes).
 
     순수 로직(네트워크 없음) — build_diagnosis 와 P9 비교(compare)가 공유.
     band: {시설종류: 반경내 개수}. fact_by_item: {지표명: fact dict}.
+    capacity_data: {규칙명: {capacity, scope}} — 시군구 정원 보강(선택, 반경과 단위 다름·참고).
     """
     rules = rules if rules is not None else load_rules()
+    capacity_data = capacity_data or {}
     diagnoses: List[Diagnosis] = []
     notes: List[str] = []
     for r in rules:
@@ -110,9 +116,17 @@ def cross_rules(
         unit = fact.get("unit", "")
         nat = fact.get("national_avg")
         nat_txt = f"전국 {nat}{unit}" if nat is not None else "전국 비교 불가"
+
+        # 시군구 정원 보강 (어린이집 등 — 반경 개수와 단위 다름, 참고)
+        cap_info = capacity_data.get(r["name"]) or {}
+        capacity = cap_info.get("capacity")
+        cap_scope = cap_info.get("scope", "")
+        cap_txt = (
+            f"(시군구 {cap_scope} 정원 {capacity}명)" if capacity is not None else ""
+        )
         note = (
             f"{r['demand_item']} {fact['value']}{unit}({nat_txt}) · "
-            f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개 — {verdict}"
+            f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개{cap_txt} — {verdict}"
         )
         diagnoses.append(
             Diagnosis(
@@ -127,7 +141,8 @@ def cross_rules(
                     year=fact["year"],
                 ),
                 supply=SupplySignal(
-                    kinds=r["supply_kinds"], count=count, radius=radius, level=slevel
+                    kinds=r["supply_kinds"], count=count, radius=radius, level=slevel,
+                    capacity=capacity, capacity_scope=cap_scope,
                 ),
                 signal=f"수요 {dlevel}·공급 {slevel}",
                 note=note,
@@ -135,6 +150,31 @@ def cross_rules(
             )
         )
     return diagnoses, notes
+
+
+def _collect_capacity(
+    rules: List[dict], sgg_code: str, region_name: str,
+    cache: Optional[Cache], client: Optional[httpx.Client],
+) -> tuple:
+    """capacity_source 지정 규칙의 시군구 정원 수집 → ({규칙명:{capacity,scope}}, notes).
+
+    현재 'childcare'(어린이집 정보공개포털 정원)만. graceful — 실패 시 해당 규칙만 정원 생략.
+    """
+    capacity_data: dict = {}
+    notes: List[str] = []
+    needs_childcare = any(r.get("capacity_source") == "childcare" for r in rules)
+    if needs_childcare:
+        cc, ccnotes = childcare.fetch_childcare(
+            sgg_code, region_name, cache=cache, client=client
+        )
+        notes += ccnotes
+        if cc:
+            for r in rules:
+                if r.get("capacity_source") == "childcare":
+                    capacity_data[r["name"]] = {
+                        "capacity": cc["total_capacity"], "scope": cc["scope"]
+                    }
+    return capacity_data, notes
 
 
 def build_diagnosis(
@@ -165,7 +205,15 @@ def build_diagnosis(
         band = fres.counts.get(str(radius), {})
         notes += [n for n in fres.notes if n not in notes]
 
-        diagnoses, cnotes = cross_rules(fact_by_item, band, radius, rules)
+        # 시군구 정원 보강 (어린이집 정보공개포털 — 반경 개수와 단위 다름, 참고)
+        capacity_data, capnotes = _collect_capacity(
+            rules, loc.sgg_code, loc.sigungu, cache, client
+        )
+        notes += capnotes
+
+        diagnoses, cnotes = cross_rules(
+            fact_by_item, band, radius, rules, capacity_data=capacity_data
+        )
         notes += cnotes
 
         return DiagnoseResult(

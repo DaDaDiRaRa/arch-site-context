@@ -72,10 +72,15 @@ class _FakeLoc:
     notes: list = []
 
 
+def _fake_childcare(*_a, **_k):
+    return {"count": 50, "total_capacity": 2785, "sample": [], "scope": "영등포구"}, []
+
+
 def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
+    monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000)
 
@@ -91,6 +96,10 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     boyuk = by_name["보육시설 수급"]
     assert boyuk.demand.level == "낮음"
     assert boyuk.supply.count == 3 and boyuk.supply.level == "적음"
+    # 어린이집 정원(시군구) 보강 — 반경 개수와 별개 참고수치 (절대 원칙 4)
+    assert boyuk.supply.capacity == 2785
+    assert boyuk.supply.capacity_scope == "영등포구"
+    assert "정원 2785명" in boyuk.note
     # 노인: 고령 24 > 21.2+2 → 높음, 경로당15+노인복지관1=16 ≥ high_min12 → 많음
     noin = by_name["노인복지시설 수급"]
     assert noin.demand.level == "높음" and noin.supply.level == "많음"
@@ -107,6 +116,7 @@ def test_build_diagnosis_skips_missing_demand_item(monkeypatch) -> None:
     monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", lambda *a, **k: ([], [], None))
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
+    monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000)
     assert res.diagnoses == []
