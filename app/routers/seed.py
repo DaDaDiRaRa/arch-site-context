@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 from app.schemas.errors import ErrorBlock
 from app.schemas.project_seed import ProjectSeed
 from app.schemas.seed import SeedRequest
-from app.services import kma, kopis, neis, rone, sangwon, seoul
+from app.services import childcare, culture, kma, kopis, neis, rone, sangwon, seoul
 from app.services.cache import default_cache
 from app.services.kakao import KakaoError
 from app.services.site_seed import build_site
@@ -60,6 +60,16 @@ def seed(req: SeedRequest):
     # 3) 학교 (NEIS, 시도+시군구)
     context["schools"], n = _gather(
         "학교", neis.fetch_schools, site.sido, site.sigungu, cache=cache)
+    notes += n
+
+    # 3b) 어린이집 (정보공개포털 cpmsapi021, 시군구코드) — 개수·총정원
+    context["childcare"], n = _gather(
+        "어린이집", childcare.fetch_childcare, site.sgg_code, site.sigungu, cache=cache)
+    notes += n
+
+    # 3c) 문화기반시설 (총람 B553457 10종, 시군구코드) — 유형별 개수·시설명
+    context["culture"], n = _gather(
+        "문화시설", culture.fetch_culture, site.sgg_code, site.sigungu, cache=cache)
     notes += n
 
     # 4) 부동산 지수 (부동산원 R-ONE, 시군구명)

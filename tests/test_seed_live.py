@@ -38,9 +38,14 @@ def test_seed_aggregates() -> None:
 
     # context 블록 키 존재 (값은 graceful None 허용)
     ctx = b["context"]
-    for k in ("stores", "schools", "real_estate_index", "weather", "living_population", "venues"):
+    for k in ("stores", "schools", "childcare", "culture", "real_estate_index", "weather", "living_population", "venues"):
         assert k in ctx
     assert "notes" in ctx
+
+    # 어린이집은 영등포에서 실데이터(정원 합계) 나와야 함 (정보공개포털 승인됨)
+    if ctx["childcare"] is not None:
+        assert ctx["childcare"]["count"] > 0
+        assert ctx["childcare"]["total_capacity"] > 0
 
     # 최소한 상권은 영등포에서 실데이터가 나와야 함 (B553077 승인됨)
     if ctx["stores"] is not None:

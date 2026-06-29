@@ -125,7 +125,7 @@
 | POST | `/compare` | P9 | 여러 후보지 A·B·P11 나란히 비교 |
 | POST | `/ask` | P10 | 물어보기 (데이터 위에서만 + 웹검색 opt-in 폴백) |
 | POST | `/site` | P14 | 대지 기본정보 (개별공시지가=VWorld·실거래·건축물대장). 공시지가는 data.go.kr 미승인 → VWorld `LP_PA_CBND_BUBUN` 우회 |
-| POST | `/seed` | P14 | 보드 합본 진입점 — 공유 site(좌표·pnu) + context(상권·학교·부동산지수·날씨·생활인구·공연시설). `schemas/project_seed.ProjectSeed`. law·knowledge는 형제앱 자리(INTEGRATION) |
+| POST | `/seed` | P14 | 보드 합본 진입점 — 공유 site(좌표·pnu) + context(상권·학교·어린이집·문화시설·부동산지수·날씨·생활인구·공연시설). `schemas/project_seed.ProjectSeed`. law·knowledge는 형제앱 자리(INTEGRATION) |
 | GET | `/health` | - | 헬스체크 |
 
 ---
@@ -397,7 +397,9 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 
 - [ ] **data.go.kr 활용신청**: 에어코리아 `B552584`(신청완료·대기) · 건축물대장 `BldRgstService_v2` · 아파트매매 `RTMSDataSvcAptTradeDev`(신청완료·대기) · 문화기반시설총람 `B553457`(신청완료). → 승인 후 `scripts/verify_apis.py` 재실행으로 전파 확인(403/500→00).
   - ~~표준지공시지가~~ → **불필요**: VWorld 개별공시지가로 우회 완료(§9.1-1).
-  - 경로당(15114136)·어린이집 → data.go.kr 신청해뒀으나 **경로당/노인복지시설은 VWorld 검색 API로 우회 가능**(§8.5 참조), 어린이집은 정보공개포털 API 별도 신청(대기). VWorld가 풀리면 data.go.kr는 백업.
+  - 경로당(15114136) → **VWorld 검색 API로 우회 완료**(§8.5). 어린이집 → ✅ **정보공개포털 cpmsapi021 연결 완료**(2026-06-29, `CHILDCARE_INFO_KEY`, `services/childcare.py`→`/seed`. 영등포 50개·정원2785 검증). data.go.kr 경로는 불필요.
+  - 문화기반시설총람 `B553457` → ✅ **연결 완료**(2026-06-29, `services/culture.py`→`/seed` context.culture). `DATA_GO_KR_API_KEY`+`pblshYr`(발간연도 자동탐지, 최신2024)+`sggCd`, 10개 시설유형 operation(박물관·미술관·문예회관·국립/공공도서관·생활문화센터·지방문화원·문화의집·지역문화재단·문학관). 종로73·강남31·부산중구7 등 전국 검증. ⚠️ kcisa `CULTURE_KEY`는 401 — data.go.kr 경로가 정답.
+  - **KOPIS** → ✅ 키 갱신 후 인증 통과(이전 02). **어린이집 상세** cpmsapi030(`CHILDCARE_DETAIL_KEY`, 위경도·CCTV·연령별정원)은 arcode 체계 별도 — 필요 시 추가.
 - [ ] **TMAP #103**: SK OpenAPI 콘솔에서 앱 활성화 + 사용할 API 구독 (현재 `403 INVALID_API_KEY`).
 - [ ] **LIBRARY #122**: data4library 계정 OpenAPI 활성화 승인 (현재 "API 미활성").
 - [ ] **CULTURE #134 경로 택1**: data.go.kr `B553457` 활용신청 **또는** kcisa 구독 데이터셋의 정확한 `API_CCA` 번호 확인.
