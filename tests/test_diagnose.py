@@ -28,9 +28,14 @@ def test_demand_level_thresholds() -> None:
 
 
 def test_supply_level_thresholds() -> None:
-    assert diagnose._supply_level(2, 3, 10) == "적음"
-    assert diagnose._supply_level(15, 3, 10) == "많음"
-    assert diagnose._supply_level(6, 3, 10) == "보통"
+    # 기본 radius=1000m (scale=1.0)
+    assert diagnose._supply_level_count(2, 3, 10) == "적음"
+    assert diagnose._supply_level_count(15, 3, 10) == "많음"
+    assert diagnose._supply_level_count(6, 3, 10) == "보통"
+    # radius=2000m: scale=4 → low=12, high=40
+    assert diagnose._supply_level_count(10, 3, 10, 2000) == "적음"
+    assert diagnose._supply_level_count(45, 3, 10, 2000) == "많음"
+    assert diagnose._supply_level_count(25, 3, 10, 2000) == "보통"
 
 
 def test_verdict_matrix_and_unknown() -> None:
@@ -90,6 +95,7 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000)
 
@@ -134,6 +140,7 @@ def test_build_diagnosis_skips_missing_demand_item(monkeypatch) -> None:
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", lambda *a, **k: ([], [], None))
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: None)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000)
     assert res.diagnoses == []

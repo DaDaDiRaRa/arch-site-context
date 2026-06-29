@@ -34,10 +34,13 @@ class FacilityRequest(BaseModel):
 
 
 class MapRequest(FacilityRequest):
-    """POST /facilities/map 입력. 시설 요청과 동일 + 배경지도 선택."""
+    """POST /facilities/map 입력. 시설 요청과 동일 + 배경지도·등시선 선택."""
 
     basemap: str = Field(
         "vworld", description="배경지도: 'vworld'(위성) | 'kakao'(스카이뷰, 미구현)"
+    )
+    isochrone: bool = Field(
+        True, description="TMAP 보행자 경로 기반 등시선 표시 (TMAP_KEY 필요). False면 직선반경 원."
     )
 
 

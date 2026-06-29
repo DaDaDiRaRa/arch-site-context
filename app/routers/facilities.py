@@ -17,6 +17,7 @@ from app.services.facilities import build_facility_result
 from app.services.kakao import KakaoError
 from app.services.map_compose import compose_map
 from app.services.tiles import BasemapError
+from app.services import tmap
 
 router = APIRouter(tags=["mode-b"])
 
@@ -44,7 +45,15 @@ def facilities_map(req: MapRequest) -> dict:
     radii = req.radii or list(DEFAULT_RADII)
     try:
         result = build_facility_result(req.address, kinds, radii)
-        png = compose_map(result, radii, basemap=req.basemap, cache_dir=_TILE_CACHE)
+
+        iso = None
+        if req.isochrone and tmap._TMAP_KEY:
+            try:
+                iso = tmap.compute_isochrone(result.center.lat, result.center.lon)
+            except Exception:
+                result.notes.append("TMAP 등시선 계산 실패 — 직선반경으로 표시.")
+
+        png = compose_map(result, radii, basemap=req.basemap, isochrone=iso, cache_dir=_TILE_CACHE)
     except KakaoError as e:
         raise HTTPException(status_code=422, detail=str(e))
     except BasemapError as e:

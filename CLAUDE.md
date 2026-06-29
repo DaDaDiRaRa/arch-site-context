@@ -336,9 +336,9 @@ KOSIS 키 동작 확인. **단, 지역코드 체계가 테이블마다 다름**(
 
 > 한 줄 결론: **기존 기능(모드 A·B·diagnose·compare·ask)은 정상(pytest 65 통과). 새로 키 붙인 data.go.kr 확장이 "데이터셋 미승인"으로 전부 막혀 실데이터가 0이다.**
 
-### ✅ 작동 확인 (9키)
+### ✅ 작동 확인 (10키)
 
-KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub, `authKey=`) · **RONE**(SttsApiTblData, `KEY=`) · **SEOUL**(INFO-000) · **NEIS**(schoolInfo) · **KOPIS**(`prfplc`). + OSM(무료, 이미 `facilities.py` 연결).
+KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub, `authKey=`) · **RONE**(SttsApiTblData, `KEY=`) · **SEOUL**(INFO-000) · **NEIS**(schoolInfo) · **KOPIS**(`prfplc`) · **TMAP**(SK OpenAPI 보행자 경로, 앱 활성화 완료 2026-06-29). + OSM(무료, 이미 `facilities.py` 연결).
 
 ### 🟡 DATA_GO_KR — 키는 유효, 데이터셋별 승인이 갈림 (★중요)
 
@@ -352,7 +352,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 
 ### 🔴 키/계정 미활성·인증실패 (사용자 액션 필요)
 
-- **TMAP #103**: 쿼리·헤더 둘 다 `403 INVALID_API_KEY` → SK OpenAPI 콘솔에서 앱 활성화/해당 API 구독 확인.
+- ~~**TMAP #103**~~ → ✅ **해소** (2026-06-29): SK OpenAPI 앱 활성화 + Pedestrian Route API 구독 완료. `services/tmap.py` 배선(§9.1 항목 9).
 - **LIBRARY #122**: "API 활성화 상태가 아닙니다" → data4library 계정 OpenAPI 활성화 승인.
 - **CULTURE #134**: data.go.kr B553457 미승인(500) + kcisa(`API_CCA_###`) 401. ※ `API_CCA` 계열은 공연·전시 *콘텐츠*이지 시설총람 아님 → 진짜 #134는 **data.go.kr B553457(DATA_GO_KR키) 활용신청** 경로. 둘 중 하나 확정 필요.
 
@@ -370,7 +370,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 
 ### 다음 액션 (두 갈래)
 
-- **(사용자) 포털**: TMAP 앱 활성화. LIBRARY 활성화(또는 VWorld 도서관 검색으로 대체). data.go.kr 에어코리아 B552584 승인 확인.
+- **(사용자) 포털**: ~~TMAP 앱 활성화~~ ✅ 완료. LIBRARY 활성화(또는 VWorld 도서관 검색으로 대체). data.go.kr 에어코리아 B552584 승인 확인.
 - **(코드)**: ① 프론트에 /seed·/site 노출 ② KOSIS 미확정 지표(인구밀도·사업체수) 확정 ③ `verify_apis.py` 주기 점검 자산화.
 - 새 소스 배선 시 **반드시 `docs/API_VERIFICATION` 에서 작동 확인된 엔드포인트만** 사용.
 
@@ -408,6 +408,8 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 7. ✅ **신규 서비스 7종 엔드포인트 배선 완료** (2026-06-29). `POST /seed`(`routers/seed.py`) = 보드 합본 진입점. `build_site`(site_seed)로 공유 site + `context`에 6개 데이터 서비스 best-effort 배선: stores(sangwon)·schools(neis)·real_estate_index(rone)·weather(kma, timeout 12s)·living_population(seoul, adstrd_code 지정 시)·venues(kopis). 각 graceful(None+notes). 출력=`ProjectSeed`(law·knowledge는 형제앱 자리). §5 표 등재, 라이브 테스트 2건. 검증: 여의대로24 1km → 상권5922·학교47·지수89.9·날씨29℃·생활인구191469·공연None(키대기). 버그수정: resolve sido가 카카오 축약형("서울")이라 NEIS `_OFC_CODE`에 축약형 추가.
    - ✅ http_retry 전반 적용·SEOUL 행정동코드 자동화·KOPIS 시군구 매핑·`verify_apis.py` 갱신 완료(2026-06-29). KOPIS는 키 미등록(02)으로 signgucode 체계 검증 불가 → 추정 않고 응답 `gugunnm` **이름 필터**(`fetch_venues(sido,sigungu)`). `verify_apis.py`: 건축HUB 표제부·VWorld 개별공시지가 프로브 추가, 아파트매매 `resultCode=000` 정상인식, KOPIS 02 정확분류. 실행결과 WORKS=15. ✅ 죽은 `molit.fetch_land_price` 제거 완료(코드리뷰).
 8. ✅ **어린이집·문화시설·수급진단 규칙 확장 완료** (2026-06-29). `services/childcare.py`(cpmsapi021, XML, 정원·개수)·`services/culture.py`(B553457 10종, pblshYr 자동탐지, by_type) 신설 → `/seed` context.childcare·context.culture 배선. 수급진단에 어린이집 **정원** 편입(`capacity_source:"childcare"`, `SupplySignal.capacity`). `supply_demand.json`에 **의료시설 수급**(고령인구비율×병원·의원·약국)·**초등학교 수급**(유소년인구비율×초등학교) 추가 → 총 5개 규칙. 문화시설은 수요 proxy 없어 수급진단 미편입·현황만. 전체 테스트 101 통과.
+9. ✅ **TMAP 보행자 등시선 배선 완료** (2026-06-29). SK OpenAPI 앱 활성화 확인 후 `services/tmap.py` 신설. 구현: 16방향 × 3시간대(5·10·15분) = 48 TMAP 보행자 경로 병렬 호출(`ThreadPoolExecutor max_workers=8`, 실측 ~0.8s) → 경로 시간 기준 절삭(`_trim_route_at_time`) → 경계점 연결해 등시선 폴리곤 생성. `compose_map()`에 `isochrone` 파라미터 추가 — PIL `draw.polygon`으로 5·10·15분 채움 폴리곤(외→내 순). `/facilities/map` 요청에 `isochrone: true`(기본값) 추가. graceful — TMAP 실패 시 기존 반경원으로 폴백. 반경원이 "카카오 최대반경 2km 기계적 원"인 반면 등시선은 실도보 가능권 표시 — 언덕·도로·막힌 골목 반영.
+10. ✅ **수급진단 반경 비례 정규화 + 전국 밀도 벤치마크 완료** (2026-06-29). `_supply_level`→`_supply_level_count(count, low_max, high_min, radius)`: 임계값을 `(radius/1000)²`으로 스케일(반경 2km → 면적 4배 → 임계값 4배). `supply_demand.json`에 규칙별 `national_density_per_10k`·`national_density_source`·`density_low_pct`·`density_high_pct` 추가(보육 7.7·노인 13.0·1인가구 14.5·의료 12.1·초등 1.2, 각 보건복지부/교육부/HIRA 2024 출처). `SupplySignal`에 `density_per_10k`·`national_density_per_10k`·`vs_national_pct` 필드 추가(참고용 — 분모가 시군구 전체인구라 primary 판정엔 미사용, note에 텍스트로 병기). `stats.fetch_total_pop(sgg_code)` 추가 — KOSIS DT_1B04005N 캐시 재사용, 추가 API 호출 없음. 테스트 6/6 통과.
 
 ### 9.2 확인할 것 (사용자 포털 액션 — 풀려야 코드가 의미 생김)
 
@@ -416,7 +418,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
   - 경로당(15114136) → **VWorld 검색 API로 우회 완료**(§8.5). 어린이집 → ✅ **정보공개포털 cpmsapi021 연결 완료**(2026-06-29, `CHILDCARE_INFO_KEY`, `services/childcare.py`→`/seed`. 영등포 50개·정원2785 검증). data.go.kr 경로는 불필요.
   - 문화기반시설총람 `B553457` → ✅ **연결 완료**(2026-06-29, `services/culture.py`→`/seed` context.culture). `DATA_GO_KR_API_KEY`+`pblshYr`(발간연도 자동탐지, 최신2024)+`sggCd`, 10개 시설유형 operation(박물관·미술관·문예회관·국립/공공도서관·생활문화센터·지방문화원·문화의집·지역문화재단·문학관). 종로73·강남31·부산중구7 등 전국 검증. ⚠️ kcisa `CULTURE_KEY`는 401 — data.go.kr 경로가 정답.
   - **KOPIS** → ✅ 키 갱신 후 인증 통과(이전 02). **어린이집 상세** cpmsapi030(`CHILDCARE_DETAIL_KEY`, 위경도·CCTV·연령별정원)은 arcode 체계 별도 — 필요 시 추가.
-- [ ] **TMAP #103**: SK OpenAPI 콘솔에서 앱 활성화 + 사용할 API 구독 (현재 `403 INVALID_API_KEY`).
+- ✅ **TMAP #103 완료** (2026-06-29): SK OpenAPI 앱 활성화 + Pedestrian Route API 구독. `services/tmap.py` 등시선 배선 완료(§9.1 항목 9).
 - [ ] **LIBRARY #122**: data4library 계정 OpenAPI 활성화 승인 (현재 "API 미활성").
 - [ ] **CULTURE #134 경로 택1**: data.go.kr `B553457` 활용신청 **또는** kcisa 구독 데이터셋의 정확한 `API_CCA` 번호 확인.
 - [ ] **JUSO 운영키 (DEFERRED D2)**: 배포 전 dev키→운영키 교체.
@@ -425,7 +427,7 @@ KAKAO · VWORLD · KOSIS · JUSO · ANTHROPIC(claude-opus-4-8) · **KMA**(apihub
 
 ### 9.3 하면 좋은 것 (개선·기술부채)
 
-- **`verify_apis.py` 주기 점검 자산화** — CI/cron 으로 키 만료·승인 전파 자동 감지. ✅ 2026-06-29 현황 반영(건축HUB·VWorld 공시지가 프로브 추가, 아파트매매 000 인식, KOPIS 02 분류). 실행 WORKS=15. ⚠️ VWorld 개발키 **2026-12-26 만료**(INTEGRATION.md §5) 추적.
+- **`verify_apis.py` 주기 점검 자산화** — CI/cron 으로 키 만료·승인 전파 자동 감지. ✅ 2026-06-29 현황 반영(건축HUB·VWorld 공시지가 프로브 추가, 아파트매매 000 인식, KOPIS 02 분류). 실행 WORKS=16(TMAP 추가). ⚠️ VWorld 개발키 **2026-12-26 만료**(INTEGRATION.md §5) 추적.
 - **테스트 보강** — `/site` 무테스트. → ✅ 해소(test_site_live·test_seed_live·신규서비스 live 추가).
 - **KOSIS 미확정 지표 확정 (DEFERRED D4, §8.6)** — 인구밀도·사업체수·주택보급률 등. 면적/인구 결합은 P11 수급진단에서 함께.
 - **matrix.json / implications.json 건축가 검수 (DEFERRED D5)** — 항목·우선순위·함의 규칙 실설계 관점 보강(코드 수정 없이 JSON만).

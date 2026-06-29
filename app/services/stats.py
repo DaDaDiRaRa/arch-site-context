@@ -153,6 +153,20 @@ def collect_facts_by_items(
     return facts, notes + fnotes, year_used
 
 
+def fetch_total_pop(sgg_code: str, cache: Optional[Cache] = None) -> Optional[int]:
+    """시군구 주민등록 총인구수. DT_1B04005N(행안부코드) — 수급진단 밀도 계산용.
+
+    같은 테이블을 age_share 계산에도 쓰므로 캐시 적중 → 추가 API 호출 없음.
+    실패 시 None (수급진단이 graceful fallback으로 개수 기반 레벨 사용).
+    """
+    try:
+        result = kosis.fetch_table("101", "DT_1B04005N", sgg_code, None, obj_l2="ALL", cache=cache)
+        total = _age_total(result["rows"], "T2")
+        return int(total) if total else None
+    except Exception:
+        return None
+
+
 def collect_common_facts(
     sido: str,
     sigungu: str,

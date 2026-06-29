@@ -26,6 +26,7 @@ from app.schemas.facility import Center
 from app.schemas.region import Region
 from app.services import childcare, stats
 from app.services.cache import Cache
+from app.services.stats import fetch_total_pop
 from app.services.facilities import build_facility_result
 from app.services.resolve import resolve_address
 
@@ -50,11 +51,23 @@ def _demand_level(value: float, national: Optional[float], margin: float) -> str
     return "평이"
 
 
-def _supply_level(count: int, low_max: int, high_min: int) -> str:
-    """반경 내 공급 개수 레벨."""
-    if count <= low_max:
+def _supply_level_count(count: int, low_max: int, high_min: int, radius: int = 1000) -> str:
+    """반경 내 공급 개수 레벨. 임계값은 radius=1000m 기준 — 면적 비례(radius²)로 스케일."""
+    scale = (radius / 1000) ** 2
+    scaled_low = max(0, round(low_max * scale))
+    scaled_high = max(scaled_low + 1, round(high_min * scale))
+    if count <= scaled_low:
         return "적음"
-    if count >= high_min:
+    if count >= scaled_high:
+        return "많음"
+    return "보통"
+
+
+def _supply_level_density(density: float, national: float, low_pct: float, high_pct: float) -> str:
+    """인구 밀도 기반 공급 레벨. 전국 대비 %로 판정."""
+    if density < national * low_pct / 100:
+        return "적음"
+    if density >= national * high_pct / 100:
         return "많음"
     return "보통"
 
@@ -85,12 +98,14 @@ def cross_rules(
     radius: int,
     rules: Optional[List[dict]] = None,
     capacity_data: Optional[dict] = None,
+    total_pop: Optional[int] = None,
 ) -> tuple:
     """수요 facts × 공급 개수(band)를 규칙과 교차 → (diagnoses, notes).
 
     순수 로직(네트워크 없음) — build_diagnosis 와 P9 비교(compare)가 공유.
     band: {시설종류: 반경내 개수}. fact_by_item: {지표명: fact dict}.
     capacity_data: {규칙명: {capacity, scope}} — 시군구 정원 보강(선택, 반경과 단위 다름·참고).
+    total_pop: 시군구 총인구 — 밀도 계산용(선택). 없으면 개수 기반 fallback.
     """
     rules = rules if rules is not None else load_rules()
     capacity_data = capacity_data or {}
@@ -109,9 +124,26 @@ def cross_rules(
             float(r.get("demand_margin", 0)),
         )
         count = sum(int(band.get(k, 0)) for k in r["supply_kinds"])
-        slevel = _supply_level(
-            count, int(r.get("supply_low_max", 0)), int(r.get("supply_high_min", 10**9))
+
+        # ── 공급 레벨: 반경 비례 개수 기반 (primary) ────────────────────────
+        # 임계값은 radius=1000m 기준, 면적 비례(radius²)로 스케일 → magic number 탈피.
+        slevel = _supply_level_count(
+            count,
+            int(r.get("supply_low_max", 0)),
+            int(r.get("supply_high_min", 10**9)),
+            radius,
         )
+
+        # ── 밀도 (보조 정보 — primary 판정에는 미사용) ────────────────────────
+        # 분모: 시군구 총인구. 분자: 반경 내 개수.
+        # 둘의 공간 단위가 다르므로 수치는 참고용. 전국 대비 상대값으로 동네 수준 가늠.
+        nat_density = r.get("national_density_per_10k")
+        density_per_10k: Optional[float] = None
+        vs_national_pct: Optional[int] = None
+        if total_pop and total_pop > 0 and nat_density:
+            density_per_10k = round(count / (total_pop / 10_000), 2)
+            vs_national_pct = round(density_per_10k / nat_density * 100)
+
         verdict = _verdict(dlevel, slevel)
         unit = fact.get("unit", "")
         nat = fact.get("national_avg")
@@ -124,9 +156,18 @@ def cross_rules(
         cap_txt = (
             f"(시군구 {cap_scope} 정원 {capacity}명)" if capacity is not None else ""
         )
+
+        # 밀도 텍스트
+        if density_per_10k is not None and nat_density:
+            density_txt = (
+                f" [{density_per_10k}개/만명 · 전국 {nat_density}개/만명 대비 {vs_national_pct}%]"
+            )
+        else:
+            density_txt = ""
+
         note = (
             f"{r['demand_item']} {fact['value']}{unit}({nat_txt}) · "
-            f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개{cap_txt} — {verdict}"
+            f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개{density_txt}{cap_txt} — {verdict}"
         )
         diagnoses.append(
             Diagnosis(
@@ -142,6 +183,9 @@ def cross_rules(
                 ),
                 supply=SupplySignal(
                     kinds=r["supply_kinds"], count=count, radius=radius, level=slevel,
+                    density_per_10k=density_per_10k,
+                    national_density_per_10k=nat_density,
+                    vs_national_pct=vs_national_pct,
                     capacity=capacity, capacity_scope=cap_scope,
                 ),
                 signal=f"수요 {dlevel}·공급 {slevel}",
@@ -211,8 +255,13 @@ def build_diagnosis(
         )
         notes += capnotes
 
+        # 시군구 총인구 — 밀도 계산용 (DT_1B04005N 캐시 재사용, 추가 API 호출 없음)
+        total_pop = fetch_total_pop(loc.sgg_code, cache=cache)
+
         diagnoses, cnotes = cross_rules(
-            fact_by_item, band, radius, rules, capacity_data=capacity_data
+            fact_by_item, band, radius, rules,
+            capacity_data=capacity_data,
+            total_pop=total_pop,
         )
         notes += cnotes
 

@@ -67,6 +67,7 @@ def compose_map(
     basemap: str = "vworld",
     client: Optional[httpx.Client] = None,
     cache_dir: Optional[Path] = None,
+    isochrone: Optional[dict] = None,
 ) -> bytes:
     """FacilityResult → 합성 PNG 바이트."""
     lat = result.center.lat
@@ -92,19 +93,51 @@ def compose_map(
     draw = ImageDraw.Draw(overlay)
     ccx, ccy = _W / 2, _H / 2
 
-    # ── 반경원 (500/1000/2000) ──────────────────────────────
     f_small = _font(15)
-    for r in radii_sorted:
-        rpx = tiles.meters_to_pixels(r, lat, z)
-        draw.ellipse(
-            [ccx - rpx, ccy - rpx, ccx + rpx, ccy + rpx],
-            outline=(255, 255, 255, 230),
-            width=2,
-        )
-        # 반경 라벨 (원의 위쪽)
-        label = f"{r}m"
-        draw.text((ccx + 4, ccy - rpx - 18), label, font=f_small, fill=(255, 255, 255, 255),
-                  stroke_width=2, stroke_fill=(0, 0, 0, 200))
+
+    # ── 등시선 or 반경원 ────────────────────────────────────
+    _ISO_COLORS: dict[int, tuple] = {
+        15: (255, 87,  34, 65),   # 주황 — 가장 바깥
+        10: (255, 193,  7, 80),   # 노랑
+        5:  (76,  175, 80, 100),  # 초록 — 가장 안쪽
+    }
+
+    if isochrone and any(len(pts) >= 3 for pts in isochrone.values()):
+        # 바깥부터 그려서 안쪽이 위에 쌓임
+        for t_min in sorted(isochrone.keys(), reverse=True):
+            pts = isochrone[t_min]
+            if len(pts) < 3:
+                continue
+            px_pts = [to_px(p_lat, p_lon) for p_lat, p_lon in pts]
+            col = _ISO_COLORS.get(t_min, (200, 200, 200, 60))
+            draw.polygon(px_pts, fill=col, outline=(col[0], col[1], col[2], 220))
+            # 라벨: 가장 위쪽(y 최소) 꼭짓점 근처
+            top_pt = min(px_pts, key=lambda p: p[1])
+            draw.text(
+                (top_pt[0] + 4, top_pt[1] - 18),
+                f"도보 {t_min}분",
+                font=f_small,
+                fill=(col[0], col[1], col[2], 255),
+                stroke_width=2,
+                stroke_fill=(0, 0, 0, 200),
+            )
+    else:
+        # TMAP 없거나 실패 — 기존 직선반경 원으로 fallback
+        for r in radii_sorted:
+            rpx = tiles.meters_to_pixels(r, lat, z)
+            draw.ellipse(
+                [ccx - rpx, ccy - rpx, ccx + rpx, ccy + rpx],
+                outline=(255, 255, 255, 230),
+                width=2,
+            )
+            draw.text(
+                (ccx + 4, ccy - rpx - 18),
+                f"{r}m",
+                font=f_small,
+                fill=(255, 255, 255, 255),
+                stroke_width=2,
+                stroke_fill=(0, 0, 0, 200),
+            )
 
     # ── kind별 색 배정 (counts 키 순서 안정화) ───────────────
     kinds = list(result.counts.get(str(max_radius), {}).keys())
@@ -125,7 +158,7 @@ def compose_map(
     draw.line([ccx, ccy - 10, ccx, ccy + 10], fill=_CENTER_COLOR + (255,), width=3)
     draw.ellipse([ccx - 6, ccy - 6, ccx + 6, ccy + 6], outline=_CENTER_COLOR + (255,), width=3)
 
-    # ── 범례 (kind별 색·개수, 최대 반경 기준) ────────────────
+    # ── 범례 (kind별 색·개수 + 등시선 색상) ─────────────────
     f_leg = _font(16)
     f_title = _font(17)
     counts_max = result.counts.get(str(max_radius), {})
@@ -133,8 +166,13 @@ def compose_map(
     pad = 12
     sw = 16  # 색 스와치
     row_h = 26
+
+    # 등시선 범례 행 (등시선이 있을 때만)
+    iso_keys = sorted(isochrone.keys()) if isochrone and any(len(v) >= 3 for v in isochrone.values()) else []
+    iso_extra_rows = len(iso_keys) + (1 if iso_keys else 0)  # 구분선 + 시간 행들
+
     box_w = 230
-    box_h = pad * 2 + 28 + row_h * max(1, len(lines))
+    box_h = pad * 2 + 28 + row_h * max(1, len(lines)) + row_h * iso_extra_rows
     lx, ly = 14, 14
     draw.rounded_rectangle([lx, ly, lx + box_w, ly + box_h], radius=10,
                            fill=(0, 0, 0, 150))
@@ -147,6 +185,18 @@ def compose_map(
         draw.text((lx + pad + sw + 8, yy), f"{name}  {cnt}개", font=f_leg,
                   fill=(255, 255, 255, 255))
         yy += row_h
+
+    if iso_keys:
+        draw.line([lx + pad, yy + 6, lx + box_w - pad, yy + 6],
+                  fill=(255, 255, 255, 100), width=1)
+        yy += 16
+        for t_min in iso_keys:
+            col = _ISO_COLORS.get(t_min, (200, 200, 200))
+            draw.rectangle([lx + pad, yy + 3, lx + pad + sw, yy + 3 + sw],
+                           fill=col[:3] + (200,), outline=(255, 255, 255, 200))
+            draw.text((lx + pad + sw + 8, yy), f"도보 {t_min}분 권역", font=f_leg,
+                      fill=(255, 255, 255, 255))
+            yy += row_h
 
     # ── 축척 막대 ───────────────────────────────────────────
     target_m = (_W * 0.22) * tiles.ground_resolution(lat, z)

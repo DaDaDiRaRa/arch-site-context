@@ -1,8 +1,9 @@
 {
   "_meta": {
     "desc": "P11 수급진단 규칙. A(인구 수요지표) × B(반경 내 시설 공급수) 교차. 건축가가 코드 없이 이 JSON만 수정 (절대 원칙 7).",
-    "logic": "demand level = fact.value vs (national_avg ± demand_margin) → 높음/평이/낮음/불명. supply level = 반경내 합계 count vs supply_low_max/supply_high_min → 적음/보통/많음. 조합으로 signal·소견(코드 매트릭스). 모두 '참고' — 판단은 사람 (절대 원칙 5).",
-    "fields": "name, demand_item(matrix.json 항목명과 일치), supply_kinds(카카오 키워드), demand_margin(전국±), supply_low_max(이하=적음), supply_high_min(이상=많음), tag, capacity_source(선택: 'childcare'=어린이집 정보공개포털 시군구 정원 보강. 반경 개수와 단위 다름·참고용)",
+    "logic": "demand level = fact.value vs (national_avg ± demand_margin) → 높음/평이/낮음/불명. supply level 두 단계: ① total_pop + national_density_per_10k 있으면 밀도 기반(density_low_pct/density_high_pct) → 전국 대비 %; ② 없으면 반경 비례 개수(supply_low_max·supply_high_min은 radius=1000m 기준, 실반경 면적²로 스케일). 조합으로 signal·소견(코드 매트릭스). 모두 '참고' — 판단은 사람 (절대 원칙 5).",
+    "density_fields": "national_density_per_10k: 만명당 전국 평균 시설수(반올림). national_density_source: 출처·기준연도. density_low_pct: 전국 대비 이 % 미만 → 적음. density_high_pct: 전국 대비 이 % 초과 → 많음.",
+    "count_fields": "supply_low_max·supply_high_min: radius=1000m 기준 개수 임계값. 다른 반경은 (radius/1000)² 스케일 — 면적 비례.",
     "note": "demand_item 이 matrix.json 에서 확정(method≠unconfirmed)된 지표여야 facts 가 채워진다. 미확정이면 해당 규칙은 정직하게 건너뜀(notes 표시).",
     "updated": "2026-06-29"
   },
@@ -14,6 +15,10 @@
       "demand_margin": 1,
       "supply_low_max": 3,
       "supply_high_min": 10,
+      "national_density_per_10k": 7.7,
+      "national_density_source": "어린이집 31,272개(보건복지부 보육통계 2024) + 유치원 8,660개(교육부 교육통계 2024) / 전국인구 51,720,611명",
+      "density_low_pct": 60,
+      "density_high_pct": 150,
       "capacity_source": "childcare",
       "tag": "참고"
     },
@@ -24,6 +29,10 @@
       "demand_margin": 2,
       "supply_low_max": 3,
       "supply_high_min": 12,
+      "national_density_per_10k": 13.0,
+      "national_density_source": "경로당 67,054개 + 노인복지관 375개(보건복지통계 노인복지시설현황 2023) / 전국인구 51,720,611명",
+      "density_low_pct": 60,
+      "density_high_pct": 150,
       "tag": "참고"
     },
     {
@@ -33,6 +42,10 @@
       "demand_margin": 3,
       "supply_low_max": 5,
       "supply_high_min": 20,
+      "national_density_per_10k": 14.5,
+      "national_density_source": "편의점 약 55,000개(산업통상자원부 유통업체현황 2024 주요4사합산 추정) + 코인세탁 약 20,000개(소상공인실태조사 2023 추정) / 전국인구 51,720,611명",
+      "density_low_pct": 60,
+      "density_high_pct": 150,
       "tag": "참고"
     },
     {
@@ -42,6 +55,10 @@
       "demand_margin": 2,
       "supply_low_max": 10,
       "supply_high_min": 30,
+      "national_density_per_10k": 12.1,
+      "national_density_source": "병원 4,277개 + 의원 34,219개 + 약국 24,090개(건강보험심사평가원 요양기관현황 2024) / 전국인구 51,720,611명",
+      "density_low_pct": 60,
+      "density_high_pct": 150,
       "tag": "참고"
     },
     {
@@ -51,6 +68,10 @@
       "demand_margin": 1,
       "supply_low_max": 0,
       "supply_high_min": 3,
+      "national_density_per_10k": 1.2,
+      "national_density_source": "초등학교 6,175개(교육부 교육통계서비스 2024) / 전국인구 51,720,611명",
+      "density_low_pct": 60,
+      "density_high_pct": 150,
       "tag": "참고"
     }
   ]

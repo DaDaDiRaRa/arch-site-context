@@ -1,0 +1,1472 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPEC — 터읽기 (arch-site-context)</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #161b22;
+    --bg3: #1c2128;
+    --border: #30363d;
+    --border-light: #21262d;
+    --text: #c9d1d9;
+    --text-dim: #8b949e;
+    --text-bright: #f0f6fc;
+    --accent: #58a6ff;
+    --accent-dim: #1f6feb;
+    --green: #3fb950;
+    --amber: #d29922;
+    --amber-bg: #2d2208;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --sidebar-w: 260px;
+    --font-mono: 'SF Mono', 'Cascadia Code', 'Consolas', 'Liberation Mono', monospace;
+    --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.7;
+    display: flex;
+  }
+
+  /* ── 사이드바 ─────────────────────────────────────── */
+  nav {
+    width: var(--sidebar-w);
+    min-width: var(--sidebar-w);
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 24px 0 48px;
+    flex-shrink: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  nav::-webkit-scrollbar { width: 4px; }
+  nav::-webkit-scrollbar-track { background: transparent; }
+  nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .nav-header {
+    padding: 0 18px 20px;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: 12px;
+  }
+
+  .nav-header .app-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.01em;
+  }
+
+  .nav-header .app-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+  }
+
+  nav ul {
+    list-style: none;
+    padding: 0 8px;
+  }
+
+  nav li { }
+
+  nav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: var(--radius);
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 12.5px;
+    line-height: 1.4;
+    transition: background 0.1s, color 0.1s;
+  }
+
+  nav a:hover {
+    background: var(--bg3);
+    color: var(--text-bright);
+  }
+
+  nav a.active {
+    background: var(--accent-dim);
+    color: #fff;
+  }
+
+  nav a .num {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    min-width: 18px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  nav a.active .num { color: rgba(255,255,255,0.6); }
+
+  nav .section-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+    padding: 14px 18px 4px;
+  }
+
+  /* ── 메인 콘텐츠 ───────────────────────────────────── */
+  main {
+    flex: 1;
+    min-width: 0;
+    max-width: 880px;
+    padding: 48px 56px 96px;
+  }
+
+  /* ── 헤더 ─────────────────────────────────────────── */
+  .doc-header {
+    margin-bottom: 48px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .doc-header h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    margin-bottom: 8px;
+  }
+
+  .doc-header h1 span {
+    color: var(--accent);
+  }
+
+  .doc-header .meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+    align-items: center;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  .badge-blue  { color: var(--accent); border-color: var(--accent-dim); background: rgba(31,111,235,0.1); }
+  .badge-green { color: var(--green);  border-color: #238636; background: rgba(35,134,54,0.1); }
+  .badge-amber { color: var(--amber);  border-color: #6e4c01; background: var(--amber-bg); }
+  .badge-dim   { color: var(--text-dim); border-color: var(--border); background: var(--bg3); }
+  .badge-red   { color: var(--red);    border-color: #6e1a16; background: rgba(248,81,73,0.1); }
+
+  .callout {
+    background: var(--bg3);
+    border-left: 3px solid var(--accent-dim);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 12px 16px;
+    margin: 24px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .callout strong { color: var(--text); }
+
+  /* ── 섹션 ─────────────────────────────────────────── */
+  section {
+    margin-bottom: 56px;
+    scroll-margin-top: 24px;
+  }
+
+  h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-bright);
+    letter-spacing: -0.015em;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-light);
+  }
+
+  h2 .sec-num {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+
+  h3 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin: 24px 0 10px;
+    letter-spacing: -0.01em;
+  }
+
+  h3.endpoint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    margin: 28px 0 12px;
+  }
+
+  h3.endpoint .method {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(31,111,235,0.2);
+    color: var(--accent);
+    border: 1px solid var(--accent-dim);
+  }
+
+  h3.endpoint .path {
+    color: var(--text-bright);
+  }
+
+  h3.endpoint .desc {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+
+  p {
+    margin-bottom: 12px;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  strong { color: var(--text-bright); font-weight: 600; }
+
+  /* 추정 배지 인라인 */
+  .infer {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--amber-bg);
+    color: var(--amber);
+    border: 1px solid #6e4c01;
+    vertical-align: middle;
+    margin: 0 2px;
+    letter-spacing: 0.02em;
+  }
+
+  ul, ol {
+    padding-left: 20px;
+    margin-bottom: 12px;
+  }
+
+  li {
+    margin-bottom: 4px;
+    line-height: 1.65;
+  }
+
+  li::marker { color: var(--text-dim); }
+
+  /* ── 코드 ─────────────────────────────────────────── */
+  code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--bg3);
+    border: 1px solid var(--border-light);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: #e2c08d;
+  }
+
+  pre {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.65;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  pre::-webkit-scrollbar { height: 4px; }
+  pre::-webkit-scrollbar-track { background: transparent; }
+  pre::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--text);
+    font-size: inherit;
+  }
+
+  /* 언어 타입별 하이라이팅 */
+  pre.lang-json code .k  { color: #79c0ff; }  /* key */
+  pre.lang-json code .s  { color: #a5d6ff; }  /* string value */
+  pre.lang-json code .n  { color: #f2cc60; }  /* number */
+  pre.lang-json code .b  { color: var(--purple); } /* bool */
+  pre.lang-json code .cm { color: var(--text-dim); font-style: italic; } /* comment */
+
+  pre.lang-py code   { color: #c9d1d9; }
+  pre.lang-flow code { color: var(--text-dim); }
+
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius) var(--radius) 0 0;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-dim);
+    margin-top: 12px;
+  }
+
+  .code-header + pre {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    margin-top: 0;
+  }
+
+  .code-label {
+    display: inline-block;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-bottom: 6px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+  }
+
+  .code-label-input  { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid #238636; }
+  .code-label-output { background: rgba(88,166,255,0.1); color: var(--accent); border: 1px solid var(--accent-dim); }
+  .code-label-flow   { background: rgba(188,140,255,0.1); color: var(--purple); border: 1px solid #6e40c9; }
+  .code-label-logic  { background: rgba(210,153,34,0.15); color: var(--amber); border: 1px solid #6e4c01; }
+  .code-label-py     { background: rgba(255,161,22,0.1); color: #e3b341; border: 1px solid #9e6a03; }
+
+  /* ── 표 ───────────────────────────────────────────── */
+  .table-wrap {
+    overflow-x: auto;
+    margin: 14px 0 24px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+
+  thead { background: var(--bg3); }
+
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    white-space: nowrap;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: 0.03em;
+  }
+
+  td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text);
+    vertical-align: top;
+    line-height: 1.6;
+  }
+
+  tr:last-child td { border-bottom: none; }
+
+  tr:hover td { background: rgba(255,255,255,0.02); }
+
+  td code { font-size: 11.5px; }
+
+  /* 원칙 표 특별 스타일 */
+  .principle-num {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 13px;
+  }
+
+  /* ── 카드 그리드 ───────────────────────────────────── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 10px;
+    margin: 14px 0 24px;
+  }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    transition: border-color 0.15s;
+  }
+
+  .card:hover { border-color: var(--accent-dim); }
+
+  .card-tab {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+    margin-bottom: 6px;
+  }
+
+  .card-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 6px;
+  }
+
+  .card-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* ── 흐름 다이어그램 ────────────────────────────────── */
+  .flow-box {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.8;
+    color: var(--text-dim);
+    overflow-x: auto;
+    margin: 14px 0 24px;
+    white-space: pre;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .flow-box::-webkit-scrollbar { height: 4px; }
+  .flow-box::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .flow-key { color: var(--accent); }
+  .flow-arrow { color: var(--text-dim); }
+  .flow-node { color: var(--text-bright); }
+  .flow-comment { color: var(--text-dim); font-style: italic; }
+
+  /* ── 한계 섹션 ─────────────────────────────────────── */
+  .limit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 14px 0 24px;
+  }
+
+  .limit-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+
+  .limit-card h4 {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .limit-card h4::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--red);
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .limit-card ul {
+    padding-left: 14px;
+    margin: 0;
+  }
+
+  .limit-card li {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+    line-height: 1.5;
+  }
+
+  .limit-card.tech h4::before { background: var(--amber); }
+
+  /* 파일 트리 */
+  .tree {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.8;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin: 14px 0 24px;
+    color: var(--text-dim);
+    white-space: pre;
+  }
+
+  .tree::-webkit-scrollbar { height: 4px; }
+  .tree::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .tree .dir  { color: var(--accent); }
+  .tree .file { color: var(--text); }
+  .tree .cmt  { color: var(--text-dim); }
+
+  /* ── 에러 처리 표 ──────────────────────────────────── */
+  .error-row td:first-child code { color: var(--red); }
+  .graceful-row td:first-child   { color: var(--green); }
+
+  /* ── 원칙 카드 ─────────────────────────────────────── */
+  .principles-grid {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0 24px;
+  }
+
+  .principle-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 2fr;
+    gap: 16px;
+    align-items: start;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+  }
+
+  .principle-row:hover { border-color: var(--accent-dim); }
+
+  .p-num {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent-dim);
+    line-height: 1;
+    padding-top: 2px;
+  }
+
+  .p-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    line-height: 1.4;
+  }
+
+  .p-impl {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* ── 캐시 전략 ─────────────────────────────────────── */
+  .cache-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 14px 0 20px;
+  }
+
+  .cache-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+  }
+
+  .cache-card .cc-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+
+  .cache-card .cc-desc {
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  /* ── API 목록 행 색상 ──────────────────────────────── */
+  .api-key-warn td:nth-child(4) { color: var(--amber); }
+
+  /* ── 설계 결정 ─────────────────────────────────────── */
+  .decision-grid {
+    display: grid;
+    gap: 8px;
+    margin: 14px 0;
+  }
+
+  .decision-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: grid;
+    grid-template-columns: 1fr 1.5fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .decision-q {
+    font-size: 12.5px;
+    color: var(--text);
+    font-weight: 500;
+    line-height: 1.5;
+  }
+
+  .decision-a {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  /* ── 푸터 ─────────────────────────────────────────── */
+  .doc-footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .doc-footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .doc-footer a:hover { text-decoration: underline; }
+
+  /* ── 반응형 ────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    body { flex-direction: column; }
+    nav { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); padding: 16px 0; }
+    nav ul { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 12px; }
+    nav li { }
+    nav a { padding: 4px 8px; font-size: 11px; }
+    main { padding: 32px 24px 64px; }
+    .limit-grid { grid-template-columns: 1fr; }
+    .cache-grid { grid-template-columns: 1fr; }
+    .principle-row { grid-template-columns: 24px 1fr; }
+    .p-impl { grid-column: 2; }
+    .decision-card { grid-template-columns: 1fr; }
+    .nav-header { display: none; }
+    .section-label { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── 사이드바 ──────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="nav-header">
+    <div class="app-name">터읽기</div>
+    <div class="app-sub">arch-site-context</div>
+  </div>
+
+  <div class="section-label">역추론 명세</div>
+  <ul>
+    <li><a href="#s1"><span class="num">1</span> 목적</a></li>
+    <li><a href="#s2"><span class="num">2</span> 핵심 설계 원칙</a></li>
+    <li><a href="#s3"><span class="num">3</span> 전체 구조</a></li>
+    <li><a href="#s4"><span class="num">4</span> 엔드포인트 명세</a></li>
+    <li><a href="#s5"><span class="num">5</span> 데이터 계약</a></li>
+    <li><a href="#s6"><span class="num">6</span> 설정 파일</a></li>
+    <li><a href="#s7"><span class="num">7</span> 외부 API 목록</a></li>
+    <li><a href="#s8"><span class="num">8</span> 데이터 흐름</a></li>
+    <li><a href="#s9"><span class="num">9</span> 캐싱 전략</a></li>
+    <li><a href="#s10"><span class="num">10</span> 에러 처리</a></li>
+    <li><a href="#s11"><span class="num">11</span> 한계</a></li>
+    <li><a href="#s12"><span class="num">12</span> 테스트 전략</a></li>
+    <li><a href="#s13"><span class="num">13</span> 배포 구조</a></li>
+    <li><a href="#s14"><span class="num">14</span> 설계 결정 이유</a></li>
+  </ul>
+</nav>
+
+<!-- ── 메인 ────────────────────────────────────────────────── -->
+<main>
+
+  <div class="doc-header">
+    <h1>SPEC — <span>터읽기</span> (arch-site-context)</h1>
+    <div class="meta">
+      <span class="badge badge-dim">역추론 명세 v1.0</span>
+      <span class="badge badge-dim">2026-06-29</span>
+      <span class="badge badge-green">FastAPI + React</span>
+      <span class="badge badge-blue">Python 3.11</span>
+      <span class="badge badge-amber">GCP Cloud Run</span>
+    </div>
+    <div class="callout" style="margin-top:20px">
+      이 문서는 코드베이스를 읽고 목적·로직·구조·한계를 역추론한 명세다.
+      불확실한 부분은 <span class="infer">추정</span> 으로 표시한다.
+      최종 판단 권위는 <strong>CLAUDE.md</strong> 및 실제 코드다.
+    </div>
+  </div>
+
+  <!-- ── §1. 목적 ── -->
+  <section id="s1">
+    <h2><span class="sec-num">1</span> 목적</h2>
+
+    <p><strong>주소 한 줄 → 건축 대지 주변 맥락 보고서 자동 생성.</strong></p>
+    <p>건축가가 설계 착수 전 반나절 이상 걸리던 '대지 주변 인문·생활 조사'를, 실제 공공 API에서 끌어온 수치로 자동화한다. 최종 설계 판단은 사람이 한다.</p>
+
+    <div class="card-grid">
+      <div class="card">
+        <div class="card-tab">탭 A</div>
+        <div class="card-title">지역 통계</div>
+        <div class="card-desc">주소 + 용도 → 인구·가구 통계 + 시사점 + Claude 문단</div>
+      </div>
+      <div class="card">
+        <div class="card-tab">탭 B</div>
+        <div class="card-title">주변 시설</div>
+        <div class="card-desc">반경별 시설 목록·개수 + 위성 PNG (TMAP 등시선)</div>
+      </div>
+      <div class="card" style="border-color: var(--accent-dim);">
+        <div class="card-tab" style="color:#f2cc60">탭 C ★</div>
+        <div class="card-title">수급 진단</div>
+        <div class="card-desc">인구 수요 × 시설 공급 교차 → 부족/과잉 신호 (참고)</div>
+      </div>
+      <div class="card">
+        <div class="card-tab">탭 D</div>
+        <div class="card-title">후보지 비교</div>
+        <div class="card-desc">2~5개 주소 → A·B·C 나란히 비교 (종합점수 없음)</div>
+      </div>
+      <div class="card">
+        <div class="card-tab">탭 E</div>
+        <div class="card-title">물어보기</div>
+        <div class="card-desc">데이터 위에서만 답변. 데이터 밖이면 "확인 불가"로 멈춤</div>
+      </div>
+    </div>
+
+    <h3>사용자 페르소나 <span class="infer">추정</span></h3>
+    <ul>
+      <li><strong>1차 사용자</strong>: 공모(설계경기)·실무 설계를 준비하는 건축가</li>
+      <li><strong>목적 맥락</strong>: 대지분석 보드의 '인문·생활' 파트를 채우는 용도</li>
+      <li><strong>보완 도구</strong>: 일조·바람·사업수지·규제 해석 도구와 병행 사용 (이 앱은 그쪽을 만들지 않음)</li>
+    </ul>
+  </section>
+
+  <!-- ── §2. 핵심 원칙 ── -->
+  <section id="s2">
+    <h2><span class="sec-num">2</span> 핵심 설계 원칙 7가지</h2>
+    <p>단순 가이드라인이 아니라 <strong>코드 전체에 구조적으로 박혀 있다.</strong></p>
+
+    <div class="principles-grid">
+      <div class="principle-row">
+        <div class="p-num">1</div>
+        <div class="p-title">실제 API에서만 — AI 기억·추정 금지</div>
+        <div class="p-impl">KOSIS·카카오·에어코리아 등 직접 호출. 값 없으면 <code>None</code>, 추정 없음</div>
+      </div>
+      <div class="principle-row">
+        <div class="p-num">2</div>
+        <div class="p-title">수치는 코드, 표현만 AI</div>
+        <div class="p-impl"><code>facts[]</code>·<code>implications[]</code>은 규칙·KOSIS가 만든다. Claude는 <code>draft_paragraph</code> 서술만</div>
+      </div>
+      <div class="principle-row">
+        <div class="p-num">3</div>
+        <div class="p-title">확인 불가 하드블록</div>
+        <div class="p-impl">데이터 없으면 <code>ErrorBlock</code> 반환 or <code>notes</code> 기록, 빈 추정값 생성 금지</div>
+      </div>
+      <div class="principle-row">
+        <div class="p-num">4</div>
+        <div class="p-title">출처·기준 명시</div>
+        <div class="p-impl">모든 <code>Fact</code>에 <code>source_tbl</code>, <code>year</code> 필드. "○○구 기준" 문단 필수</div>
+      </div>
+      <div class="principle-row">
+        <div class="p-num">5</div>
+        <div class="p-title">판단은 사람</div>
+        <div class="p-impl">모든 <code>Implication</code>·<code>Diagnosis</code>가 <code>tag:"참고"</code>. 종합점수 없음</div>
+      </div>
+      <div class="principle-row">
+        <div class="p-num">6</div>
+        <div class="p-title">모델은 Claude 하나</div>
+        <div class="p-impl"><code>narrative.py</code>, <code>ask.py</code> 전부 <code>claude-opus-4-8</code>. 교차검증 없음</div>
+      </div>
+      <div class="principle-row">
+        <div class="p-num">7</div>
+        <div class="p-title">설정은 JSON</div>
+        <div class="p-impl"><code>matrix.json</code>, <code>implications.json</code>, <code>supply_demand.json</code> — 코드 수정 없이 건축가가 편집</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── §3. 전체 구조 ── -->
+  <section id="s3">
+    <h2><span class="sec-num">3</span> 전체 구조</h2>
+    <div class="tree">arch-site-context/
+├── <span class="dir">app/</span>
+│   ├── <span class="file">main.py</span>                  <span class="cmt"># FastAPI 진입점 (라우터 등록, 정적 서빙)</span>
+│   ├── <span class="dir">routers/</span>                 <span class="cmt"># 엔드포인트 — 오케스트레이션만, 비즈니스 로직 없음</span>
+│   │   ├── <span class="file">analyze.py</span>           <span class="cmt"># POST /analyze       (모드 A)</span>
+│   │   ├── <span class="file">facilities.py</span>        <span class="cmt"># POST /facilities, /facilities/map (모드 B)</span>
+│   │   ├── <span class="file">diagnose.py</span>          <span class="cmt"># POST /diagnose      (P11 수급진단 ★)</span>
+│   │   ├── <span class="file">compare.py</span>           <span class="cmt"># POST /compare       (P9 후보지 비교)</span>
+│   │   ├── <span class="file">ask.py</span>               <span class="cmt"># POST /ask           (P10 물어보기)</span>
+│   │   ├── <span class="file">site.py</span>              <span class="cmt"># POST /site          (P14 대지 기본정보)</span>
+│   │   ├── <span class="file">seed.py</span>              <span class="cmt"># POST /seed          (P14 보드 합본)</span>
+│   │   └── <span class="file">matrix.py</span>            <span class="cmt"># GET  /matrix        (투명성)</span>
+│   ├── <span class="dir">services/</span>
+│   │   ├── <span class="file">resolve.py</span>           <span class="cmt"># 주소 → 좌표·법정동코드 (카카오+JUSO)</span>
+│   │   ├── <span class="file">kosis.py</span>             <span class="cmt"># KOSIS OpenAPI 호출 + 캐시</span>
+│   │   ├── <span class="file">airkorea.py</span>          <span class="cmt"># 에어코리아 대기질</span>
+│   │   ├── <span class="file">kakao.py</span>             <span class="cmt"># 카카오 로컬 검색 (적응 분할, 45건 상한 회피)</span>
+│   │   ├── <span class="file">vworld.py</span>            <span class="cmt"># VWorld: 위성타일·시설검색·공시지가</span>
+│   │   ├── <span class="file">molit.py</span>             <span class="cmt"># 실거래(RTMS)·건축물대장(건축HUB)</span>
+│   │   ├── <span class="file">facilities.py</span>        <span class="cmt"># 모드 B 오케스트레이션 (카카오+OSM+VWorld 병합)</span>
+│   │   ├── <span class="file">stats.py</span>             <span class="cmt"># 통계 조립 (KOSIS+에어코리아 → facts[])</span>
+│   │   ├── <span class="file">narrative.py</span>         <span class="cmt"># Claude 한 문단 서술 + 규칙 폴백</span>
+│   │   ├── <span class="file">diagnose.py</span>          <span class="cmt"># P11 수급진단 오케스트레이션</span>
+│   │   ├── <span class="file">tmap.py</span>              <span class="cmt"># TMAP 보행자 경로 → 등시선 폴리곤</span>
+│   │   ├── <span class="file">map_compose.py</span>       <span class="cmt"># PIL 위성 PNG 합성 (820×820px)</span>
+│   │   ├── <span class="file">cache.py</span>             <span class="cmt"># FileCache/MemoryCache/GCSCache 추상화</span>
+│   │   ├── <span class="file">http_retry.py</span>        <span class="cmt"># 지수 백오프 재시도 (5xx·네트워크만)</span>
+│   │   ├── <span class="file">sangwon.py</span>  <span class="file">neis.py</span>  <span class="file">childcare.py</span>  <span class="file">culture.py</span>
+│   │   ├── <span class="file">rone.py</span>  <span class="file">kma.py</span>  <span class="file">seoul.py</span>  <span class="file">kopis.py</span>
+│   │   └── <span class="file">site_seed.py</span>         <span class="cmt"># 주소 단일 해석 진입점 → Site 공유</span>
+│   ├── <span class="dir">schemas/</span>                 <span class="cmt"># Pydantic v2 데이터 계약</span>
+│   └── <span class="dir">data/</span>
+│       ├── <span class="file">matrix.json</span>          <span class="cmt"># 용도별 KOSIS 지표 목록 (건축가 편집)</span>
+│       ├── <span class="file">implications.json</span>    <span class="cmt"># 함의 규칙 (건축가 편집)</span>
+│       └── <span class="file">supply_demand.json</span>   <span class="cmt"># 수급진단 규칙·임계값 (건축가 편집)</span>
+├── <span class="dir">frontend/</span>                    <span class="cmt"># React + Vite + Tailwind</span>
+│   └── <span class="dir">src/</span>
+│       ├── <span class="file">App.jsx</span>              <span class="cmt"># 탭 라우팅</span>
+│       ├── <span class="dir">tabs/</span>                <span class="cmt"># TabA~TabE</span>
+│       ├── <span class="file">api.js</span>               <span class="cmt"># fetch 헬퍼 + ApiError</span>
+│       └── <span class="file">ui.jsx</span>               <span class="cmt"># 공통 UI 컴포넌트</span>
+└── <span class="dir">tests/</span>                       <span class="cmt"># pytest (순수 로직 + live skipif)</span></div>
+  </section>
+
+  <!-- ── §4. 엔드포인트 ── -->
+  <section id="s4">
+    <h2><span class="sec-num">4</span> 엔드포인트 명세</h2>
+
+    <!-- 4.1 /analyze -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/analyze</span>
+      <span class="desc">지역 통계 (모드 A)</span>
+    </h3>
+    <div class="code-label code-label-input">입력</div>
+    <pre><code>{ "address": "서울특별시 영등포구 여의대로 24", "use_type": "주거", "year": null }</code></pre>
+
+    <div class="code-label code-label-flow">처리 흐름</div>
+    <div class="flow-box"><span class="flow-node">resolve_address(address)</span>
+  → sgg_code 없으면 <span class="flow-key">ErrorBlock(NO_REGION_CODE)</span>
+  → <span class="flow-node">collect_facts</span>(sgg_code, use_type)       <span class="flow-comment">// KOSIS + 에어코리아</span>
+  → <span class="flow-node">collect_common_facts</span>(sido, sigungu)     <span class="flow-comment">// _common 항목</span>
+  → <span class="flow-node">derive_implications</span>(facts, use_type)    <span class="flow-comment">// implications.json 룩업</span>
+  → <span class="flow-node">compose_narrative</span>(facts, implications)  <span class="flow-comment">// Claude 1회 or 규칙 폴백</span></div>
+
+    <div class="code-label code-label-output">출력 — RegionStat</div>
+    <pre><code>{
+  "region": { "name": "영등포구", "code": "11560", "resolution": "시군구" },
+  "year": 2024, "use_type": "주거",
+  "facts": [
+    { "item": "1인가구비율", "value": 38.2, "national_avg": 33.4,
+      "unit": "%", "source_tbl": "DT_1JC1511", "year": 2024 }
+  ],
+  "implications": [
+    { "text": "소형 평형·공유공간 검토", "basis": "1인가구비율", "tag": "참고" }
+  ],
+  "draft_paragraph": "영등포구는 1인가구 비율이 전국 평균보다 높아...",
+  "source": "ai",   <span style="color:#8b949e">// "ai" | "rule_based_fallback"</span>
+  "notes": []
+}</code></pre>
+    <p>ErrorBlock 조건: <code>ADDR_UNRESOLVED</code> · <code>NO_REGION_CODE</code> · <code>NO_DATA</code></p>
+
+    <!-- 4.2 /facilities -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/facilities</span>
+      <span class="desc">주변 시설 (모드 B)</span>
+    </h3>
+
+    <div class="code-label code-label-flow">처리 흐름</div>
+    <div class="flow-box"><span class="flow-node">resolve_address(address)</span>
+  → <span class="flow-node">카카오 키워드 검색</span> (적응 분할, 45건 상한 회피)
+  → <span class="flow-node">OSM Overpass 보완</span> (공공시설)
+  → <span class="flow-node">VWorld 검색 보완</span>  (경로당·노인복지관 등 비상업 시설)
+  → 중복 제거 (이름+좌표 6자리) → 하버사인 거리 → 반경 밴드 분류 → 거리순 정렬</div>
+
+    <p><strong>counts 누적 방식:</strong> 500m 시설은 500/1000/2000 밴드 전부 집계 (누적 포함).</p>
+
+    <!-- 4.3 /facilities/map -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/facilities/map</span>
+      <span class="desc">위성 PNG 합성</span>
+    </h3>
+
+    <p>추가 필드: <code>"basemap": "vworld"</code>, <code>"isochrone": true</code></p>
+
+    <div class="code-label code-label-flow">등시선 생성 알고리즘</div>
+    <div class="flow-box">16방향 × 3시간(5·10·15분) = <span class="flow-key">48회 TMAP 병렬 호출</span> (ThreadPoolExecutor)
+  → 각 경로에서 목표 시간(초) 도달 지점 보간 → 꼭짓점
+  → 꼭짓점 연결 → 폴리곤 → PIL 채움 (초록·노랑·주황, 외→내)
+  → 실패 방향 제외 (graceful) → 전부 실패 시 반경원 폴백</div>
+
+    <!-- 4.4 /diagnose -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/diagnose</span>
+      <span class="desc">수급진단 ★간판</span>
+    </h3>
+
+    <div class="code-label code-label-logic">판정 로직</div>
+    <pre><code>수요 레벨:
+  value > national_avg + margin  →  "높음"
+  value < national_avg - margin  →  "낮음"
+  그 사이                         →  "평이"
+  national_avg 없음              →  "불명"
+
+공급 레벨 (반경 비례, primary):
+  scale  = (radius / 1000)²
+  count ≤ supply_low_max × scale   →  "적음"
+  count ≥ supply_high_min × scale  →  "많음"
+  그 사이                           →  "보통"
+
+공급 밀도 (보조 참고, 판정에 미사용):
+  density_per_10k  = count / (시군구총인구 / 10_000)
+  vs_national_pct  = density_per_10k / national_density_per_10k × 100</code></pre>
+
+    <div class="code-label code-label-output">출력 — DiagnoseResult (진단 1개 예시)</div>
+    <pre><code>{
+  "name": "보육시설 수급",
+  "demand": { "item": "유소년인구비율", "value": 8.3, "national_avg": 10.3, "level": "낮음" },
+  "supply": {
+    "kinds": ["어린이집", "유치원"], "count": 23, "level": "많음",
+    "density_per_10k": 0.62, "national_density_per_10k": 7.7, "vs_national_pct": 8,
+    "capacity": 2785, "capacity_scope": "영등포구"
+  },
+  "signal": "수요 낮음·공급 많음",
+  "note": "유소년인구비율 8.3%(전국 10.3%) · 반경 1000m 23개 → 과잉 여부 점검",
+  "tag": "참고"   <span style="color:#8b949e">// 항상 "참고" — 판단은 사람 (원칙 5)</span>
+}</code></pre>
+
+    <!-- 4.5 /compare -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/compare</span>
+      <span class="desc">후보지 비교 (P9)</span>
+    </h3>
+    <ul>
+      <li>2~5개 주소 제한</li>
+      <li>후보지별 격리 실패: 한 주소 오류 → <code>CompareSite.error</code> 기록, 나머지 계속</li>
+      <li>종합점수 없음 — 컬럼 정렬만 (판단은 사람, 원칙 5)</li>
+      <li>같은 시군구 코드이면 KOSIS 캐시 재사용 → 추가 API 호출 없음</li>
+    </ul>
+
+    <!-- 4.6 /ask -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/ask</span>
+      <span class="desc">물어보기 (P10)</span>
+    </h3>
+    <div class="code-label code-label-flow">처리 흐름</div>
+    <div class="flow-box"><span class="flow-node">gather_bundle</span>(address) → facts + counts + diagnoses  <span class="flow-comment">// A·B·P11 한 번에</span>
+  → <span class="flow-node">answer_grounded</span>(bundle, question)   <span class="flow-comment">// Claude: 데이터 위에서만 답</span>
+       answerable=false 시: "확인 불가:" 로 시작
+  → (web=true) <span class="flow-node">answer_web</span>(question)     <span class="flow-comment">// web_search 서버툴 폴백, 최대 4회 루프</span></div>
+
+    <p><code>source</code> 값: <code>"ai"</code> · <code>"ai_web"</code> · <code>"no_data"</code> · <code>"ai_unavailable"</code></p>
+
+    <!-- 4.7 /site -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/site</span>
+      <span class="desc">대지 기본정보 (P14)</span>
+    </h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>항목</th><th>API</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td>개별공시지가</td><td><code>VWorld LP_PA_CBND_BUBUN</code></td><td>필지별(PNU 기반), data.go.kr 미승인으로 우회</td></tr>
+          <tr><td>실거래가 4종</td><td><code>국토부 RTMS</code></td><td>토지매매·아파트매매·연립다세대·아파트전월세</td></tr>
+          <tr><td>건축물대장</td><td><code>건축HUB BldRgstHubService</code></td><td>표제부+총괄표제부 → 건폐율·용적률</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>각 API 독립 실패 격리 — 하나 오류여도 부분 반환.</p>
+
+    <!-- 4.8 /seed -->
+    <h3 class="endpoint">
+      <span class="method">POST</span>
+      <span class="path">/seed</span>
+      <span class="desc">보드 합본 (P14)</span>
+    </h3>
+    <div class="code-label code-label-output">출력 — ProjectSeed.context</div>
+    <pre><code>{
+  "stores":            { ... },   <span style="color:#8b949e">// 상권 (data.go.kr B553077)</span>
+  "schools":           { ... },   <span style="color:#8b949e">// 학교 (NEIS)</span>
+  "childcare":         { ... },   <span style="color:#8b949e">// 어린이집 개수·정원 (cpmsapi021)</span>
+  "culture":           { ... },   <span style="color:#8b949e">// 문화시설 10종 (B553457)</span>
+  "real_estate_index": { ... },   <span style="color:#8b949e">// 부동산지수 (R-ONE)</span>
+  "weather":           { ... },   <span style="color:#8b949e">// 기상청 단기예보 (KMA)</span>
+  "living_population": { ... },   <span style="color:#8b949e">// 생활인구 (서울시 전용)</span>
+  "venues":            { ... },   <span style="color:#8b949e">// 공연시설 (KOPIS)</span>
+  "notes": []
+},
+"law":       null,   <span style="color:#8b949e">// 형제앱 arch-law-diagnose 주입 자리</span>
+"knowledge": null    <span style="color:#8b949e">// 형제앱 arch-law-graph 주입 자리</span></code></pre>
+  </section>
+
+  <!-- ── §5. 데이터 계약 ── -->
+  <section id="s5">
+    <h2><span class="sec-num">5</span> 데이터 계약 요약</h2>
+
+    <h3>공통 패턴</h3>
+    <ul>
+      <li><code>Fact</code>: 항상 <code>{ item, value, national_avg, unit, source_tbl, year }</code> — 수치와 출처 분리 불가</li>
+      <li><code>Implication</code>: 항상 <code>{ text, basis, tag:"참고" }</code> — '좋다/나쁘다' 단정 없음</li>
+      <li><code>ErrorBlock</code>: <code>{ code, message }</code> + HTTP 422 — 추정·빈 값 반환 없음</li>
+      <li><code>notes[]</code>: 모든 응답에 포함 — 실패·우회·주의 사항 정직 기록</li>
+    </ul>
+
+    <h3>SupplySignal 필드 (P11 확장 후)</h3>
+    <div class="code-label code-label-py">Python</div>
+    <pre><code>class SupplySignal:
+    kinds:   List[str]
+    count:   int          <span style="color:#8b949e"># 반경 내 실제 개수 (primary 판정)</span>
+    radius:  int
+    level:   str          <span style="color:#8b949e"># "적음" | "보통" | "많음" (count 기반)</span>
+
+    density_per_10k:          Optional[float]  <span style="color:#8b949e"># count / (시군구총인구 / 10000) (참고)</span>
+    national_density_per_10k: Optional[float]  <span style="color:#8b949e"># 전국 만명당 기준값 (참고)</span>
+    vs_national_pct:          Optional[int]    <span style="color:#8b949e"># 전국 대비 % (참고)</span>
+
+    capacity:       Optional[int]   <span style="color:#8b949e"># 시군구 어린이집 정원 (반경 개수와 단위 다름)</span>
+    capacity_scope: Optional[str]</code></pre>
+
+    <h3>ResolvedAddress (내부 전달 객체)</h3>
+    <div class="code-label code-label-py">Python</div>
+    <pre><code>@dataclass
+class ResolvedAddress:
+    lat: float;  lon: float;  address: str
+    bcode:        str   <span style="color:#8b949e"># 법정동 10자리</span>
+    sgg_code:     str   <span style="color:#8b949e"># 앞 5자리 — 모드 A/C 기준 시군구</span>
+    sido:         str
+    sigungu:      str
+    eupmyeondong: str
+    notes:        List[str]</code></pre>
+  </section>
+
+  <!-- ── §6. 설정 파일 ── -->
+  <section id="s6">
+    <h2><span class="sec-num">6</span> 설정 파일 <span class="badge badge-green" style="font-size:11px;vertical-align:middle">건축가 편집 가능, 코드 수정 불필요</span></h2>
+
+    <h3>matrix.json — 용도별 지표</h3>
+    <div class="code-label code-label-logic">method 레시피</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>method</th><th>계산</th><th>비고</th></tr></thead>
+        <tbody>
+          <tr><td><code>direct</code></td><td>테이블 값 직접 추출</td><td></td></tr>
+          <tr><td><code>age_share</code></td><td>(age_min~age_max 합계) / 총인구 × 100</td><td>%</td></tr>
+          <tr><td><code>age_dependency</code></td><td>(65세+) / (15~64세) × 100</td><td>노년부양비 %</td></tr>
+          <tr><td><code>ratio</code></td><td><code>num_itm</code> / <code>den_itm</code> × 100</td><td>1인가구비율 등</td></tr>
+          <tr><td><code>realtime</code></td><td>에어코리아 현재값</td><td>오늘 날짜 기준</td></tr>
+          <tr><td><code>unconfirmed</code></td><td>건너뜀 + notes 기록</td><td>tblId 미확정</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><strong>region_scheme:</strong> <code>"reg"</code>(행안부코드, 기본) | <code>"census"</code>(인구총조사코드 — 테이블마다 다름)</p>
+
+    <h3>implications.json — 함의 규칙</h3>
+    <pre><code>{
+  "when":      { "item": "고령인구비율", "op": ">", "vs": "national", "margin": 5 },
+  "use_types": ["주거", "의료"],   <span style="color:#8b949e">// 빈 배열 = 전 용도</span>
+  "then":      "무장애 동선·휴게공간 검토",
+  "tag":       "참고"
+}</code></pre>
+
+    <h3>supply_demand.json — 수급진단 규칙 (현재 5개)</h3>
+    <pre><code>{
+  "name":          "보육시설 수급",
+  "demand_item":   "유소년인구비율",
+  "supply_kinds":  ["어린이집", "유치원"],
+  "demand_margin": 1,
+  "supply_low_max":  3,    <span style="color:#8b949e">// radius=1000m 기준; (r/1000)² 스케일</span>
+  "supply_high_min": 10,
+  "national_density_per_10k":   7.7,
+  "national_density_source":    "어린이집 31,272 + 유치원 8,660 / 51,720,611명",
+  "density_low_pct": 60, "density_high_pct": 150,
+  "capacity_source": "childcare",   <span style="color:#8b949e">// 시군구 정원 보강</span>
+  "tag": "참고"
+}</code></pre>
+    <p>현재 5개 규칙: <strong>보육시설 · 노인복지시설 · 1인가구 생활시설 · 의료시설 · 초등학교</strong></p>
+  </section>
+
+  <!-- ── §7. 외부 API ── -->
+  <section id="s7">
+    <h2><span class="sec-num">7</span> 외부 API 목록</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>API</th><th>역할</th><th>키</th><th>한계·주의</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>카카오 로컬</td><td>주소→좌표, 시설 키워드 검색</td><td><code>KAKAO_KEY</code></td><td>45건/요청 상한 → 적응 분할</td></tr>
+          <tr class="api-key-warn"><td>JUSO (행안부)</td><td>주소 정규화·법정동코드 폴백</td><td><code>JUSO_API_KEY</code></td><td>현재 dev키 → 배포 전 운영키 필요</td></tr>
+          <tr class="api-key-warn"><td>VWorld</td><td>위성 타일, 시설 검색, 공시지가</td><td><code>VWORLD_KEY</code></td><td>개발키 2026-12-26 만료</td></tr>
+          <tr><td>KOSIS OpenAPI</td><td>시군구 인구·가구 통계</td><td><code>KOSIS_KEY</code></td><td>분당 호출 제한 → 캐시 우선</td></tr>
+          <tr><td>Claude API</td><td>문단 서술(A) + 물어보기(E)</td><td><code>ANTHROPIC_API_KEY</code></td><td>모델 1개 (claude-opus-4-8)</td></tr>
+          <tr><td>TMAP (SK)</td><td>보행자 경로 → 등시선</td><td><code>TMAP_KEY</code></td><td>48 병렬 호출 (~0.8s)</td></tr>
+          <tr><td>에어코리아</td><td>PM2.5·PM10·O3·NO2</td><td><code>DATA_GO_KR_API_KEY</code></td><td>측정소검색 미승인 → 시도 전체 매칭</td></tr>
+          <tr><td>국토부 RTMS</td><td>실거래가 4종</td><td><code>DATA_GO_KR_API_KEY</code></td><td>데이터셋별 승인 별도</td></tr>
+          <tr><td>건축HUB</td><td>건축물대장</td><td><code>DATA_GO_KR_API_KEY</code></td><td>구버전 미승인, HUB 버전 사용</td></tr>
+          <tr><td>R-ONE (부동산원)</td><td>매매가격지수</td><td><code>RONE_KEY</code></td><td></td></tr>
+          <tr><td>기상청 KMA</td><td>단기예보</td><td><code>KMA_KEY</code></td><td>timeout 35s</td></tr>
+          <tr><td>NEIS</td><td>학교 목록</td><td><code>NEIS_KEY</code></td><td></td></tr>
+          <tr><td>상가(상권)정보</td><td>반경 내 점포수</td><td><code>DATA_GO_KR_API_KEY</code></td><td>B553077</td></tr>
+          <tr class="api-key-warn"><td>서울 생활인구</td><td>행정동별 생활인구</td><td><code>SEOUL_API_KEY</code></td><td>서울시 전용, 최신 ~5일 지연</td></tr>
+          <tr><td>KOPIS</td><td>공연시설</td><td><code>KOPIS_KEY</code></td><td>키 갱신 후 작동</td></tr>
+          <tr><td>어린이집 (정보공개포털)</td><td>시군구 개수·정원</td><td><code>CHILDCARE_INFO_KEY</code></td><td>cpmsapi021, XML</td></tr>
+          <tr><td>문화기반시설총람</td><td>박물관·미술관 등 10종</td><td><code>DATA_GO_KR_API_KEY</code></td><td>B553457</td></tr>
+          <tr><td>OSM Overpass</td><td>공공시설 보충</td><td>없음(무료)</td><td>rate-limit, 재시도 없음</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── §8. 데이터 흐름 ── -->
+  <section id="s8">
+    <h2><span class="sec-num">8</span> 데이터 흐름</h2>
+    <div class="flow-box">                    <span class="flow-key">주소 입력</span>
+                         │
+                         ▼
+          <span class="flow-node">resolve_address()</span>  ← 카카오 + JUSO
+                         │ ResolvedAddress(lat, lon, sgg_code, bcode, sido, sigungu, ...)
+               ┌─────────┴──────────┐
+               ▼                    ▼
+    <span class="flow-node">[모드 A: 지역 통계]</span>       <span class="flow-node">[모드 B: 주변 시설]</span>
+    collect_facts()         build_facility_result()
+         │                          │
+    KOSIS fetch                카카오 (분할)
+    에어코리아                  OSM 보충
+    implications.json         VWorld 보충
+    compose_narrative ← Claude    │ counts{}
+         │                          │
+         └──────────┬───────────────┘
+                    │ facts[] + counts{}
+                    ▼
+         <span class="flow-node">[P11: 수급진단]</span>
+         cross_rules(facts, band, radius)
+              supply_demand.json 규칙 5개
+              _supply_level_count() — 반경² 스케일
+              → diagnoses[]
+                    │
+         ┌──────────┼─────────────────────┐
+         ▼          ▼                     ▼
+   <span class="flow-node">[P10: 물어보기]</span>  <span class="flow-node">[P9: 비교]</span>        <span class="flow-node">[모드 B 지도]</span>
+   gather_bundle  N개 후보지 각     tmap.compute_isochrone()
+   Claude 그라운  A+B+P11 나란히    PIL 위성타일 합성
+   디드 답변                        PNG 저장 → URL</div>
+  </section>
+
+  <!-- ── §9. 캐싱 ── -->
+  <section id="s9">
+    <h2><span class="sec-num">9</span> 캐싱 전략</h2>
+    <div class="cache-grid">
+      <div class="cache-card">
+        <div class="cc-name">FileCache</div>
+        <div class="cc-desc">로컬 JSON 파일.<br>개발·단일 인스턴스용</div>
+      </div>
+      <div class="cache-card">
+        <div class="cc-name">MemoryCache</div>
+        <div class="cc-desc">인메모리.<br>단위테스트 전용</div>
+      </div>
+      <div class="cache-card">
+        <div class="cc-name">GCSCache</div>
+        <div class="cc-desc">Cloud Run 멀티 인스턴스.<br>TTL 미구현 (부채)</div>
+      </div>
+    </div>
+
+    <h3>캐시 키 패턴</h3>
+    <ul>
+      <li>KOSIS: <code>(orgId, tblId, region_code, year, itmId, objL2)</code></li>
+      <li>에어코리아: <code>airkorea:{sigungu}:{today}</code> — 하루 TTL</li>
+      <li>타일: 좌표+줌 — 영구</li>
+    </ul>
+
+    <div class="callout">
+      <strong>KOSIS 한 번만 호출:</strong>
+      연령 구조 5지표(고령·유소년·생산가능·노년부양비·총인구)는 <code>DT_1B04005N</code> 1회 캐시.
+      <code>fetch_total_pop()</code>도 동일 테이블 재사용 — 추가 API 호출 없음.
+    </div>
+  </section>
+
+  <!-- ── §10. 에러 처리 ── -->
+  <section id="s10">
+    <h2><span class="sec-num">10</span> 에러 처리 원칙</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>상황</th><th>처리</th></tr></thead>
+        <tbody>
+          <tr class="error-row"><td>주소 해석 불가</td><td><code>ErrorBlock(ADDR_UNRESOLVED)</code> + HTTP 422 (하드블록)</td></tr>
+          <tr class="error-row"><td>지역코드 없음</td><td><code>ErrorBlock(NO_REGION_CODE)</code> + HTTP 422</td></tr>
+          <tr class="error-row"><td>데이터 없음 (지표 전부)</td><td><code>ErrorBlock(NO_DATA)</code> + HTTP 422</td></tr>
+          <tr><td>일부 API 실패</td><td><code>notes[]</code> 기록 + 부분 반환 (graceful — 원칙 3)</td></tr>
+          <tr><td>비상업 시설 검색 실패</td><td><code>notes[]</code> 기록 + 카카오 결과만 반환</td></tr>
+          <tr><td>TMAP 실패</td><td><code>notes[]</code> 기록 + 반경원 폴백</td></tr>
+          <tr><td>Claude API 실패</td><td><code>source:"rule_based_fallback"</code> + 규칙 문단</td></tr>
+          <tr><td>후보지 한 개 실패</td><td><code>CompareSite.error</code> 기록 + 나머지 계속</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <strong>공통 패턴:</strong> "전체 죽이기" 금지.
+      부분 실패는 격리하고, 성공한 부분은 반환. 모든 예외는 <code>notes[]</code>에 정직 기록.
+    </div>
+  </section>
+
+  <!-- ── §11. 한계 ── -->
+  <section id="s11">
+    <h2><span class="sec-num">11</span> 한계 (실측·추론)</h2>
+    <div class="limit-grid">
+      <div class="limit-card">
+        <h4>데이터 공간 해상도</h4>
+        <ul>
+          <li>KOSIS 통계는 <strong>시군구 평균</strong> — 대지 고유값 아님</li>
+          <li>읍면동 단위 통계는 대부분 KOSIS에 없거나 별도 코드 체계</li>
+          <li>반경 내 인구 계산 불가 → 공급 판정 분모 = 시군구 전체 인구 (공간 불일치)</li>
+        </ul>
+      </div>
+      <div class="limit-card">
+        <h4>수급진단 임계값</h4>
+        <ul>
+          <li><code>supply_low_max</code>·<code>supply_high_min</code>은 휴리스틱 (JSON에 근거 출처 없음)</li>
+          <li>전국 밀도의 분모·분자가 다른 공간 단위 → 절대 비교는 의미 제한</li>
+          <li>상업·문화 시설(수요 proxy 없음) 수급진단 미편입 <span class="infer">추정</span></li>
+        </ul>
+      </div>
+      <div class="limit-card">
+        <h4>시설 검색</h4>
+        <ul>
+          <li>카카오 45건 상한 → 매우 밀집 지역 누락 가능</li>
+          <li>카카오 키워드 오매칭·폐업 정보 지연</li>
+          <li>VWorld 검색: 경로당·노인복지관·마을회관에만 국한</li>
+          <li>OSM 지역별 갱신 주기 불균일 <span class="infer">추정</span></li>
+        </ul>
+      </div>
+      <div class="limit-card">
+        <h4>등시선</h4>
+        <ul>
+          <li>16방향 고정 → 실제 보행 경계와 오차</li>
+          <li>경로 없는 방향 꼭짓점 제외 → 폴리곤 들쭉날쭉</li>
+          <li>TMAP 호출 제한 도달 시 부분 실패 <span class="infer">추정</span></li>
+        </ul>
+      </div>
+      <div class="limit-card">
+        <h4>지역 제한</h4>
+        <ul>
+          <li>서울 생활인구: <strong>서울시 전용</strong> — 타 시도는 null</li>
+          <li>KOPIS 이름 필터 → 동명 시군구 오매칭 <span class="infer">추정</span></li>
+          <li>실거래 없는 기간·지역에서 0건 반환</li>
+        </ul>
+      </div>
+      <div class="limit-card">
+        <h4>KOSIS 미확정 지표</h4>
+        <ul>
+          <li>인구밀도 — 면적 테이블 결합 필요</li>
+          <li>사업체수·종사자수 — 40,000셀 초과, 코드 체계 별도</li>
+          <li>주택보급률·주간인구지수 — tblId 미확정</li>
+        </ul>
+      </div>
+      <div class="limit-card">
+        <h4>앱이 안 만드는 것</h4>
+        <ul>
+          <li>물리 시뮬레이션 (일조·바람·그림자)</li>
+          <li>재무 분석 (사업수지·NPV·분양가)</li>
+          <li>규제 해석 ("뭘 지을 수 있는가")</li>
+          <li>설계 안 생성</li>
+        </ul>
+      </div>
+      <div class="limit-card tech">
+        <h4>기술 부채</h4>
+        <ul>
+          <li><code>httpx</code> + <code>starlette.testclient</code> deprecation (httpx2 필요)</li>
+          <li>GCS 캐시 + TTL 미구현 (멀티 인스턴스)</li>
+          <li>PNG 저장 → <code>/tmp</code> 의존 (재시작 시 소실) <span class="infer">추정</span></li>
+          <li>JUSO 운영키 미교체 (현재 dev키)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── §12. 테스트 ── -->
+  <section id="s12">
+    <h2><span class="sec-num">12</span> 테스트 전략</h2>
+    <div class="tree">tests/
+  test_smoke.py          <span class="cmt"># /health, /matrix 최소 스모크</span>
+  test_cache.py          <span class="cmt"># 캐시 라운드트립 (GCS 포함, 네트워크 없음)</span>
+  test_diagnose.py       <span class="cmt"># cross_rules 순수 로직 + 전체 흐름 모킹</span>
+  test_stats_compute.py  <span class="cmt"># 연령비율·부양비·비율 계산 결정적 검증</span>
+  test_geo.py            <span class="cmt"># 하버사인·반경밴드</span>
+  test_tiles.py          <span class="cmt"># 좌표↔픽셀 변환, 줌 계산</span>
+  test_modea_config.py   <span class="cmt"># matrix/implications JSON 로드</span>
+  test_narrative.py      <span class="cmt"># 규칙 폴백 (Claude 실호출은 skipif)</span>
+  test_http_retry.py     <span class="cmt"># 백오프 재시도 로직 (MockTransport)</span>
+  test_*_live.py         <span class="cmt"># 실제 API (KOSIS·카카오 키 있을 때만 skipif)</span></div>
+
+    <h3>테스트 계층 패턴</h3>
+    <ul>
+      <li><strong>순수 로직</strong> → 네트워크 없이 결정적 검증 (<code>cross_rules</code> 등)</li>
+      <li><strong>전체 흐름</strong> → <code>monkeypatch</code>로 외부 서비스 대체</li>
+      <li><strong>실제 API</strong> → <code>@pytest.mark.skipif(not KEY)</code> 분리</li>
+    </ul>
+  </section>
+
+  <!-- ── §13. 배포 ── -->
+  <section id="s13">
+    <h2><span class="sec-num">13</span> 배포 구조</h2>
+    <p><strong>단일 서비스:</strong> FastAPI가 <code>frontend/dist</code> 정적 서빙 → URL 하나, CORS 불필요.</p>
+
+    <div class="tree">Cloud Run
+  ├── FastAPI (0.0.0.0:8080)
+  │   ├── POST /analyze, /facilities, /diagnose, ...  <span class="cmt">(백엔드)</span>
+  │   └── GET  /*                                     <span class="cmt">(React SPA 서빙)</span>
+  ├── Secret Manager  <span class="cmt">(키 주입, .env 커밋 금지)</span>
+  ├── GCS bucket      <span class="cmt">(캐시 — 선택, 로컬 FileCache 폴백)</span>
+  └── OUT_DIR=/tmp/out  <span class="cmt">(PNG 저장)</span></div>
+
+    <h3>로컬 개발</h3>
+    <div class="code-label code-label-py">PowerShell</div>
+    <pre><code><span style="color:#8b949e"># 백엔드</span>
+.venv\Scripts\python.exe -m uvicorn app.main:app --reload
+
+<span style="color:#8b949e"># 프론트 (별도 터미널, Vite 프록시 → localhost:8000)</span>
+cd frontend && npm run dev</code></pre>
+  </section>
+
+  <!-- ── §14. 설계 결정 ── -->
+  <section id="s14">
+    <h2><span class="sec-num">14</span> 설계 결정 이유 <span class="infer">추정</span></h2>
+    <div class="decision-grid">
+      <div class="decision-card">
+        <div class="decision-q"><code>supply_low_max</code>·<code>supply_high_min</code>을 JSON에 둔 것</div>
+        <div class="decision-a">건축가가 현장 피드백으로 임계값을 조정할 수 있게 — 코드 배포 없이 수정 가능 (원칙 7)</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">공급 판정을 밀도가 아닌 개수 기반으로 한 것</div>
+        <div class="decision-a">분모(시군구 전체인구) ≠ 분자(반경 내 시설)의 공간 불일치. 절대 오류보다 상대 오류가 작은 개수 기반이 더 안전</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">Claude 모델을 하나만 쓴 것</div>
+        <div class="decision-a">정답이 정해진 데이터에서 다중 모델 교차는 잡음만 늘림 (원칙 6)</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">함의(implications)를 LLM이 아닌 규칙으로 만든 것</div>
+        <div class="decision-a">LLM이 새 수치를 생성하지 않도록 — 규칙은 재현 가능하고 감사(audit) 가능 (원칙 2)</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">수급진단에 종합점수를 두지 않은 것</div>
+        <div class="decision-a">"좋다/나쁘다" 단정은 설계 판단 — 그 판단은 건축가가 해야 함 (원칙 5)</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">OSM·VWorld를 보충 소스로 쓴 것</div>
+        <div class="decision-a">카카오 45건 상한 + 비상업 시설(경로당 등) 누락 보완. 각 독립 실패 격리로 안전</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">서울 생활인구만 서울 전용인 것</div>
+        <div class="decision-a">SEOUL_API 자체가 서울시 데이터만 제공 — 다른 시도엔 해당 API 없음</div>
+      </div>
+      <div class="decision-card">
+        <div class="decision-q">TMAP 등시선에서 반경 2.5배 오프셋을 쓴 것</div>
+        <div class="decision-a">직선 거리보다 실제 도로 우회 경로가 길기 때문. 2.5는 도시 도로 굴곡율 경험치 <span class="infer">추정</span></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="doc-footer">
+    <span>CLAUDE.md §2 차별점 체크리스트 — 새 기능 추가 시 반드시 통과</span>
+    <span>|</span>
+    <span>전체 API 목록·검증 현황 → API_MASTER_LIST.md · docs/API_VERIFICATION_*.md</span>
+  </div>
+
+</main>
+
+<script>
+// 스크롤 시 사이드바 active 갱신
+const sections = document.querySelectorAll('section[id]');
+const navLinks  = document.querySelectorAll('nav a[href^="#"]');
+
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id);
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => io.observe(s));
+
+// 사이드바 클릭 시 active 즉시 반영
+navLinks.forEach(a => {
+  a.addEventListener('click', () => {
+    navLinks.forEach(b => b.classList.remove('active'));
+    a.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>
