@@ -91,6 +91,59 @@
 
 ---
 
+## 4.1 새 로컬 환경 세팅 (다른 PC에서 개발 시작할 때)
+
+### 사전 설치 확인
+
+- **Python 3.11** — 공식 [python.org](https://python.org) 설치 (Microsoft Store 버전 금지)
+- **Node.js** LTS
+- **Git**
+
+### 세팅 순서
+
+```bash
+# 1. 코드 받기
+git clone https://github.com/DaDaDiRaRa/arch-site-context.git
+cd arch-site-context
+
+# 2. 백엔드 환경
+python -m venv D:\APPS\arch-site-context\.venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# 3. 프론트엔드 환경
+cd frontend
+npm install
+cd ..
+```
+
+**`.env` 파일은 수동으로 복사** (Git에 포함되지 않음 — 기존 PC에서 가져오기).  
+그 외 `out/`(캐시)·`node_modules/`·`.venv/` 등은 위 명령어로 자동 생성되므로 복사 불필요.
+
+### 실행 확인
+
+```bash
+# 터미널 1 — 백엔드
+.venv\Scripts\activate
+uvicorn app.main:app --reload
+
+# 터미널 2 — 프론트엔드
+cd frontend
+npm run dev
+```
+
+### 이후 개발 루틴 (PC 간 전환)
+
+```bash
+git pull        # 작업 시작 전 항상
+# ... 작업 ...
+git add <파일>
+git commit -m "..."
+git push        # 작업 후 GitHub에 올리기
+```
+
+---
+
 ## 5. 아키텍처 (흐름 = 서버 함수 = 엔드포인트)
 
 ```text
