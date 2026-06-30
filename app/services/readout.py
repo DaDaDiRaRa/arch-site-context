@@ -80,6 +80,7 @@ def build_readout(
         for ind in _CONTEXT_INDICATORS:
             data, cnotes = census_multidim.fetch_census_indicator(
                 ind["org"], ind["tbl"], ind["itm"], loc.sigungu, ind["prd"],
+                sido=loc.sido,  # 동명 시군구 disambiguation (HIGH 수정)
                 breakdown=ind.get("breakdown", False), cache=cache, client=client,
             )
             notes += cnotes

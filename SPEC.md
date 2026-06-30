@@ -49,7 +49,8 @@ arch-site-context/
 │   │   ├── compare.py           # POST /compare   (P9 후보지 비교)
 │   │   ├── ask.py               # POST /ask       (P10 물어보기)
 │   │   ├── site.py              # POST /site      (P14 대지 기본정보)
-│   │   ├── seed.py              # POST /seed      (P14 보드 합본)
+│   │   ├── seed.py              # POST /seed      (P14 보드 합본, ThreadPoolExecutor 병렬)
+│   │   ├── readout.py           # POST /readout   (공동주택 대지 readout)
 │   │   ├── matrix.py            # GET  /matrix    (투명성)
 │   │   └── health.py            # GET  /health
 │   ├── services/
@@ -90,8 +91,8 @@ arch-site-context/
 │       └── supply_demand.json   # 수급진단 규칙·임계값
 ├── frontend/                    # React + Vite + Tailwind
 │   └── src/
-│       ├── App.jsx              # 탭 라우팅
-│       ├── tabs/                # TabA~TabE
+│       ├── App.jsx              # 탭 라우팅 (A~H)
+│       ├── TabA.jsx ~ TabH.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H 공동주택readout
 │       ├── api.js               # fetch 헬퍼
 │       └── ui.jsx               # 공통 UI 컴포넌트
 └── tests/                       # pytest (순수 로직 + live skipif)
@@ -356,6 +357,32 @@ gather_bundle(address) → facts + counts + diagnoses  // A·B·P11 한 번에
 }
 ```
 
+**병렬 수집:** 8개 context 블록을 `ThreadPoolExecutor`로 동시 호출(서비스별 자체 client + 소스별 distinct 캐시키 → 스레드 안전). 콜드 합계 ~8s → 가장 느린 블록 시간으로 단축. 생활인구(seoul)는 최신 가용일을 `date.today()` 키로 캐시 — warm 호출 시 재탐지 생략.
+
+---
+
+### 4.9 POST /readout — 공동주택 대지 readout
+
+**입력:** `{ "address": "...", "use_type": "주거", "project_type": "재건축" }`
+- `project_type`: 재건축·재개발·민간·주상복합 (강조 프리셋만 다름, 데이터는 동일)
+
+**처리 흐름:**
+```
+resolve_address(address)
+  → collect_facts(sgg_code, use_type)              // ① 기존 matrix 지표(인구·가구)
+  → census_multidim.fetch_census_indicator(...) ×4 // ② 크랙 census 지표
+  → 파생(사업체밀도·장애인비율·신혼부부/세대)         // ③ 정규화
+  → 유형 프리셋 강조(emphasized) 부여
+```
+
+**② 크랙 census 지표 (다차원 표 — `census_multidim`):**
+다차원 KOSIS 표(시군구×산업×규모 등)는 표마다 지역코드체계·분류차원이 달라 범용질의가 err21.
+해결: `getMeta type=ITM` 응답이 OBJ_NM 으로 모든 차원을 담음 → 지역차원에서 시군구코드(이름매칭) +
+분류차원의 '전체/계' 합계코드를 뽑아 질의 구성. 전국 작동(census 코드 자동 해석).
+- 사업체수(DT_1BD1032, +산업대분류 구성) · 빈집(DT_1JU1512) · 신혼부부(DT_1NW1037) · 등록장애인(DT_11761_N009)
+
+**출력 (ReadoutResult):** `site` · `project_type` · `demographics[]`(matrix 지표) · `context[]`(census 지표, 일부 breakdown) · `derived[]`(파생) · `notes[]`(시군구 캐비엇·greenfield 경고). 각 지표 graceful.
+
 ---
 
 ## 5. 데이터 계약 요약
@@ -481,7 +508,7 @@ class ResolvedAddress:
 }
 ```
 
-**현재 5개 규칙:** 보육시설·노인복지시설·1인가구 생활시설·의료시설·초등학교
+**현재 6개 규칙:** 보육시설·노인복지시설·1인가구 생활시설·의료시설·초등학교·문화시설(생산가능인구비율×도서관·미술관·박물관·문화센터·공연장·영화관)
 
 ---
 
@@ -626,14 +653,18 @@ GCSCache(bucket)        # Cloud Run 멀티 인스턴스 (선택)
 ### 11.5 지역 제한
 
 - **서울 생활인구: 서울시 전용.** 다른 시도에서는 `null` 반환
-- KOPIS 시군구코드 매핑은 이름 필터 기반 → 동명 시군구 오매칭 가능성 [추정]
+- KOPIS 공연시설은 `signgucode = 행안부 sgg_code[:4]` 서버측 필터 (2026-06-30 실API 검증). 이전 이름필터(전국 1000건 상한·동명 오매칭)는 폴백
 - 실거래 데이터는 거래가 없는 기간·지역에서 0건 반환
 
-### 11.6 KOSIS 미확정 지표 (method:"unconfirmed" 건너뜀)
+### 11.6 KOSIS 미확정 지표 (matrix.json method:"unconfirmed" 건너뜀)
 
 - 인구밀도 — 시군구 단위 면적 테이블 결합 필요
-- 사업체수·종사자수 — 시군구 테이블 구조 복잡 (40,000셀 초과, 코드 체계 별도)
 - 주택보급률·주간인구지수 — tblId 미확정
+- ~~사업체수·종사자수~~ → **해결**: `census_multidim` 차원 크랙으로 시군구 사업체수(DT_1BD1032,
+  영등포 96,993)·종사자수·빈집·신혼부부·등록장애인 등 다차원 census 표 질의 가능. `/readout`이 제공.
+  (matrix.json 정식 편입은 후속 — 현재는 순이동·세대수만 편입, 나머지는 readout 경로.)
+  관련 자산: `docs/KOSIS_DEPTH_PLAN.md`·`docs/KOSIS_INDICATOR_DICTIONARY.md`·`scripts/{mine_kosis_catalog,
+  shortlist_kosis,profile_kosis_dims,demo_site_kosis}.py`
 
 ### 11.7 앱이 명시적으로 안 만드는 것
 

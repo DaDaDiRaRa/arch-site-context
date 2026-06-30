@@ -16,25 +16,17 @@
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
-import time
 
 import httpx
 from dotenv import load_dotenv
 
-# 앱 서비스 재사용 (읽기 전용 호출)
+# 앱 서비스 재사용 (읽기 전용 호출). census 다차원은 정식 서비스 census_multidim 위임
+# (동명 시군구 disambiguation·objL 순서 등 버그수정 단일 출처).
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.services.resolve import resolve_address  # noqa: E402
-from app.services import stats  # noqa: E402
-
-_DATA = "https://kosis.kr/openapi/Param/statisticsParameterData.do"
-_META = "https://kosis.kr/openapi/statisticsData.do"
-_REGION_HINTS = ("시군구", "행정구역", "시도", "지역", "시·군·구")
-_TOTAL_NAMES = {"전체", "계", "합계", "총계", "소계", "전산업", "전국"}
-_TOTAL_CODES = {"0", "00", "000", "TT"}
-_PRDMAP = {"년": "Y", "월": "M", "분기": "Q", "5년": "F", "3년": "F"}
+from app.services import census_multidim, stats  # noqa: E402
 
 # 크랙한 census 다차원 지표 (org, tbl, itm, prd주기, 단위, 라벨, 축).
 CENSUS_INDICATORS = [
@@ -65,65 +57,15 @@ def _key() -> str:
     return k
 
 
-def _meta_itm(client, key, org, tbl):
-    r = client.get(_META, params={"method": "getMeta", "apiKey": key, "format": "json",
-                                  "jsonVD": "Y", "orgId": org, "tblId": tbl, "type": "ITM"}, timeout=25.0)
-    d = json.loads(r.text)
-    return d if isinstance(d, list) else []
-
-
-def _dims(itm_rows):
-    """ITM 메타 → {region_dim_code: 영등포식 코드 찾기용 멤버, total_codes per classification}."""
-    from collections import defaultdict
-    by = defaultdict(list)
-    for x in itm_rows:
-        by[(x.get("OBJ_ID"), x.get("OBJ_NM"))].append((x.get("ITM_ID"), x.get("ITM_NM")))
-    region, classifications = None, []
-    for (oid, onm), members in by.items():
-        if any(h in (onm or "") for h in _REGION_HINTS):
-            region = members
-        elif onm != "항목" and oid != "ITEM":
-            totals = [m for m, n in members if m in _TOTAL_CODES or (n and n.strip() in _TOTAL_NAMES)]
-            classifications.append(totals[0] if totals else "ALL")
-    return region, classifications
-
-
-def fetch_census(client, key, ind, city_name):
-    """크랙한 다차원 census 지표 1개 → (value, breakdown). 실패 시 (None, None)."""
-    itm_rows = _meta_itm(client, key, ind["org"], ind["tbl"])
-    time.sleep(0.2)
-    region, classifications = _dims(itm_rows)
-    if not region:
+def fetch_census(client, ind, city_name, sido):
+    """크랙한 다차원 census 지표 1개 → (value, breakdown). 정식 서비스 위임 (버그수정 단일출처)."""
+    data, _ = census_multidim.fetch_census_indicator(
+        ind["org"], ind["tbl"], ind["itm"], city_name, ind["prd"],
+        sido=sido, breakdown=ind.get("breakdown", False), client=client,
+    )
+    if not data:
         return None, None
-    code = next((m for m, n in region if (n or "").strip().startswith(city_name)), None)
-    if not code:
-        return None, None
-    ps = _PRDMAP.get(ind["prd"], "Y")
-    params = {"method": "getList", "apiKey": key, "format": "json", "jsonVD": "Y",
-              "orgId": ind["org"], "tblId": ind["tbl"], "itmId": ind["itm"],
-              "objL1": code, "prdSe": ps, "newEstPrdCnt": "1"}
-    for i, tot in enumerate(classifications):
-        params[f"objL{i + 2}"] = tot
-    r = client.get(_DATA, params=params, timeout=25.0)
-    time.sleep(0.25)
-    d = json.loads(r.text)
-    value = None
-    if isinstance(d, list) and d:
-        try:
-            value = int(float(d[0]["DT"]))
-        except (KeyError, TypeError, ValueError):
-            value = None
-    # 산업구조 교차 (사업체만)
-    breakdown = None
-    if ind.get("breakdown") and value is not None:
-        bp = dict(params); bp["objL2"] = "ALL"
-        rb = client.get(_DATA, params=bp, timeout=25.0); time.sleep(0.25)
-        db = json.loads(rb.text)
-        if isinstance(db, list):
-            tops = sorted([x for x in db if x.get("C2") != "0" and x.get("DT")],
-                          key=lambda x: -float(x["DT"]))[:5]
-            breakdown = [(x["C2_NM"], int(float(x["DT"]))) for x in tops]
-    return value, breakdown
+    return data.get("value"), data.get("breakdown")
 
 
 def main() -> None:
@@ -133,7 +75,7 @@ def main() -> None:
     ap.add_argument("--type", default="재건축", choices=list(PRESET), help="프로젝트 유형(강조 프리셋)")
     args = ap.parse_args()
 
-    key = _key()
+    _key()  # KOSIS_KEY 미설정이면 즉시 종료 (fail-fast)
     loc = resolve_address(args.address)
     emphasis = PRESET[args.type]
 
@@ -159,7 +101,7 @@ def main() -> None:
     try:
         print(f"\n[ 산업·주거·복지 ]  (KOSIS 시군구, 크랙 census)")
         for ind in CENSUS_INDICATORS:
-            val, bd = fetch_census(client, key, ind, loc.sigungu)
+            val, bd = fetch_census(client, ind, loc.sigungu, loc.sido)
             census[ind["key"]] = val
             star = " ★" if ind["label"] in emphasis else "  "
             if val is None:

@@ -15,6 +15,9 @@
 | C | **수급 진단** ★ | A(인구 수요) × B(시설 공급) 교차 → "무엇이 부족/과잉인가" 근거·반경비례·전국밀도 제시 |
 | D | **후보지 비교** | 여러 대지 동시 입력 → A·B·수급진단 나란히 비교 (종합점수 없음, 판단은 사람) |
 | E | **물어보기** | 위 데이터 위에서만 자연어 질문에 답변. 데이터 밖이면 "확인 불가"로 멈춤 |
+| F | **대지 정보** | 주소 → 개별공시지가(필지)·실거래·건축물대장(건폐율·용적률) |
+| G | **보드 합본** | 주소 → 상권·학교·어린이집·문화시설·부동산지수·날씨·생활인구·공연시설 한 화면 |
+| H | **공동주택 readout** | 재건축·재개발·민간 부지 → 인구·산업·주거·복지 종합 프로파일 + 유형별 ★강조 (전국, KOSIS 다차원) |
 
 ---
 
@@ -66,6 +69,7 @@
 | `POST` | `/ask` | 물어보기 (데이터 위에서만 + 웹검색 opt-in) |
 | `POST` | `/site` | 대지 기본정보 (공시지가·실거래·건축물대장) |
 | `POST` | `/seed` | 보드 합본 — site + 상권·학교·부동산지수·날씨·생활인구·공연 |
+| `POST` | `/readout` | 공동주택 대지 readout — 인구·산업·주거·복지 종합 + 유형 프리셋 (KOSIS 다차원) |
 
 대화형 API 문서: 서버 실행 후 `http://127.0.0.1:8000/docs`
 
@@ -110,7 +114,7 @@ POST /facilities
 {
   "address": "서울특별시 영등포구 여의대로 24",
   "kinds": ["어린이집", "경로당"],
-  "radius": 1000
+  "radii": [500, 1000, 2000]
 }
 ```
 
@@ -145,15 +149,13 @@ POST /diagnose
   "diagnoses": [
     {
       "name": "보육시설 수급",
-      "demand": { "item": "유소년인구비율", "value": 8.3, "level": "낮음" },
-      "supply": { "kinds": ["어린이집", "유치원"], "count": 23, "level": "많음" },
-      "signal": "수요 낮음·공급 많음",
+      "demand": { "item": "유소년인구비율", "value": 8.3, "national_avg": 10.3, "level": "낮음" },
       "supply": {
-        "count": 23, "level": "많음",
-        "density_per_10k": 0.62,
-        "national_density_per_10k": 7.7,
-        "vs_national_pct": 8
+        "kinds": ["어린이집", "유치원"], "count": 23, "level": "많음",
+        "density_per_10k": 0.62, "national_density_per_10k": 7.7, "vs_national_pct": 8,
+        "capacity": 2785, "capacity_scope": "영등포구"
       },
+      "signal": "수요 낮음·공급 많음",
       "tag": "참고"
     }
   ]
@@ -162,8 +164,7 @@ POST /diagnose
 
 `supply.level`은 반경² 스케일 임계값(반경 2km → 4배 확대)으로 판정. `density_per_10k`·`vs_national_pct`는 전국 기준 대비 밀도를 참고용으로 함께 제공. 원칙상 판단은 사람.
 
-```json
-```
+> 현재 수급진단 규칙 6개: 보육·노인복지·1인가구 생활·의료·초등학교·문화시설.
 
 ---
 
@@ -255,7 +256,9 @@ arch-site-context/
 │   │   ├── culture.py       #   문화기반시설총람 10종
 │   │   ├── tmap.py          #   TMAP 보행자 경로 → 실도보 등시선 폴리곤
 │   │   ├── diagnose.py      #   수급 진단 (A×B 교차, 반경비례 임계값)
-│   │   └── site_seed.py     #   보드 합본 진입점
+│   │   ├── site_seed.py     #   보드 합본 진입점
+│   │   ├── census_multidim.py #  KOSIS 다차원 census 지표 (getMeta 차원해부, 사업체·빈집 등)
+│   │   └── readout.py       #   공동주택 대지 readout 오케스트레이션
 │   ├── schemas/             #   Pydantic v2 데이터 계약
 │   └── data/                #   외부 JSON 설정 (건축가 편집)
 │       ├── matrix.json
@@ -263,8 +266,8 @@ arch-site-context/
 │       └── supply_demand.json
 ├── frontend/                # React + Vite + Tailwind
 ├── tests/                   # pytest (단위 + 라이브 테스트)
-├── scripts/                 # 유틸 스크립트
-├── docs/                    # API 검증 기록
+├── scripts/                 # 유틸 스크립트 (KOSIS 카탈로그 마이너·차원 프로파일러·readout 데모 등)
+├── docs/                    # API 검증 기록 + KOSIS 깊이확장 계획·지표사전
 ├── API_MASTER_LIST.md       # 전체 데이터 소스 목록 (~161개)
 ├── CLAUDE.md                # 아키텍처·원칙·로드맵 (AI용)
 └── INTEGRATION.md           # 형제앱 연동 계약
