@@ -6,6 +6,7 @@ import TabD from "./TabD.jsx";
 import TabE from "./TabE.jsx";
 import TabF from "./TabF.jsx";
 import TabG from "./TabG.jsx";
+import TabH from "./TabH.jsx";
 
 export default function App() {
   const [address, setAddress] = useState("");
@@ -46,6 +47,7 @@ export default function App() {
             ["E", "물어보기"],
             ["F", "대지 정보"],
             ["G", "보드 합본"],
+            ["H", "공동주택 readout"],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -78,6 +80,9 @@ export default function App() {
         </div>
         <div className={tab === "G" ? "" : "hidden"}>
           <TabG address={address} />
+        </div>
+        <div className={tab === "H" ? "" : "hidden"}>
+          <TabH address={address} />
         </div>
 
         <footer className="mt-10 text-xs text-slate-400">

@@ -53,3 +53,6 @@ export const site = (address) =>
 
 export const seed = (address, radius = 1000) =>
   post("/seed", { address, radius });
+
+export const readout = (address, project_type = "재건축", use_type = "주거") =>
+  post("/readout", { address, project_type, use_type });

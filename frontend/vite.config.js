@@ -7,7 +7,7 @@ const API = process.env.VITE_API_TARGET || "http://127.0.0.1:8000";
 
 // 개발 서버에서 백엔드 엔드포인트를 프록시 → CORS·URL 고민 없이 상대경로로 호출.
 const proxy = Object.fromEntries(
-  ["/analyze", "/facilities", "/diagnose", "/compare", "/ask", "/site", "/seed", "/matrix", "/files", "/health"].map((p) => [
+  ["/analyze", "/facilities", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/matrix", "/files", "/health"].map((p) => [
     p,
     { target: API, changeOrigin: true },
   ])
