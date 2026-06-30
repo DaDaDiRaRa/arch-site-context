@@ -69,6 +69,9 @@ class SupplySignal(BaseModel):
     vs_national_pct: Optional[int] = Field(
         None, description="전국 기준 대비 % (100=평균, <100=평균이하)", examples=[47]
     )
+    density_basis: str = Field(
+        "", description="밀도 분모 기준: '반경'(반경 실인구·primary 판정) | '시군구'(시군구 총인구·참고) | ''(밀도없음)", examples=["반경"]
+    )
     capacity: Optional[int] = Field(
         None, description="시군구 공급 정원(어린이집 정원 등 — 반경 아님, 참고)", examples=[2785]
     )

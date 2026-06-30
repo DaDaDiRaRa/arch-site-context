@@ -145,7 +145,11 @@ export default function TabC({ address }) {
                         <span className={d.supply.vs_national_pct < 100 ? "text-amber-600" : "text-emerald-600"}>
                           {d.supply.vs_national_pct}%
                         </span>
-                        <span className="text-slate-300"> (참고·시군구 인구 기준)</span>
+                        <span className="text-slate-300">
+                          {d.supply.density_basis === "반경"
+                            ? " (반경 실인구 1만명당 · 공급판정 기준)"
+                            : " (참고·시군구 인구 기준)"}
+                        </span>
                       </span>
                     )}
                   </div>

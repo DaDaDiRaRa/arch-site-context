@@ -99,13 +99,17 @@ def cross_rules(
     rules: Optional[List[dict]] = None,
     capacity_data: Optional[dict] = None,
     total_pop: Optional[int] = None,
+    radius_pop: Optional[int] = None,
 ) -> tuple:
     """수요 facts × 공급 개수(band)를 규칙과 교차 → (diagnoses, notes).
 
     순수 로직(네트워크 없음) — build_diagnosis 와 P9 비교(compare)가 공유.
     band: {시설종류: 반경내 개수}. fact_by_item: {지표명: fact dict}.
     capacity_data: {규칙명: {capacity, scope}} — 시군구 정원 보강(선택, 반경과 단위 다름·참고).
-    total_pop: 시군구 총인구 — 밀도 계산용(선택). 없으면 개수 기반 fallback.
+    total_pop: 시군구 총인구 — 밀도 계산용(선택, 참고).
+    radius_pop: 반경 내 실인구(SGIS 집계구 합산) — 있으면 공급 판정을 '반경 1인당 밀도 vs 전국'으로
+      격상(primary). 분자(반경 시설수)·분모(반경 실인구) 모두 실측·반경 단위 (절대 원칙 1). 없으면
+      개수 임계값 fallback. 반경 모드 전용 — 구/동 모드는 None 으로 기존 동작 유지(하위호환).
     """
     rules = rules if rules is not None else load_rules()
     capacity_data = capacity_data or {}
@@ -124,25 +128,36 @@ def cross_rules(
             float(r.get("demand_margin", 0)),
         )
         count = sum(int(band.get(k, 0)) for k in r["supply_kinds"])
-
-        # ── 공급 레벨: 반경 비례 개수 기반 (primary) ────────────────────────
-        # 임계값은 radius=1000m 기준, 면적 비례(radius²)로 스케일 → magic number 탈피.
-        slevel = _supply_level_count(
-            count,
-            int(r.get("supply_low_max", 0)),
-            int(r.get("supply_high_min", 10**9)),
-            radius,
-        )
-
-        # ── 밀도 (보조 정보 — primary 판정에는 미사용) ────────────────────────
-        # 분모: 시군구 총인구. 분자: 반경 내 개수.
-        # 둘의 공간 단위가 다르므로 수치는 참고용. 전국 대비 상대값으로 동네 수준 가늠.
         nat_density = r.get("national_density_per_10k")
+        low_pct = r.get("density_low_pct")
+        high_pct = r.get("density_high_pct")
+
+        # ── 공급 밀도 (만명당 시설수) ───────────────────────────────────────
+        # 분모: 반경 실인구(SGIS 집계구 합산) 우선 → 분자·분모 모두 실측·반경 단위(절대 원칙 1).
+        # 없으면 시군구 총인구(공간 단위 달라 참고용).
+        density_pop = radius_pop if (radius_pop and radius_pop > 0) else total_pop
         density_per_10k: Optional[float] = None
         vs_national_pct: Optional[int] = None
-        if total_pop and total_pop > 0 and nat_density:
-            density_per_10k = round(count / (total_pop / 10_000), 2)
+        if density_pop and density_pop > 0 and nat_density:
+            density_per_10k = round(count / (density_pop / 10_000), 2)
             vs_national_pct = round(density_per_10k / nat_density * 100)
+
+        # ── 공급 레벨 판정 ──────────────────────────────────────────────────
+        # 반경 실인구가 있으면 '반경 1인당 밀도 vs 전국 1인당'이 primary (사과 대 사과·재현가능).
+        # 그 외(구/동 모드)는 반경 비례 개수 임계값 — radius=1000m 기준 면적²로 스케일.
+        if (radius_pop and radius_pop > 0 and density_per_10k is not None
+                and nat_density and low_pct is not None and high_pct is not None):
+            slevel = _supply_level_density(
+                density_per_10k, float(nat_density), float(low_pct), float(high_pct))
+            density_basis = "반경"
+        else:
+            slevel = _supply_level_count(
+                count,
+                int(r.get("supply_low_max", 0)),
+                int(r.get("supply_high_min", 10**9)),
+                radius,
+            )
+            density_basis = "시군구" if density_per_10k is not None else ""
 
         verdict = _verdict(dlevel, slevel)
         unit = fact.get("unit", "")
@@ -157,10 +172,11 @@ def cross_rules(
             f"(시군구 {cap_scope} 정원 {capacity}명)" if capacity is not None else ""
         )
 
-        # 밀도 텍스트
+        # 밀도 텍스트 (분모 기준 명시 — 반경 실인구 vs 시군구 참고)
         if density_per_10k is not None and nat_density:
+            basis_lbl = "반경인구" if density_basis == "반경" else "시군구인구"
             density_txt = (
-                f" [{density_per_10k}개/만명 · 전국 {nat_density}개/만명 대비 {vs_national_pct}%]"
+                f" [{density_per_10k}개/만명({basis_lbl}) · 전국 {nat_density}개/만명 대비 {vs_national_pct}%]"
             )
         else:
             density_txt = ""
@@ -190,6 +206,7 @@ def cross_rules(
                     density_per_10k=density_per_10k,
                     national_density_per_10k=nat_density,
                     vs_national_pct=vs_national_pct,
+                    density_basis=density_basis,
                     capacity=capacity, capacity_scope=cap_scope,
                 ),
                 signal=f"수요 {dlevel}·공급 {slevel}",
@@ -266,6 +283,7 @@ def build_diagnosis(
 
         # 반경 모드: SGIS 집계구 합산으로 demand를 진짜 반경 인구비율로 교체 (수요·공급 동일 반경)
         radius_ok = False
+        radius_pop: Optional[int] = None
         if resolution == "반경":
             from app.services import sgis
             try:
@@ -275,6 +293,7 @@ def build_diagnosis(
                 notes.append(f"SGIS 반경 인구 조회 오류: {e}")
             if rp:
                 radius_ok = True
+                radius_pop = rp.get("total_pop")  # 공급 밀도 분모(반경 1인당) — primary 판정용
                 share_map = {
                     "유소년인구비율": rp.get("youth_share"),
                     "고령인구비율": rp.get("aged_share"),
@@ -316,6 +335,7 @@ def build_diagnosis(
             fact_by_item, band, radius, rules,
             capacity_data=capacity_data,
             total_pop=total_pop,
+            radius_pop=radius_pop,
         )
         notes += cnotes
 

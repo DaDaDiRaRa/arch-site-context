@@ -38,6 +38,30 @@ def test_supply_level_thresholds() -> None:
     assert diagnose._supply_level_count(25, 3, 10, 2000) == "보통"
 
 
+def test_cross_rules_radius_density_is_primary() -> None:
+    """반경 모드: 공급 판정이 반경 실인구 1인당 밀도 vs 전국(primary)으로 바뀐다 (네트워크 없음).
+
+    노인복지: 경로당 20개 — 개수론 '많음'(≥12)이지만 반경 인구 29,281명당 6.83/만명 = 전국 13의 53%
+    (<60%) → '적음'. 개수 휴리스틱과 1인당 벤치마크가 정반대 판정 = 정규화의 핵심 가치.
+    """
+    rules = [r for r in diagnose.load_rules() if r["name"] == "노인복지시설 수급"]
+    fact = {"고령인구비율": {"item": "고령인구비율", "value": 16.1, "national_avg": 21.2,
+                          "unit": "%", "source_tbl": "SGIS 집계구", "year": 2023}}
+    band = {"경로당": 20, "노인복지관": 0}
+
+    # 구/동 모드 (radius_pop 없음) → 개수 임계값 primary → 많음
+    gu, _ = diagnose.cross_rules(fact, band, 1000, rules)
+    assert gu[0].supply.level == "많음"
+    assert gu[0].supply.density_basis in ("", "시군구")
+
+    # 반경 모드 (radius_pop=29,281) → 1인당 밀도 vs 전국 primary → 적음
+    rd, _ = diagnose.cross_rules(fact, band, 1000, rules, radius_pop=29281)
+    assert rd[0].supply.density_basis == "반경"
+    assert rd[0].supply.level == "적음"
+    assert rd[0].supply.vs_national_pct == 53  # 6.83 / 13.0 ×100
+    assert "반경인구" in rd[0].note
+
+
 def test_verdict_matrix_and_unknown() -> None:
     assert "부족" in diagnose._verdict("높음", "적음")
     assert "과잉" in diagnose._verdict("낮음", "많음")
