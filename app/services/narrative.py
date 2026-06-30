@@ -50,18 +50,22 @@ def _imps_block(imps: List[dict]) -> str:
 def _scope_disclaimer(facts: List[dict]) -> str:
     """facts 의 scope 구성에 맞는 정직한 기준 안내 (절대 원칙 4).
 
-    동·구 혼재 시 어느 지표가 어느 기준인지 밝힌다. scope 없으면(구버전) 시군구로 간주.
+    반경·동·구 혼재 시 어느 지표가 어느 기준인지 밝힌다. scope 없으면(구버전) 시군구로 간주.
     """
+    radius = sorted({f.get("scope") for f in facts if f.get("scope_level") == "반경" and f.get("scope")})
     dong = sorted({f.get("scope") for f in facts if f.get("scope_level") == "읍면동" and f.get("scope")})
-    gu = sorted({f.get("scope") for f in facts if f.get("scope_level") != "읍면동" and f.get("scope")})
-    if dong and gu:
-        return (
-            f" 이 중 {', '.join(dong)} 행정동 단위 지표를 제외한 나머지는 "
-            f"{', '.join(gu)} 시군구 평균값이며, 모두 대지 고유값이 아니다(참고용)."
-        )
+    gu = sorted({f.get("scope") for f in facts
+                 if f.get("scope_level") not in ("반경", "읍면동") and f.get("scope")})
+    parts: List[str] = []
+    if radius:
+        parts.append(f"{', '.join(radius)}는 반경 내 추계 실인구")
     if dong:
-        return f" 이 수치는 {', '.join(dong)} 행정동 단위 값이며 대지 고유값이 아니다(참고용)."
-    return " 이 수치는 시군구 평균값이며 대지 고유값이 아니다(참고용)."
+        parts.append(f"{', '.join(dong)}는 행정동 단위")
+    if gu:
+        parts.append(f"{', '.join(gu)}는 시군구 평균")
+    if not parts:
+        return " 이 수치는 시군구 평균값이며 대지 고유값이 아니다(참고용)."
+    return " 기준: " + "; ".join(parts) + " (모두 대지 고유값이 아님·참고용)."
 
 
 def _rule_based(region_name: str, year: int, use_type: str, facts: List[dict], imps: List[dict]) -> str:

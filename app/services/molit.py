@@ -249,7 +249,20 @@ def fetch_building(
     client = client or httpx.Client(timeout=15.0)
 
     try:
-        items = _hub_items(client, key, "getBrTitleInfo", parcel_params)
+        # 표제부·총괄표제부는 같은 필지 파라미터의 독립 호출 → 병렬 (순차 시 building 이 /site 병목).
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _safe_hub(op):
+            try:
+                return _hub_items(client, key, op, parcel_params)
+            except Exception:
+                return []
+
+        with ThreadPoolExecutor(max_workers=2) as _bex:
+            f_title = _bex.submit(_hub_items, client, key, "getBrTitleInfo", parcel_params)
+            f_recap = _bex.submit(_safe_hub, "getBrRecapTitleInfo")
+            items = f_title.result()
+            recaps = f_recap.result()
         if not items:
             return None, [f"건축물대장: 해당 필지({pnu}) 표제부 없음 (미등재 대지일 수 있음)."]
 
@@ -267,12 +280,8 @@ def fetch_building(
             "far": _float_or_none(main.findtext("vlRat")),
         }
 
-        # 총괄표제부(단지 전체)가 있으면 대지 기준 건폐율·용적률·연면적으로 보정
+        # 총괄표제부(단지 전체)가 있으면 대지 기준 건폐율·용적률·연면적으로 보정 (위에서 병렬 조회됨)
         scope = "대표건물"
-        try:
-            recaps = _hub_items(client, key, "getBrRecapTitleInfo", parcel_params)
-        except Exception:
-            recaps = []
         if recaps:
             rc = recaps[0]
             for fld, key_name in (("totArea", "total_area_sqm"), ("platArea", "site_area_sqm"),

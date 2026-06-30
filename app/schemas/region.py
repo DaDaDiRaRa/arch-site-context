@@ -26,8 +26,11 @@ class AnalyzeRequest(BaseModel):
     )
     resolution: Resolution = Field(
         "시군구",
-        description="통계 해상도. '읍면동' 요청 시 동 데이터 있는 지표만 동 단위, 나머지는 시군구로 폴백(note 표시)",
+        description="통계 해상도. '읍면동'=동 단위(KOSIS). '반경'=radius 반경 내 실인구(SGIS 집계구). 동 데이터 없는 지표는 시군구 폴백(note)",
         examples=["시군구"],
+    )
+    radius: int = Field(
+        1000, description="resolution='반경'일 때 반경(m). 보통 500/1000/2000.", examples=[1000]
     )
 
 

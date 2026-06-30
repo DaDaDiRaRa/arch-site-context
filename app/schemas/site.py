@@ -83,13 +83,65 @@ class BuildingInfo(BaseModel):
     note: str = Field("", description="주의사항")
 
 
+class HazardExposure(BaseModel):
+    """영향범위 내 1개 지표 (인구·가구·주택·사업체)의 영향/전체."""
+
+    metric: str = Field(..., description="지표명", examples=["인구"])
+    affected: Optional[int] = Field(None, description="영향범위 내 값", examples=[3840])
+    total: Optional[int] = Field(None, description="기준 행정구역 전체 값", examples=[35508])
+    unit: str = Field("", description="단위", examples=["명"])
+
+
+class HazardZone(BaseModel):
+    """위험지도 1종의 대지 영향범위 포함 여부 + 영향범위 내 지표 (홍수·산사태)."""
+
+    in_zone: Optional[bool] = Field(
+        None, description="대지가 속한 읍면동이 위험 영향범위에 포함되는지 (None=확인불가)", examples=[True]
+    )
+    affected_dong_count: Optional[int] = Field(
+        None, description="같은 시군구 내 영향범위에 든 읍면동 수 (맥락)", examples=[13]
+    )
+    exposures: List[HazardExposure] = Field(
+        default_factory=list, description="영향범위 내 지표(인구·가구·주택·사업체)의 영향/전체"
+    )
+    exposure_scope: str = Field(
+        "", description="영향지표 집계 단위 (읍면동|시군구) — 일부 동/재해는 시군구 폴백", examples=["읍면동"]
+    )
+
+
+class HeatwaveHistory(BaseModel):
+    """최근 여름 폭염특보 발효 이력 (SGIS #86 과거 폭염특보)."""
+
+    alert_count: int = Field(0, description="경보 발효 건수", examples=[11])
+    warning_count: int = Field(0, description="주의보 발효 건수", examples=[31])
+    scope: str = Field("", description="매칭 단위 (시군구 또는 '○○ 광역(권역)')", examples=["서울 광역(권역)"])
+    base_period: str = Field("", description="집계 기간", examples=["2024~2025 여름"])
+    source: str = Field("SGIS_과거폭염특보", description="출처")
+
+
+class SiteHazards(BaseModel):
+    """대지 재해위험 — SGIS 위험지도 영향범위 포함 여부 + 폭염 이력 (위험 사실·참고, 판단은 사람)."""
+
+    dong_name: str = Field("", description="판정 기준 읍면동", examples=["여의도동"])
+    flood: HazardZone = Field(default_factory=HazardZone, description="홍수위험지도")
+    landslide: HazardZone = Field(default_factory=HazardZone, description="산사태위험지도")
+    heatwave: Optional[HeatwaveHistory] = Field(None, description="최근 여름 폭염특보 이력")
+    base_year: str = Field("", description="위험지도 기준연도", examples=["2025"])
+    source: str = Field("SGIS_재해위험지도", description="출처")
+    note: str = Field(
+        "위험지도 영향범위에 대지 읍면동이 포함되는지 여부(행정구역 단위·참고). 등급·심도 아님, 판단은 사람.",
+        description="주의사항",
+    )
+
+
 class SiteInfo(BaseModel):
-    """POST /site 출력 — 대지 기본 정보 (부동산·건물)."""
+    """POST /site 출력 — 대지 기본 정보 (부동산·건물·재해위험)."""
 
     center: SiteCenter
     real_estate: RealEstate
     land_price: LandPrice
     building: BuildingInfo
+    hazards: SiteHazards = Field(default_factory=SiteHazards, description="재해위험 (홍수·산사태)")
     base_date: str = Field(..., description="기준일 YYYY-MM-DD", examples=["2026-06-26"])
     notes: List[str] = Field(
         default_factory=list,

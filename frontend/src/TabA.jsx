@@ -12,11 +12,14 @@ function fmt(v) {
   return v;
 }
 
-const RESOLUTIONS = ["시군구", "읍면동"];
+const RESOLUTIONS = ["시군구", "읍면동", "반경"];
+const RES_LABEL = { 시군구: "시군구(구)", 읍면동: "읍면동(동)", 반경: "반경(집계구)" };
+const RADII = [500, 1000, 2000];
 
 export default function TabA({ address }) {
   const [useType, setUseType] = useState("주거");
   const [resolution, setResolution] = useState("시군구");
+  const [radius, setRadius] = useState(1000);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -30,7 +33,7 @@ export default function TabA({ address }) {
     setError(null);
     setData(null);
     try {
-      setData(await analyze(address, useType, null, resolution));
+      setData(await analyze(address, useType, null, resolution, radius));
     } catch (e) {
       setError(e);
     } finally {
@@ -59,13 +62,27 @@ export default function TabA({ address }) {
             value={resolution}
             onChange={(e) => setResolution(e.target.value)}
             className="border border-slate-300 rounded-lg px-3 py-2 bg-white"
-            title="읍면동: 인구·연령 지표는 행정동 단위, 가구·대기질 등은 시군구로 폴백"
+            title="읍면동: 인구·연령을 행정동 단위로. 반경: 반경 내 실인구(SGIS 집계구 합산). 미지원 지표는 시군구 폴백"
           >
             {RESOLUTIONS.map((r) => (
-              <option key={r} value={r}>{r === "읍면동" ? "읍면동(동 단위)" : "시군구(구 단위)"}</option>
+              <option key={r} value={r}>{RES_LABEL[r]}</option>
             ))}
           </select>
         </label>
+        {resolution === "반경" && (
+          <label className="text-sm">
+            <span className="block text-slate-500 mb-1">반경 (m)</span>
+            <select
+              value={radius}
+              onChange={(e) => setRadius(Number(e.target.value))}
+              className="border border-slate-300 rounded-lg px-3 py-2 bg-white"
+            >
+              {RADII.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           onClick={run}
           disabled={loading}
@@ -116,7 +133,7 @@ export default function TabA({ address }) {
                     </td>
                     <td className="px-3 py-2">
                       {f.scope ? (
-                        <Badge tone={f.scope_level === "읍면동" ? "green" : "slate"}>
+                        <Badge tone={f.scope_level === "읍면동" || f.scope_level === "반경" ? "green" : "slate"}>
                           {f.scope}
                         </Badge>
                       ) : (

@@ -197,6 +197,95 @@ export default function TabF({ address }) {
             </p>
           </section>
 
+          {/* 4. 재해위험 (SGIS 위험지도 영향범위) */}
+          {data.hazards && (
+            <section>
+              <h3 className="text-sm font-semibold text-slate-700 mb-2">
+                재해위험{" "}
+                {data.hazards.base_year && (
+                  <span className="font-normal text-slate-400 text-xs">{data.hazards.base_year}년 위험지도</span>
+                )}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { key: "flood", label: "홍수" },
+                  { key: "landslide", label: "산사태" },
+                ].map(({ key, label }) => {
+                  const z = data.hazards[key] || {};
+                  const inZone = z.in_zone;
+                  return (
+                    <div
+                      key={key}
+                      className={`rounded-lg border px-3 py-2 text-sm ${
+                        inZone === true
+                          ? "border-amber-300 bg-amber-50"
+                          : inZone === false
+                          ? "border-emerald-200 bg-emerald-50"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      <span className="font-medium text-slate-700">{label}위험</span>{" "}
+                      <span
+                        className={
+                          inZone === true
+                            ? "text-amber-700 font-semibold"
+                            : inZone === false
+                            ? "text-emerald-700"
+                            : "text-slate-400"
+                        }
+                      >
+                        {inZone === true ? "영향범위 포함" : inZone === false ? "영향범위 외" : "확인 불가"}
+                      </span>
+                      {z.affected_dong_count != null && (
+                        <span className="text-slate-400 text-xs"> · 시군구 내 {z.affected_dong_count}개 동</span>
+                      )}
+                      {z.exposures && z.exposures.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          <span className="text-xs text-slate-400">
+                            영향범위 내 {z.exposure_scope && `(${z.exposure_scope} 기준)`}
+                          </span>
+                          {z.exposures.map((e, j) => (
+                            <div key={j} className="text-xs text-slate-600">
+                              {e.metric}{" "}
+                              <span className="font-medium text-slate-800">
+                                {e.affected != null ? e.affected.toLocaleString("ko-KR") : "—"}
+                              </span>
+                              {e.total != null && (
+                                <span className="text-slate-400">
+                                  {" / "}{e.total.toLocaleString("ko-KR")}{e.unit}
+                                  {e.total > 0 && e.affected != null &&
+                                    ` (${Math.round((e.affected / e.total) * 100)}%)`}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {/* 폭염특보 이력 */}
+                {data.hazards.heatwave && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                    <span className="font-medium text-slate-700">폭염특보</span>{" "}
+                    <span className="text-amber-700 font-semibold">
+                      경보 {data.hazards.heatwave.alert_count}
+                    </span>
+                    <span className="text-slate-500"> · 주의보 {data.hazards.heatwave.warning_count}건</span>
+                    <span className="block text-xs text-slate-400 mt-0.5">
+                      {data.hazards.heatwave.base_period}
+                      {data.hazards.heatwave.scope && ` · ${data.hazards.heatwave.scope} 기준`}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                {data.hazards.dong_name && `${data.hazards.dong_name} 기준 · `}
+                {data.hazards.note} · {data.hazards.source}
+              </p>
+            </section>
+          )}
+
           <Notes notes={data.notes} />
         </div>
       )}

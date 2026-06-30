@@ -136,6 +136,228 @@ def _f(v) -> Optional[float]:
         return None
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# 대지 재해위험 (홍수·산사태 위험지도 영향범위 포함 여부) — SGIS ndsm
+# 위험 영향범위에 '대지가 속한 읍면동'이 포함되는지 = 위험 사실(Y/N). 판단은 사람 (절대 원칙 5).
+# ─────────────────────────────────────────────────────────────────────────────
+
+_HAZARDS = {
+    # key: (영향범위 읍면동목록, 영향범위 통계보드, 표시명)
+    "flood": ("floodRiskAdmCdList.json", "floodRiskDataBoard.json", "홍수위험지도"),
+    "landslide": ("lndsldWarnAdmCdList.json", "lndsldWarnDataBoard.json", "산사태위험지도"),
+}
+
+
+# DataBoard 에서 뽑을 영향지표 (총합행 기준). iem_nm 그대로.
+# 노후건물·지하건물은 홍수 침수 위험과 직결 (지하 침수·노후 취약). 응답에 없으면 자동 생략.
+_BOARD_IEMS = ("인구", "가구", "주택", "사업체", "노후건물", "지하건물")
+
+
+def _board_exposures(rows: list) -> List[dict]:
+    """DataBoard rows → [{metric, affected, total, unit}] (핵심 iem 총합행)."""
+    out: List[dict] = []
+    if not isinstance(rows, list):
+        return out
+    by_iem = {it.get("iem_nm"): it for it in rows}
+    for iem in _BOARD_IEMS:
+        item = by_iem.get(iem)
+        if not item:
+            continue
+        tot = next((d for d in item.get("data_list", [])
+                    if d.get("div_nm") in ("총합", "합계", "계")), None)
+        if not tot:
+            continue
+        aff, adm = _f(tot.get("affc_zone")), _f(tot.get("administ_zone"))
+        if aff is None and adm is None:
+            continue
+        out.append({
+            "metric": iem,
+            "affected": int(aff) if aff is not None else None,
+            "total": int(adm) if adm is not None else None,
+            "unit": item.get("unit", ""),
+        })
+    return out
+
+
+def _hazard_exposure(
+    board: str, emd_cd: str, sgg_cd: str, token: str, client: httpx.Client, cache: Optional[Cache]
+) -> tuple:
+    """영향범위 내 지표(인구·가구·주택·사업체) + scope. 읍면동 우선 — 일부 동/재해 500 → 시군구 폴백."""
+    for code, scope in ((emd_cd, "읍면동"), (sgg_cd, "시군구")):
+        ck = make_key("sgis_board", board, code)
+        cached = cache.get(ck) if cache else None
+        if cached is not None:
+            rows = cached.get("rows", [])
+        else:
+            try:
+                j = _get(client, f"ndsm/{board}", {"accessToken": token, "adm_cd": code})
+            except SgisError:
+                continue  # 읍면동 500 등 → 다음 단위로 폴백
+            rows = j.get("result") if isinstance(j.get("result"), list) else []
+            if cache:
+                cache.set(ck, {"rows": rows})
+        exposures = _board_exposures(rows)
+        if exposures:
+            return exposures, scope
+    return [], ""
+
+
+def _census_emd(lat: float, lon: float, token: str, client: httpx.Client) -> Optional[dict]:
+    """좌표 → census 읍면동 {adm_cd(8자리), name}. 작은 bbox userarea cd=3."""
+    cx, cy = to_utmk(lat, lon, token, client)
+    j = _get(client, "boundary/userarea.geojson",
+             {"accessToken": token, "cd": "3",
+              "minx": cx - 30, "miny": cy - 30, "maxx": cx + 30, "maxy": cy + 30})
+    for f in j.get("features", []):
+        p = f.get("properties", {})
+        if p.get("adm_cd"):
+            return {"adm_cd": p["adm_cd"], "name": p.get("adm_nm", "")}
+    return None
+
+
+_HW_YEARS = (2025, 2024)       # 폭염특보 데이터 가용 = 최근 여름(실측, 2023 이전 없음)
+_HW_MONTHS = (6, 7, 8, 9)      # 여름
+
+
+def fetch_heatwave_history(
+    sido: str,
+    sigungu: str = "",
+    *,
+    years: tuple = _HW_YEARS,
+    cache: Optional[Cache] = None,
+    client: Optional[httpx.Client] = None,
+) -> Optional[dict]:
+    """최근 여름 폭염특보 발효 이력 (#86). 대지 시도/시군구 매칭, 해제 제외, 레벨별 발효일수.
+
+    특보구역은 시도(상위)+구역(서울=권역·비서울=시군구). sido로 매칭, 시군구가 구역에 있으면 좁힘.
+    숫자는 코드 규칙: API의 각 행 = 과거 폭염특보 1건(전부 '해제' 기록 = 종료된 특보). 레벨별로 센다.
+    반환: {years, alert_count(경보), warning_count(주의보), scope, base_period, source, notes}.
+    """
+    if not sido:
+        return None
+    own = client is None
+    client = client or httpx.Client(timeout=25.0)
+    notes: List[str] = []
+    try:
+        token = get_token(client, cache)
+        matched: List[dict] = []
+        narrowed = False
+        for y in years:
+            for m in _HW_MONTHS:
+                ck = make_key("sgis_heatwave", y, m)
+                cached = cache.get(ck) if cache else None
+                if cached is not None:
+                    rows = cached.get("rows", [])
+                else:
+                    try:
+                        j = _get(client, "ndsm/prevHwSpcnwsList.json",
+                                 {"accessToken": token, "searchYear": str(y),
+                                  "searchMonth": f"{m:02d}"})
+                    except SgisError:
+                        continue
+                    rows = j.get("result") if isinstance(j.get("result"), list) else []
+                    if cache:
+                        cache.set(ck, {"rows": rows})
+                # 시도 매칭
+                sido_rows = [r for r in rows
+                             if sido and sido[:2] in (r.get("up_spcnws_zone_nm") or "")]
+                # 비서울 시군구가 구역명에 있으면 좁힘 (서울은 권역이라 시도 유지)
+                if sigungu:
+                    exact = [r for r in sido_rows if r.get("spcnws_zone_nm") == sigungu]
+                    if exact:
+                        sido_rows = exact
+                        narrowed = True
+                matched.extend(sido_rows)
+
+        scope = sigungu if narrowed else f"{sido} 광역(권역)"
+        if not matched:
+            notes.append(f"폭염특보 기록 없음 ({sido} {min(years)}~{max(years)} 여름).")
+        alert_count = sum(1 for r in matched if (r.get("spcnws_level_nm") or "") == "경보")
+        warning_count = sum(1 for r in matched if (r.get("spcnws_level_nm") or "") == "주의보")
+        return {
+            "years": list(years),
+            "alert_count": alert_count,
+            "warning_count": warning_count,
+            "scope": scope,
+            "base_period": f"{min(years)}~{max(years)} 여름",
+            "source": "sgis",
+            "notes": notes,
+        }
+    finally:
+        if own:
+            client.close()
+
+
+def fetch_site_hazards(
+    lat: float,
+    lon: float,
+    *,
+    dong_name: str = "",
+    cache: Optional[Cache] = None,
+    client: Optional[httpx.Client] = None,
+) -> Optional[dict]:
+    """대지 좌표 → 홍수·산사태 위험지도 영향범위 포함 여부. 실패 시 None (graceful).
+
+    SGIS census 읍면동(8자리)을 얻어, 시군구(=앞5자리) 영향범위 읍면동 목록에 우리 동이
+    들어있는지로 판정한다 (보간 아님 — 위험지도가 지정한 행정구역, 절대 원칙 1·3).
+    dong_name: 표시용 읍면동명(없으면 SGIS adm_nm 사용).
+    반환: {dong_name, emd_cd, sigungu_cd, flood{in_zone,affected_dong_count}, landslide{...},
+          base_year, source, notes}.
+    """
+    own = client is None
+    client = client or httpx.Client(timeout=25.0)
+    notes: List[str] = []
+    try:
+        token = get_token(client, cache)
+        emd = _census_emd(lat, lon, token, client)
+        if not emd:
+            return None
+        emd_cd = emd["adm_cd"]
+        sgg_cd = emd_cd[:5]
+        label = dong_name or emd.get("name", "")
+        base_year = ""
+
+        out: dict = {
+            "dong_name": label, "emd_cd": emd_cd, "sigungu_cd": sgg_cd,
+            "source": "sgis", "notes": notes,
+        }
+        for key, (list_path, board_path, _title) in _HAZARDS.items():
+            # ① 영향범위 읍면동 목록 → 대지 동 포함 여부 (동 단위 정밀 판정)
+            ck = make_key("sgis_hazard", key, sgg_cd)
+            cached = cache.get(ck) if cache else None
+            if cached is not None:
+                rows = cached.get("rows", [])
+            else:
+                try:
+                    j = _get(client, f"ndsm/{list_path}", {"accessToken": token, "adm_cd": sgg_cd})
+                except SgisError as e:
+                    notes.append(f"{_title} 조회 실패: {e}")
+                    out[key] = {"in_zone": None, "affected_dong_count": None,
+                                "exposures": [], "exposure_scope": ""}
+                    continue
+                rows = j.get("result") if isinstance(j.get("result"), list) else []
+                if cache:
+                    cache.set(ck, {"rows": rows})
+            affected = {r.get("adm_cd") for r in rows}
+            if rows and rows[0].get("base_year"):
+                base_year = rows[0]["base_year"]
+            # ② 영향범위 내 지표(인구·가구·주택·사업체) (읍면동 우선·시군구 폴백)
+            exposures, exp_scope = _hazard_exposure(
+                board_path, emd_cd, sgg_cd, token, client, cache
+            )
+            out[key] = {
+                "in_zone": emd_cd in affected,
+                "affected_dong_count": len(affected),
+                "exposures": exposures,
+                "exposure_scope": exp_scope,
+            }
+        out["base_year"] = base_year
+        return out
+    finally:
+        if own:
+            client.close()
+
+
 def fetch_radius_population(
     lat: float,
     lon: float,
@@ -218,6 +440,10 @@ def fetch_radius_population(
         working_share = round(sum_work / ratio_pop * 100, 1) if ratio_pop > 0 else None
         avg_age = round(age_num / age_den, 1) if age_den > 0 else None
 
+        # 반경 인구밀도(명/㎢) — 반경 원 면적 기준 (반경 내 실인구 / πr²). 참고용.
+        area_km2 = math.pi * (radius / 1000.0) ** 2
+        density_per_km2 = round(total_pop / area_km2) if area_km2 > 0 else None
+
         if unmatched:
             notes.append(
                 f"집계구 {len(unmatched)}개 인구 미매칭(무인구·경계 vintage 차) — 합산 제외."
@@ -235,6 +461,7 @@ def fetch_radius_population(
             "aged_share": aged_share,
             "working_share": working_share,
             "avg_age": avg_age,
+            "density_per_km2": density_per_km2,
             "base_year": year,
             "source": "sgis",
             "notes": notes,

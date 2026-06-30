@@ -614,8 +614,14 @@ def probe_sgis():
                               "adm_cd": "11190540", "low_search": "1"}, timeout=20).json()
         rows = p.get("result") or []
         ok = isinstance(rows, list) and rows and rows[0].get("tot_ppltn")
-        return rec("신규포털", "SGIS 집계구 인구(#D2)", "SGIS_KEY", "WORKS" if ok else "NO_DATA",
-                   200, f"집계구 {len(rows)}행" if ok else f"errCd={p.get('errCd')}")
+        # 재해위험(홍수 영향범위 목록) — 안전 컨텍스트 레이어
+        fz = httpx.get(f"{base}/ndsm/floodRiskAdmCdList.json",
+                       params={"accessToken": tok, "adm_cd": "11190"}, timeout=20).json()
+        fz_ok = isinstance(fz.get("result"), list)
+        sig = (f"집계구 {len(rows)}행" if ok else f"errCd={p.get('errCd')}") + \
+              (f" · 홍수영향 {len(fz['result'])}동" if fz_ok else " · 홍수 NO")
+        return rec("신규포털", "SGIS 집계구인구/재해위험(#D2)", "SGIS_KEY",
+                   "WORKS" if (ok and fz_ok) else "NO_DATA", 200, sig)
     except Exception as e:
         return rec("신규포털", "SGIS 집계구 인구(#D2)", "SGIS_KEY", "NETWORK_ERR",
                    note=f"{type(e).__name__}: {e}")
