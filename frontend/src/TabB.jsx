@@ -52,13 +52,24 @@ export default function TabB({ address }) {
     <div>
       {/* 시설 종류 */}
       <div className="text-sm">
-        <span className="block text-slate-500 mb-1.5">시설 종류</span>
+        <span
+          className="block mb-1.5"
+          style={{color:'var(--mute)',fontSize:11,fontFamily:'var(--font-mono)',letterSpacing:'0.06em',textTransform:'uppercase'}}
+        >
+          시설 종류
+        </span>
         <div className="flex flex-wrap gap-2">
           {KIND_OPTIONS.map((k) => (
             <button
               key={k}
               onClick={() => toggle(kinds, setKinds, k)}
-              className={`px-3 py-1.5 rounded-full border text-sm ${kinds.includes(k) ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+              className="px-3 py-1.5 text-sm"
+              style={{
+                border: kinds.includes(k) ? '1px solid var(--brand)' : '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                background: kinds.includes(k) ? 'var(--brand)' : 'var(--canvas-elevated)',
+                color: kinds.includes(k) ? '#fff' : 'var(--body)',
+              }}
             >
               {k}
             </button>
@@ -68,13 +79,24 @@ export default function TabB({ address }) {
 
       {/* 반경 */}
       <div className="text-sm mt-4">
-        <span className="block text-slate-500 mb-1.5">반경 (m)</span>
+        <span
+          className="block mb-1.5"
+          style={{color:'var(--mute)',fontSize:11,fontFamily:'var(--font-mono)',letterSpacing:'0.06em',textTransform:'uppercase'}}
+        >
+          반경 (m)
+        </span>
         <div className="flex gap-2">
           {RADII_OPTIONS.map((r) => (
             <button
               key={r}
               onClick={() => toggle(radii, setRadii, r)}
-              className={`px-3 py-1.5 rounded-lg border text-sm ${radii.includes(r) ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+              className="px-3 py-1.5 text-sm"
+              style={{
+                border: radii.includes(r) ? '1px solid var(--brand)' : '1px solid var(--hairline)',
+                borderRadius: 'var(--radius-sm)',
+                background: radii.includes(r) ? 'var(--brand)' : 'var(--canvas-elevated)',
+                color: radii.includes(r) ? '#fff' : 'var(--body)',
+              }}
             >
               {r}
             </button>
@@ -85,7 +107,10 @@ export default function TabB({ address }) {
       <button
         onClick={run}
         disabled={loading}
-        className="mt-5 px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+        className="mt-5 px-4 py-2 font-medium disabled:opacity-50"
+        style={{background:'var(--brand)',color:'#fff',borderRadius:'var(--radius-sm)'}}
+        onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background='var(--brand-hover)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background='var(--brand)'; }}
       >
         주변 시설 검색
       </button>
@@ -102,9 +127,12 @@ export default function TabB({ address }) {
           </div>
 
           {/* 개수표 (반경 × 종류) */}
-          <div className="overflow-x-auto rounded-lg border border-slate-200">
+          <div
+            className="overflow-x-auto"
+            style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius)'}}
+          >
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-slate-500">
+              <thead style={{background:'var(--canvas)',color:'var(--mute)'}}>
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">종류</th>
                   {bands.map((b) => (
@@ -114,10 +142,10 @@ export default function TabB({ address }) {
               </thead>
               <tbody>
                 {kindRows.map((k) => (
-                  <tr key={k} className="border-t border-slate-100">
-                    <td className="px-3 py-2 text-slate-800">{k}</td>
+                  <tr key={k} style={{borderTop:'1px solid var(--hairline)'}}>
+                    <td className="px-3 py-2" style={{color:'var(--body)'}}>{k}</td>
                     {bands.map((b) => (
-                      <td key={b} className="px-3 py-2 text-right font-semibold text-slate-900">
+                      <td key={b} className="px-3 py-2 text-right font-semibold" style={{color:'var(--ink)'}}>
                         {data.counts[b]?.[k] ?? 0}
                       </td>
                     ))}
@@ -128,19 +156,21 @@ export default function TabB({ address }) {
           </div>
 
           {/* 목록 */}
-          <details className="rounded-lg border border-slate-200">
-            <summary className="cursor-pointer px-3 py-2 text-sm text-slate-600 select-none">
+          <details
+            style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius)'}}
+          >
+            <summary className="cursor-pointer px-3 py-2 text-sm select-none" style={{color:'var(--body)'}}>
               시설 목록 {data.results.length}건 (거리순)
             </summary>
-            <div className="max-h-72 overflow-y-auto border-t border-slate-100">
+            <div className="max-h-72 overflow-y-auto" style={{borderTop:'1px solid var(--hairline)'}}>
               <table className="w-full text-sm">
                 <tbody>
                   {data.results.map((r, i) => (
-                    <tr key={i} className="border-t border-slate-50">
-                      <td className="px-3 py-1.5 text-slate-400 w-16">{r.dist_m}m</td>
-                      <td className="px-3 py-1.5 text-slate-500 w-20">{r.kind}</td>
-                      <td className="px-3 py-1.5 text-slate-800">{r.name}</td>
-                      <td className="px-3 py-1.5 text-right text-slate-400 w-16">[{r.radius_band}]</td>
+                    <tr key={i} style={{borderTop:'1px solid var(--hairline)'}}>
+                      <td className="px-3 py-1.5 w-16" style={{color:'var(--mute)'}}>{r.dist_m}m</td>
+                      <td className="px-3 py-1.5 w-20" style={{color:'var(--mute)'}}>{r.kind}</td>
+                      <td className="px-3 py-1.5" style={{color:'var(--body)'}}>{r.name}</td>
+                      <td className="px-3 py-1.5 text-right w-16" style={{color:'var(--mute)'}}>[{r.radius_band}]</td>
                     </tr>
                   ))}
                 </tbody>
@@ -155,7 +185,13 @@ export default function TabB({ address }) {
             <button
               onClick={makeMap}
               disabled={mapLoading}
-              className="px-4 py-2 rounded-lg border border-blue-600 text-blue-700 font-medium hover:bg-blue-50 disabled:opacity-50"
+              className="px-4 py-2 font-medium disabled:opacity-50"
+              style={{
+                border: '1px solid var(--brand)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--brand)',
+                background: 'var(--canvas-elevated)',
+              }}
             >
               위성 지도 PNG 생성
             </button>
@@ -166,13 +202,19 @@ export default function TabB({ address }) {
                 <img
                   src={map.url}
                   alt="위성 지도"
-                  className="rounded-lg border border-slate-200 w-full max-w-[520px]"
+                  className="w-full max-w-[520px]"
+                  style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius)'}}
                 />
                 <div className="mt-2">
                   <a
                     href={map.url}
                     download
-                    className="text-sm px-3 py-1.5 rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50"
+                    className="text-sm px-3 py-1.5"
+                    style={{
+                      border: '1px solid var(--hairline)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--body)',
+                    }}
                   >
                     PNG 다운로드
                   </a>

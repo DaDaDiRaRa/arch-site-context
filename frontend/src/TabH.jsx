@@ -10,10 +10,16 @@ function fmt(v) {
   return v;
 }
 
-// 강조 지표는 굵게+파란 배경, 일반은 회색.
-function Row({ on, children }) {
+function Row({ on, first, children }) {
   return (
-    <div className={`flex items-baseline justify-between px-3 py-1.5 rounded ${on ? "bg-blue-50" : ""}`}>
+    <div
+      className="flex items-baseline justify-between px-3 py-1.5"
+      style={{
+        borderTop: first ? 'none' : '1px solid var(--hairline)',
+        borderLeft: on ? '3px solid var(--brand)' : '3px solid transparent',
+        background: on ? 'var(--canvas)' : 'transparent',
+      }}
+    >
       {children}
     </div>
   );
@@ -35,20 +41,31 @@ export default function TabH({ address }) {
 
   return (
     <div>
-      <p className="text-sm text-slate-500 mb-4">
+      <p className="text-sm mb-4" style={{color:'var(--mute)'}}>
         공동주택(재건축·재개발·민간) 부지의 시군구 인문·경제 맥락을 한 화면에. 유형에 따라{" "}
-        <span className="text-blue-700 font-medium">★강조</span> 지표가 바뀝니다. 모두 시군구 평균 — 판단은 사람이.
+        <span style={{color:'var(--brand)',fontWeight:500}}>★강조</span> 지표가 바뀝니다. 모두 시군구 평균 — 판단은 사람이.
       </p>
 
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-sm">
-          <span className="block text-slate-500 mb-1">프로젝트 유형</span>
+          <span
+            className="block mb-1"
+            style={{color:'var(--mute)',fontSize:11,fontFamily:'var(--font-mono)',letterSpacing:'0.06em',textTransform:'uppercase'}}
+          >
+            프로젝트 유형
+          </span>
           <div className="flex gap-1">
             {TYPES.map((t) => (
               <button
                 key={t}
                 onClick={() => setPtype(t)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${ptype === t ? "bg-blue-600 text-white border-blue-600" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+                className="px-3 py-1.5 text-sm font-medium"
+                style={{
+                  border: ptype === t ? '1px solid var(--brand)' : '1px solid var(--hairline)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: ptype === t ? 'var(--brand)' : 'var(--canvas-elevated)',
+                  color: ptype === t ? '#fff' : 'var(--body)',
+                }}
               >
                 {t}
               </button>
@@ -58,7 +75,10 @@ export default function TabH({ address }) {
         <button
           onClick={run}
           disabled={loading}
-          className="px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 font-medium disabled:opacity-50"
+          style={{background:'var(--brand)',color:'#fff',borderRadius:'var(--radius-sm)'}}
+          onMouseEnter={(e) => { if (!loading) e.currentTarget.style.background='var(--brand-hover)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background='var(--brand)'; }}
         >
           대지 readout
         </button>
@@ -77,17 +97,17 @@ export default function TabH({ address }) {
 
           {/* 인구·가구 */}
           <section>
-            <h3 className="text-sm font-semibold text-slate-700 mb-1.5">인구 · 가구</h3>
-            <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+            <h3 className="text-sm font-semibold mb-1.5" style={{color:'var(--body)'}}>인구 · 가구</h3>
+            <div style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius)'}}>
               {data.demographics.map((f, i) => (
-                <Row key={i} on={f.emphasized}>
-                  <span className="text-sm text-slate-700">
-                    {f.emphasized && <span className="text-blue-600 mr-1">★</span>}{f.item}
+                <Row key={i} on={f.emphasized} first={i === 0}>
+                  <span className="text-sm" style={{color:'var(--body)'}}>
+                    {f.emphasized && <span style={{color:'var(--brand)'}} className="mr-1">★</span>}{f.item}
                   </span>
                   <span className="text-sm">
-                    <span className="font-semibold text-slate-900">{fmt(f.value)}{f.unit}</span>
+                    <span className="font-semibold" style={{color:'var(--ink)'}}>{fmt(f.value)}{f.unit}</span>
                     {f.national_avg != null && (
-                      <span className="text-slate-400"> · 전국 {fmt(f.national_avg)}{f.unit}</span>
+                      <span style={{color:'var(--mute)'}}> · 전국 {fmt(f.national_avg)}{f.unit}</span>
                     )}
                   </span>
                 </Row>
@@ -97,21 +117,29 @@ export default function TabH({ address }) {
 
           {/* 산업·주거·복지 */}
           <section>
-            <h3 className="text-sm font-semibold text-slate-700 mb-1.5">산업 · 주거 · 복지</h3>
-            <div className="rounded-lg border border-slate-200 divide-y divide-slate-100">
+            <h3 className="text-sm font-semibold mb-1.5" style={{color:'var(--body)'}}>산업 · 주거 · 복지</h3>
+            <div style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius)'}}>
               {data.context.map((c, i) => (
-                <div key={i} className={`px-3 py-1.5 ${c.emphasized ? "bg-blue-50" : ""}`}>
+                <div
+                  key={i}
+                  className="px-3 py-1.5"
+                  style={{
+                    borderTop: i === 0 ? 'none' : '1px solid var(--hairline)',
+                    borderLeft: c.emphasized ? '3px solid var(--brand)' : '3px solid transparent',
+                    background: c.emphasized ? 'var(--canvas)' : 'transparent',
+                  }}
+                >
                   <div className="flex items-baseline justify-between">
-                    <span className="text-sm text-slate-700">
-                      {c.emphasized && <span className="text-blue-600 mr-1">★</span>}{c.label}
-                      <span className="text-slate-400 text-xs ml-1">[{c.axis}]</span>
+                    <span className="text-sm" style={{color:'var(--body)'}}>
+                      {c.emphasized && <span style={{color:'var(--brand)'}} className="mr-1">★</span>}{c.label}
+                      <span className="text-xs ml-1" style={{color:'var(--mute)'}}>[{c.axis}]</span>
                     </span>
-                    <span className="text-sm font-semibold text-slate-900">
+                    <span className="text-sm font-semibold" style={{color:'var(--ink)'}}>
                       {c.value != null ? `${fmt(c.value)}${c.unit}` : "—"}
                     </span>
                   </div>
                   {c.breakdown?.length > 0 && (
-                    <div className="text-xs text-slate-500 mt-0.5">
+                    <div className="text-xs mt-0.5" style={{color:'var(--mute)'}}>
                       {c.breakdown.slice(0, 4).map(([nm, v]) => `${nm} ${fmt(v)}`).join(" · ")}
                     </div>
                   )}
@@ -123,13 +151,17 @@ export default function TabH({ address }) {
           {/* 파생지표 */}
           {data.derived.length > 0 && (
             <section>
-              <h3 className="text-sm font-semibold text-slate-700 mb-1.5">파생지표</h3>
+              <h3 className="text-sm font-semibold mb-1.5" style={{color:'var(--body)'}}>파생지표</h3>
               <div className="flex flex-wrap gap-2">
                 {data.derived.map((d, i) => (
-                  <div key={i} className="rounded-lg border border-slate-200 px-3 py-2">
-                    <div className="text-xs text-slate-500">{d.label}</div>
-                    <div className="text-lg font-bold text-slate-900">
-                      {fmt(d.value)}<span className="text-xs font-normal text-slate-500 ml-0.5">{d.unit}</span>
+                  <div
+                    key={i}
+                    className="px-3 py-2"
+                    style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)'}}
+                  >
+                    <div className="text-xs" style={{color:'var(--mute)'}}>{d.label}</div>
+                    <div className="text-lg font-bold" style={{color:'var(--ink)'}}>
+                      {fmt(d.value)}<span className="text-xs font-normal ml-0.5" style={{color:'var(--mute)'}}>{d.unit}</span>
                     </div>
                   </div>
                 ))}
