@@ -113,7 +113,8 @@ def mine(topics: list[str] | None, delay: float) -> dict:
                         continue
                     queue.append((list_id, path + [nm]))
             if steps % 20 == 0 or not queue:  # 로그 스팸 방지 — 20스텝마다 1회
-                print(f"  크롤 중… 폴더 {folders} · 표 {len(tables)} (큐 {len(queue)})")
+                # flush=True: 파일 리다이렉트 시에도 진행상황 즉시 보이게 (버퍼링 방지)
+                print(f"  크롤 중… 폴더 {folders} · 표 {len(tables)} (큐 {len(queue)})", flush=True)
     finally:
         client.close()
 
