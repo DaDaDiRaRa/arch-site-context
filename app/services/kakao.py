@@ -100,6 +100,32 @@ def coord_to_hcode(
             client.close()
 
 
+def coord_to_hdong(
+    lat: float, lon: float, client: Optional[httpx.Client] = None
+) -> Optional[Dict]:
+    """좌표 → 행정동 {code(H,10자리), name(행정동명)}. 결과 없으면 None.
+
+    KOSIS 읍면동 주민등록표(DT_1B04005N)의 읍면동 지역코드 = 이 H코드 10자리(실측 확정).
+    name 은 region_3depth_name(행정동명) — 모드 A 동 단위 출력의 '○○동 기준' 라벨용.
+    """
+    own = client is None
+    client = client or httpx.Client(timeout=10.0)
+    try:
+        r = request_with_retry(
+            client, "GET", _COORD2REGION_URL,
+            params={"x": lon, "y": lat}, headers=_headers(),
+        )
+        if r.status_code != 200:
+            return None
+        for d in r.json().get("documents", []):
+            if d.get("region_type") == "H" and d.get("code"):
+                return {"code": d["code"], "name": d.get("region_3depth_name", "")}
+        return None
+    finally:
+        if own:
+            client.close()
+
+
 def search_keyword(
     keyword: str,
     lat: float,

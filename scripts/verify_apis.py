@@ -595,6 +595,32 @@ def probe_sbiz365():
         "키는 포털/iframe용. 실 API 는 data.go.kr B553077 storeListInRadius(상가정보) 뿐."))
 
 
+def probe_sgis():
+    """SGIS 인증 + 영역내경계(집계구) + 읍면동 low_search 집계구 인구 (D2 반경 인구)."""
+    if not (has("SGIS_KEY") and has("SGIS_SECRET")):
+        return rec("신규포털", "SGIS 집계구 인구(#D2)", "SGIS_KEY", "SKIP", note="키 없음")
+    base = "https://sgisapi.mods.go.kr/OpenAPI3"
+    try:
+        a = httpx.get(f"{base}/auth/authentication.json",
+                      params={"consumer_key": os.getenv("SGIS_KEY"),
+                              "consumer_secret": os.getenv("SGIS_SECRET")}, timeout=20).json()
+        if a.get("errCd") != 0:
+            return rec("신규포털", "SGIS 집계구 인구(#D2)", "SGIS_KEY", "AUTH_FAIL",
+                       note=f"errCd={a.get('errCd')} {a.get('errMsg')}")
+        tok = (a.get("result") or {}).get("accessToken")
+        # 읍면동 low_search=1 → 집계구 인구 (핵심 트릭)
+        p = httpx.get(f"{base}/stats/population.json",
+                      params={"accessToken": tok, "year": "2023",
+                              "adm_cd": "11190540", "low_search": "1"}, timeout=20).json()
+        rows = p.get("result") or []
+        ok = isinstance(rows, list) and rows and rows[0].get("tot_ppltn")
+        return rec("신규포털", "SGIS 집계구 인구(#D2)", "SGIS_KEY", "WORKS" if ok else "NO_DATA",
+                   200, f"집계구 {len(rows)}행" if ok else f"errCd={p.get('errCd')}")
+    except Exception as e:
+        return rec("신규포털", "SGIS 집계구 인구(#D2)", "SGIS_KEY", "NETWORK_ERR",
+                   note=f"{type(e).__name__}: {e}")
+
+
 def probe_eum():
     env = "EUM_KEY"
     if not has(env):
@@ -610,7 +636,7 @@ PROBES = [
     probe_kakao, probe_vworld, probe_vworld_data, probe_kosis, probe_juso, probe_anthropic,
     probe_datago_all,
     probe_kma, probe_rone, probe_seoul, probe_tmap, probe_neis,
-    probe_kopis, probe_library, probe_culture, probe_sbiz365, probe_eum,
+    probe_kopis, probe_library, probe_culture, probe_sbiz365, probe_sgis, probe_eum,
 ]
 
 

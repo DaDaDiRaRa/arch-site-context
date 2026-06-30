@@ -30,8 +30,8 @@ async function post(path, body) {
   return data;
 }
 
-export const analyze = (address, use_type, year) =>
-  post("/analyze", { address, use_type, year: year ?? null });
+export const analyze = (address, use_type, year, resolution = "시군구") =>
+  post("/analyze", { address, use_type, year: year ?? null, resolution });
 
 export const facilities = (address, kinds, radii) =>
   post("/facilities", { address, kinds, radii });
@@ -39,8 +39,8 @@ export const facilities = (address, kinds, radii) =>
 export const facilitiesMap = (address, kinds, radii, basemap = "vworld") =>
   post("/facilities/map", { address, kinds, radii, basemap });
 
-export const diagnose = (address, radius) =>
-  post("/diagnose", { address, radius });
+export const diagnose = (address, radius, resolution = "시군구") =>
+  post("/diagnose", { address, radius, resolution });
 
 export const compare = (addresses, use_type, radius, kinds) =>
   post("/compare", { addresses, use_type, radius, kinds });

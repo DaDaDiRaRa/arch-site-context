@@ -20,7 +20,8 @@ _SYSTEM = (
     "1) facts 에 있는 수치만 인용한다. 제공되지 않은 숫자·항목·시설을 절대 만들지 않는다.\n"
     "2) 좋다/나쁘다·사업성·전망·권고 같은 해석·의견·단정을 쓰지 않는다. 사실 서술만 한다.\n"
     "   (implications 는 '참고' 재료일 뿐, 검토 사항으로만 부드럽게 언급하고 단정하지 않는다.)\n"
-    "3) 반드시 '○○구 기준' 과 연도를 명시한다. 시군구 평균값이며 대지 고유값이 아님을 밝힌다.\n"
+    "3) 각 수치의 기준 지역(facts 의 [기준:○○] — 행정동 또는 시군구)과 연도를 명시한다. "
+    "시군구 평균값은 대지 고유값이 아님을 밝힌다. 기준이 섞여 있으면 어느 지표가 어느 기준인지 구분해 쓴다.\n"
     "4) 건물 용도 관점에서 관련 수치를 자연스럽게 묶는다.\n"
     "5) 한 문단으로만. 머리말·목록·제목 없이 문단 텍스트만 출력한다."
 )
@@ -31,7 +32,12 @@ def _facts_block(facts: List[dict]) -> str:
     for f in facts:
         na = f.get("national_avg")
         na_txt = f"전국 {na}{f.get('unit','')}" if na is not None else "전국값 없음"
-        lines.append(f"- {f['item']}: {f['value']}{f.get('unit','')} ({na_txt}) [{f.get('source_tbl')} {f.get('year')}]")
+        scope = f.get("scope")
+        scope_txt = f" [기준:{scope}]" if scope else ""
+        lines.append(
+            f"- {f['item']}: {f['value']}{f.get('unit','')} ({na_txt}){scope_txt} "
+            f"[{f.get('source_tbl')} {f.get('year')}]"
+        )
     return "\n".join(lines)
 
 
@@ -39,6 +45,23 @@ def _imps_block(imps: List[dict]) -> str:
     if not imps:
         return "(없음)"
     return "\n".join(f"- {i['text']} (근거: {i.get('basis')})" for i in imps)
+
+
+def _scope_disclaimer(facts: List[dict]) -> str:
+    """facts 의 scope 구성에 맞는 정직한 기준 안내 (절대 원칙 4).
+
+    동·구 혼재 시 어느 지표가 어느 기준인지 밝힌다. scope 없으면(구버전) 시군구로 간주.
+    """
+    dong = sorted({f.get("scope") for f in facts if f.get("scope_level") == "읍면동" and f.get("scope")})
+    gu = sorted({f.get("scope") for f in facts if f.get("scope_level") != "읍면동" and f.get("scope")})
+    if dong and gu:
+        return (
+            f" 이 중 {', '.join(dong)} 행정동 단위 지표를 제외한 나머지는 "
+            f"{', '.join(gu)} 시군구 평균값이며, 모두 대지 고유값이 아니다(참고용)."
+        )
+    if dong:
+        return f" 이 수치는 {', '.join(dong)} 행정동 단위 값이며 대지 고유값이 아니다(참고용)."
+    return " 이 수치는 시군구 평균값이며 대지 고유값이 아니다(참고용)."
 
 
 def _rule_based(region_name: str, year: int, use_type: str, facts: List[dict], imps: List[dict]) -> str:
@@ -57,8 +80,8 @@ def _rule_based(region_name: str, year: int, use_type: str, facts: List[dict], i
     if imps:
         imp_txt = " 참고할 검토 사항으로 " + "; ".join(i["text"] for i in imps) + " 등이 있다(참고)."
     return (
-        f"{region_name} 기준 {year}년 {use_type} 용도 관점의 통계다. {body}.{imp_txt} "
-        f"이 수치는 시군구 평균값이며 대지 고유값이 아니다(참고용)."
+        f"{region_name} 기준 {year}년 {use_type} 용도 관점의 통계다. {body}.{imp_txt}"
+        f"{_scope_disclaimer(facts)}"
     )
 
 
@@ -78,7 +101,7 @@ def compose_narrative(
 
         client = anthropic.Anthropic()
         user = (
-            f"지역: {region_name} (시군구 평균)\n연도: {year}\n건물 용도: {use_type}\n\n"
+            f"지역: {region_name}\n연도: {year}\n건물 용도: {use_type}\n\n"
             f"[facts]\n{_facts_block(facts)}\n\n[implications(참고)]\n{_imps_block(implications)}\n\n"
             f"위 facts 의 수치만 사용해 규칙대로 한 문단을 써라."
         )

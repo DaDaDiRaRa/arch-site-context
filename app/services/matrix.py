@@ -26,6 +26,15 @@ def use_types() -> List[str]:
     return [k for k in load_matrix().keys() if not k.startswith("_")]
 
 
+def dong_tables() -> set:
+    """읍면동 해상도가 검증된 KOSIS tblId 집합 (_meta.dong_tables).
+
+    resolution='읍면동' 요청 시 이 집합의 reg-scheme 테이블만 행정동 코드로 조회하고,
+    나머지는 시군구로 폴백한다 (설정은 JSON — 절대 원칙 7).
+    """
+    return set(load_matrix().get("_meta", {}).get("dong_tables", []))
+
+
 def _filter(items: List[dict], min_priority: int) -> List[dict]:
     """priority <= min_priority 항목만, priority 오름차순 정렬."""
     picked = [i for i in items if int(i.get("priority", 99)) <= min_priority]

@@ -101,11 +101,11 @@ export default function TabG({ address }) {
               empty={!ctx?.stores}
             >
               <p className="text-2xl font-bold text-slate-900 mb-2">
-                {ctx.stores.total?.toLocaleString("ko-KR")}
+                {ctx.stores?.total?.toLocaleString("ko-KR")}
                 <span className="text-sm font-normal text-slate-600 ml-1">개 점포</span>
               </p>
               <ul className="space-y-0.5">
-                {(ctx.stores.by_large || []).slice(0, 6).map(([nm, cnt]) => (
+                {(ctx.stores?.by_large || []).slice(0, 6).map(([nm, cnt]) => (
                   <li key={nm} className="flex justify-between text-sm">
                     <span className="text-slate-600">{nm}</span>
                     <span className="text-slate-800 font-medium">{cnt?.toLocaleString("ko-KR")}개</span>
@@ -121,11 +121,11 @@ export default function TabG({ address }) {
               empty={!ctx?.schools}
             >
               <p className="text-2xl font-bold text-slate-900 mb-2">
-                {ctx.schools.count}
+                {ctx.schools?.count}
                 <span className="text-sm font-normal text-slate-600 ml-1">개교</span>
               </p>
               <ul className="space-y-0.5">
-                {Object.entries(ctx.schools.by_level || {}).map(([lv, cnt]) => (
+                {Object.entries(ctx.schools?.by_level || {}).map(([lv, cnt]) => (
                   <li key={lv} className="flex justify-between text-sm">
                     <span className="text-slate-600">{lv}</span>
                     <span className="text-slate-800 font-medium">{cnt}개</span>
@@ -143,21 +143,21 @@ export default function TabG({ address }) {
               <div className="flex gap-8">
                 <div>
                   <span className="text-xs text-slate-500 block mb-0.5">개소</span>
-                  <span className="text-2xl font-bold text-slate-900">{ctx.childcare.count}</span>
+                  <span className="text-2xl font-bold text-slate-900">{ctx.childcare?.count}</span>
                   <span className="text-sm text-slate-600 ml-1">개</span>
                 </div>
-                {ctx.childcare.total_capacity > 0 && (
+                {ctx.childcare?.total_capacity > 0 && (
                   <div>
                     <span className="text-xs text-slate-500 block mb-0.5">총정원</span>
                     <span className="text-2xl font-bold text-slate-900">
-                      {ctx.childcare.total_capacity?.toLocaleString("ko-KR")}
+                      {ctx.childcare?.total_capacity?.toLocaleString("ko-KR")}
                     </span>
                     <span className="text-sm text-slate-600 ml-1">명</span>
                   </div>
                 )}
               </div>
-              {ctx.childcare.sample?.length > 0 && (
-                <p className="text-xs text-slate-400 mt-2">{ctx.childcare.sample.join(" · ")}</p>
+              {ctx.childcare?.sample?.length > 0 && (
+                <p className="text-xs text-slate-400 mt-2">{ctx.childcare?.sample?.join(" · ")}</p>
               )}
             </Block>
 
@@ -168,11 +168,11 @@ export default function TabG({ address }) {
               empty={!ctx?.culture}
             >
               <p className="text-2xl font-bold text-slate-900 mb-2">
-                {ctx.culture.total}
+                {ctx.culture?.total}
                 <span className="text-sm font-normal text-slate-600 ml-1">개소</span>
               </p>
               <ul className="space-y-0.5">
-                {Object.entries(ctx.culture.by_type || {}).map(([tp, cnt]) => (
+                {Object.entries(ctx.culture?.by_type || {}).map(([tp, cnt]) => (
                   <li key={tp} className="flex justify-between text-sm">
                     <span className="text-slate-600">{tp}</span>
                     <span className="text-slate-800 font-medium">{cnt}개</span>
@@ -188,11 +188,11 @@ export default function TabG({ address }) {
               empty={!ctx?.real_estate_index}
             >
               <p className="text-2xl font-bold text-slate-900">
-                {ctx.real_estate_index.value?.toFixed(1)}
+                {ctx.real_estate_index?.value?.toFixed(1)}
                 <span className="text-sm font-normal text-slate-500 ml-1">pt (기준 100)</span>
               </p>
               <p className="text-sm text-slate-600 mt-1">
-                {ctx.real_estate_index.region} · {ctx.real_estate_index.item}
+                {ctx.real_estate_index?.region} · {ctx.real_estate_index?.item}
               </p>
             </Block>
 
@@ -203,22 +203,22 @@ export default function TabG({ address }) {
               empty={!ctx?.weather}
             >
               <div className="flex gap-6 items-end">
-                {ctx.weather.temp_c != null && (
+                {ctx.weather?.temp_c != null && (
                   <div>
                     <span className="text-xs text-slate-500 block mb-0.5">기온</span>
-                    <span className="text-2xl font-bold text-slate-900">{ctx.weather.temp_c}°C</span>
+                    <span className="text-2xl font-bold text-slate-900">{ctx.weather?.temp_c}°C</span>
                   </div>
                 )}
-                {ctx.weather.sky && (
+                {ctx.weather?.sky && (
                   <div>
                     <span className="text-xs text-slate-500 block mb-0.5">하늘</span>
-                    <span className="text-lg text-slate-800">{ctx.weather.sky}</span>
+                    <span className="text-lg text-slate-800">{ctx.weather?.sky}</span>
                   </div>
                 )}
-                {ctx.weather.pop_pct != null && (
+                {ctx.weather?.pop_pct != null && (
                   <div>
                     <span className="text-xs text-slate-500 block mb-0.5">강수확률</span>
-                    <span className="text-lg text-slate-800">{ctx.weather.pop_pct}%</span>
+                    <span className="text-lg text-slate-800">{ctx.weather?.pop_pct}%</span>
                   </div>
                 )}
               </div>
@@ -236,7 +236,7 @@ export default function TabG({ address }) {
               badge={!ctx?.living_population && !data.site.sgg_code?.startsWith("11") ? "비서울" : null}
             >
               <span className="text-2xl font-bold text-slate-900">
-                {ctx.living_population.value?.toLocaleString("ko-KR")}
+                {ctx.living_population?.value?.toLocaleString("ko-KR")}
               </span>
               <span className="text-sm text-slate-600 ml-1">명</span>
               <p className="text-xs text-slate-400 mt-1">
@@ -251,11 +251,11 @@ export default function TabG({ address }) {
               empty={!ctx?.venues}
             >
               <p className="text-2xl font-bold text-slate-900 mb-2">
-                {ctx.venues.count}
+                {ctx.venues?.count}
                 <span className="text-sm font-normal text-slate-600 ml-1">개소</span>
               </p>
               <ul className="space-y-0.5">
-                {(ctx.venues.venues || []).slice(0, 4).map((v, i) => (
+                {(ctx.venues?.venues || []).slice(0, 4).map((v, i) => (
                   <li key={i} className="text-sm text-slate-600 flex justify-between">
                     <span>{v.name}</span>
                     {v.hall_count != null && (

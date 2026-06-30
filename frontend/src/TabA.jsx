@@ -12,8 +12,11 @@ function fmt(v) {
   return v;
 }
 
+const RESOLUTIONS = ["시군구", "읍면동"];
+
 export default function TabA({ address }) {
   const [useType, setUseType] = useState("주거");
+  const [resolution, setResolution] = useState("시군구");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -27,7 +30,7 @@ export default function TabA({ address }) {
     setError(null);
     setData(null);
     try {
-      setData(await analyze(address, useType));
+      setData(await analyze(address, useType, null, resolution));
     } catch (e) {
       setError(e);
     } finally {
@@ -47,6 +50,19 @@ export default function TabA({ address }) {
           >
             {USE_TYPES.map((u) => (
               <option key={u} value={u}>{u}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="block text-slate-500 mb-1">분석 단위</span>
+          <select
+            value={resolution}
+            onChange={(e) => setResolution(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 bg-white"
+            title="읍면동: 인구·연령 지표는 행정동 단위, 가구·대기질 등은 시군구로 폴백"
+          >
+            {RESOLUTIONS.map((r) => (
+              <option key={r} value={r}>{r === "읍면동" ? "읍면동(동 단위)" : "시군구(구 단위)"}</option>
             ))}
           </select>
         </label>
@@ -84,6 +100,7 @@ export default function TabA({ address }) {
                   <th className="text-left px-3 py-2 font-medium">항목</th>
                   <th className="text-right px-3 py-2 font-medium">값</th>
                   <th className="text-right px-3 py-2 font-medium">전국 평균</th>
+                  <th className="text-left px-3 py-2 font-medium">기준 지역</th>
                   <th className="text-left px-3 py-2 font-medium">출처 · 연도</th>
                 </tr>
               </thead>
@@ -96,6 +113,15 @@ export default function TabA({ address }) {
                     </td>
                     <td className="px-3 py-2 text-right text-slate-500">
                       {f.national_avg != null ? fmt(f.national_avg) : "—"}{f.national_avg != null ? f.unit : ""}
+                    </td>
+                    <td className="px-3 py-2">
+                      {f.scope ? (
+                        <Badge tone={f.scope_level === "읍면동" ? "green" : "slate"}>
+                          {f.scope}
+                        </Badge>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-400 text-xs">
                       {f.source_tbl} · {f.year}

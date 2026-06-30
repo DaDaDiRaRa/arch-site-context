@@ -165,8 +165,10 @@ def cross_rules(
         else:
             density_txt = ""
 
+        dscope = fact.get("scope")
+        dscope_txt = f", {dscope} 기준" if dscope else ""
         note = (
-            f"{r['demand_item']} {fact['value']}{unit}({nat_txt}) · "
+            f"{r['demand_item']} {fact['value']}{unit}({nat_txt}{dscope_txt}) · "
             f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개{density_txt}{cap_txt} — {verdict}"
         )
         diagnoses.append(
@@ -180,6 +182,8 @@ def cross_rules(
                     level=dlevel,
                     source_tbl=fact["source_tbl"],
                     year=fact["year"],
+                    scope=dscope,
+                    scope_level=fact.get("scope_level"),
                 ),
                 supply=SupplySignal(
                     kinds=r["supply_kinds"], count=count, radius=radius, level=slevel,
@@ -226,8 +230,13 @@ def build_diagnosis(
     radius: int = 1000,
     client: Optional[httpx.Client] = None,
     cache: Optional[Cache] = None,
+    resolution: str = "시군구",
 ) -> DiagnoseResult:
-    """수급진단 결과 구성. demand facts 가 하나도 없으면 diagnoses 빈 배열(라우터가 ErrorBlock)."""
+    """수급진단 결과 구성. demand facts 가 하나도 없으면 diagnoses 빈 배열(라우터가 ErrorBlock).
+
+    resolution='읍면동'이면 동 데이터 있는 수요지표(유소년·고령 등)는 행정동 단위로 산정한다
+    (공급은 항상 반경). 동 미지원 지표는 시군구로 폴백+note (절대 원칙 3·4).
+    """
     own = client is None
     client = client or httpx.Client(timeout=15.0)
     try:
@@ -235,12 +244,57 @@ def build_diagnosis(
         rules = load_rules()
         notes: List[str] = list(loc.notes)
 
-        # demand: 규칙들의 distinct demand_item 모아 1세트 호출 (시군구 평균 — 절대 원칙 4)
+        # 읍면동 요청이면 행정동 H코드 lazy 조회. 실패 시 구로 폴백.
+        from app.services.kakao import coord_to_hdong
+        hcode = hdong = ""
+        if resolution == "읍면동":
+            hd = coord_to_hdong(loc.lat, loc.lon, client=client)
+            if hd and hd.get("code"):
+                hcode, hdong = hd["code"], hd.get("name", "")
+            else:
+                notes.append("행정동 해석 실패 — 시군구 기준으로 폴백.")
+
+        # demand: 규칙들의 distinct demand_item 모아 1세트 호출 (기준은 fact.scope — 절대 원칙 4)
+        # KOSIS는 시군구/읍면동만 — '반경'은 baseline(시군구, national_avg 확보)을 먼저 받고 아래서 SGIS로 덮어씀.
+        kosis_res = "시군구" if resolution == "반경" else resolution
         demand_items = list(dict.fromkeys(r["demand_item"] for r in rules))
         facts, dnotes, year = stats.collect_facts_by_items(
-            loc.sgg_code, demand_items, sigungu=loc.sigungu, cache=cache
+            loc.sgg_code, demand_items, sigungu=loc.sigungu, cache=cache,
+            resolution=kosis_res, hcode=hcode, hdong=hdong,
         )
         notes += dnotes
+
+        # 반경 모드: SGIS 집계구 합산으로 demand를 진짜 반경 인구비율로 교체 (수요·공급 동일 반경)
+        radius_ok = False
+        if resolution == "반경":
+            from app.services import sgis
+            try:
+                rp = sgis.fetch_radius_population(loc.lat, loc.lon, radius, cache=cache, client=client)
+            except Exception as e:  # noqa: BLE001 — graceful (절대 원칙 3)
+                rp = None
+                notes.append(f"SGIS 반경 인구 조회 오류: {e}")
+            if rp:
+                radius_ok = True
+                share_map = {
+                    "유소년인구비율": rp.get("youth_share"),
+                    "고령인구비율": rp.get("aged_share"),
+                    "생산가능인구비율": rp.get("working_share"),
+                }
+                scope = f"반경 {radius}m"
+                for f in facts:
+                    sv = share_map.get(f["item"])
+                    if sv is not None:
+                        f["value"] = sv          # national_avg 는 KOSIS 전국값 유지 (비교 일관)
+                        f["scope"] = scope
+                        f["scope_level"] = "반경"
+                        f["source_tbl"] = "SGIS 집계구"
+                        f["year"] = int(rp.get("base_year", year or 0) or 0)
+                    elif f["item"] not in share_map:
+                        notes.append(f"'{f['item']}': SGIS 집계구 미제공 → {loc.sigungu} 기준.")
+                notes += rp.get("notes", [])
+            else:
+                notes.append("SGIS 반경 인구 미확보 — 수요는 시군구 기준으로 폴백.")
+
         fact_by_item = {f["item"]: f for f in facts}
 
         # supply: 규칙들의 모든 시설종류를 한 번에 반경검색 (모드 B 재사용)
@@ -265,11 +319,23 @@ def build_diagnosis(
         )
         notes += cnotes
 
+        # region: 수요 산정 단위 표기 (반경 > 읍면동 > 시군구). facts 의 scope_level 로 실제 달성 확인.
+        dong_ok = hcode and any(f.get("scope_level") == "읍면동" for f in facts)
+        if radius_ok:
+            region = Region(
+                name=f"{loc.sigungu or loc.sgg_code} 반경 {radius}m",
+                code=loc.sgg_code, resolution="반경",
+            )
+        elif dong_ok:
+            region = Region(name=hdong or "행정동", code=hcode, resolution="읍면동")
+        else:
+            region = Region(
+                name=loc.sigungu or loc.sgg_code, code=loc.sgg_code, resolution="시군구"
+            )
+
         return DiagnoseResult(
             center=Center(lat=loc.lat, lon=loc.lon, address=loc.address),
-            region=Region(
-                name=loc.sigungu or loc.sgg_code, code=loc.sgg_code, resolution="시군구"
-            ),
+            region=region,
             radius=radius,
             diagnoses=diagnoses,
             source="kakao+kosis",

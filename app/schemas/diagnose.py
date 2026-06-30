@@ -12,7 +12,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.facility import Center
-from app.schemas.region import Region
+from app.schemas.region import Region, Resolution
 
 
 class DiagnoseRequest(BaseModel):
@@ -21,6 +21,11 @@ class DiagnoseRequest(BaseModel):
     address: str = Field(..., description="대지 주소", examples=["서울 영등포구 여의대로 24"])
     radius: int = Field(
         1000, description="진단 기준 반경(m). 보통 500/1000/2000.", examples=[1000]
+    )
+    resolution: Resolution = Field(
+        "시군구",
+        description="수요(인구) 해상도. '읍면동'=동 단위(KOSIS). '반경'=radius 반경 내 실인구(SGIS 집계구 합산) — 수요·공급 같은 반경. SGIS 미제공 지표(1인가구 등)는 시군구 폴백",
+        examples=["시군구"],
     )
 
 
@@ -34,6 +39,12 @@ class DemandSignal(BaseModel):
     level: str = Field(..., description="전국 대비 수준", examples=["낮음"])  # 높음|평이|낮음|불명
     source_tbl: str = Field(..., examples=["DT_1B04005N"])
     year: int = Field(..., examples=[2025])
+    scope: Optional[str] = Field(
+        None, description="수요 기준 지역명 (예: '여의동' 또는 '영등포구')", examples=["영등포구"]
+    )
+    scope_level: Optional[str] = Field(
+        None, description="수요 기준 해상도 (읍면동|시군구)", examples=["시군구"]
+    )
 
 
 class SupplySignal(BaseModel):

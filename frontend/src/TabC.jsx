@@ -3,6 +3,8 @@ import { diagnose } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
 
 const RADII_OPTIONS = [500, 1000, 2000];
+const RESOLUTIONS = ["시군구", "읍면동", "반경"];
+const RES_LABEL = { 시군구: "시군구(구)", 읍면동: "읍면동(동)", 반경: "반경(집계구)" };
 
 // 수요/공급 레벨에 따른 배지 색. 좋다/나쁘다 단정이 아니라 신호 강약 표시일 뿐.
 const demandTone = (lv) => (lv === "높음" ? "amber" : lv === "낮음" ? "blue" : "slate");
@@ -10,6 +12,7 @@ const supplyTone = (lv) => (lv === "적음" ? "amber" : lv === "많음" ? "green
 
 export default function TabC({ address }) {
   const [radius, setRadius] = useState(1000);
+  const [resolution, setResolution] = useState("시군구");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -20,7 +23,7 @@ export default function TabC({ address }) {
     setError(null);
     setData(null);
     try {
-      setData(await diagnose(address, radius));
+      setData(await diagnose(address, radius, resolution));
     } catch (e) {
       setError(e);
     } finally {
@@ -31,7 +34,7 @@ export default function TabC({ address }) {
   return (
     <div>
       <p className="text-sm text-slate-500 mb-4">
-        인구 수요(시군구 통계)와 주변 시설 공급(반경 내 개수)을 교차해 무엇이 부족/과잉인지
+        인구 수요(지역 통계)와 주변 시설 공급(반경 내 개수)을 교차해 무엇이 부족/과잉인지
         읽어드립니다. 모두 <span className="text-amber-700 font-medium">참고</span> — 최종 판단은 사람이.
       </p>
 
@@ -46,6 +49,23 @@ export default function TabC({ address }) {
               className={`px-3 py-1.5 rounded-lg border text-sm ${radius === r ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"}`}
             >
               {r}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* 수요 분석 단위 */}
+      <div className="text-sm mt-3">
+        <span className="block text-slate-500 mb-1.5">수요(인구) 단위</span>
+        <div className="flex gap-2">
+          {RESOLUTIONS.map((r) => (
+            <button
+              key={r}
+              onClick={() => setResolution(r)}
+              title="읍면동: 인구지표를 행정동 단위로. 반경: 진단 반경 내 실인구(SGIS 집계구 합산)로 수요·공급 동일 반경. 미지원 지표는 시군구 폴백"
+              className={`px-3 py-1.5 rounded-lg border text-sm ${resolution === r ? "bg-blue-600 border-blue-600 text-white" : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+            >
+              {RES_LABEL[r]}
             </button>
           ))}
         </div>
@@ -87,7 +107,14 @@ export default function TabC({ address }) {
                 {/* 원수치 노출 (절대 원칙: 재료·근거 제시) */}
                 <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
                   <div className="text-slate-600">
-                    <span className="text-slate-400 text-xs block">수요 · {d.demand.source_tbl} {d.demand.year}</span>
+                    <span className="text-slate-400 text-xs block">
+                      수요 · {d.demand.source_tbl} {d.demand.year}
+                      {d.demand.scope && (
+                        <span className={d.demand.scope_level === "읍면동" || d.demand.scope_level === "반경" ? "text-emerald-600" : "text-slate-400"}>
+                          {" · "}{d.demand.scope} 기준
+                        </span>
+                      )}
+                    </span>
                     {d.demand.item}{" "}
                     <span className="font-semibold text-slate-900">{d.demand.value}{d.demand.unit}</span>
                     {d.demand.national_avg != null && (

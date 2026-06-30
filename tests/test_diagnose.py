@@ -142,6 +142,59 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     assert "8.3%" in boyuk.note and "전국 10.3%" in boyuk.note
 
 
+def test_build_diagnosis_radius_mode_uses_sgis(monkeypatch) -> None:
+    """반경 모드: SGIS 집계구 합산으로 demand 교체, 미제공 지표(1인가구)는 시군구 폴백 (D2)."""
+    monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
+    monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
+    monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
+    monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
+
+    def _fake_radius_pop(lat, lon, radius, **k):
+        return {
+            "radius": radius, "total_pop": 29281, "tong_count": 62, "tong_matched": 60,
+            "tong_unmatched": 2, "youth_share": 5.6, "aged_share": 16.1,
+            "working_share": 78.2, "avg_age": 42.5, "base_year": "2023",
+            "source": "sgis", "notes": ["집계구 2개 인구 미매칭 — 합산 제외."],
+        }
+    monkeypatch.setattr("app.services.sgis.fetch_radius_population", _fake_radius_pop)
+
+    res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000, resolution="반경")
+
+    assert res.region.resolution == "반경"
+    assert "반경 1000m" in res.region.name
+    by_name = {d.name: d for d in res.diagnoses}
+    # 유소년 → SGIS 반경값으로 교체 (8.3 → 5.6), scope=반경
+    boyuk = by_name["보육시설 수급"]
+    assert boyuk.demand.value == 5.6
+    assert boyuk.demand.scope_level == "반경" and boyuk.demand.scope == "반경 1000m"
+    assert boyuk.demand.source_tbl == "SGIS 집계구"
+    assert boyuk.demand.national_avg == 10.3  # 전국값은 KOSIS 유지
+    # 고령·생산가능도 반경
+    assert by_name["노인복지시설 수급"].demand.value == 16.1
+    assert by_name["문화시설 수급"].demand.value == 78.2
+    # 1인가구 → SGIS 미제공 → 폴백: 값 유지(45.1)·반경으로 안 바뀜
+    solo = by_name["1인가구 생활시설 수급"]
+    assert solo.demand.value == 45.1 and solo.demand.scope_level != "반경"
+    assert any("SGIS 집계구 미제공" in n for n in res.notes)
+
+
+def test_build_diagnosis_radius_fallback_when_sgis_unavailable(monkeypatch) -> None:
+    """SGIS 실패 시 수요는 시군구로 graceful 폴백 + note (절대 원칙 3)."""
+    monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
+    monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
+    monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
+    monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: None)
+    monkeypatch.setattr("app.services.sgis.fetch_radius_population", lambda *a, **k: None)
+
+    res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000, resolution="반경")
+    # 폴백: 시군구 값(8.3) 유지, region 반경 아님
+    assert res.region.resolution != "반경"
+    assert {d.name: d for d in res.diagnoses}["보육시설 수급"].demand.value == 8.3
+    assert any("시군구 기준으로 폴백" in n for n in res.notes)
+
+
 def test_build_diagnosis_skips_missing_demand_item(monkeypatch) -> None:
     # 수요지표 facts 가 비면 해당 규칙은 정직하게 건너뛰고 notes 기록 (절대 원칙 3)
     monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())

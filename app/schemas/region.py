@@ -11,7 +11,7 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
-Resolution = Literal["시군구", "읍면동"]
+Resolution = Literal["시군구", "읍면동", "반경"]
 
 
 class AnalyzeRequest(BaseModel):
@@ -23,6 +23,11 @@ class AnalyzeRequest(BaseModel):
     )
     year: Optional[int] = Field(
         None, description="기준연도. 미지정 시 최신 (KOSIS 최신 시점)", examples=[2024]
+    )
+    resolution: Resolution = Field(
+        "시군구",
+        description="통계 해상도. '읍면동' 요청 시 동 데이터 있는 지표만 동 단위, 나머지는 시군구로 폴백(note 표시)",
+        examples=["시군구"],
     )
 
 
@@ -44,6 +49,12 @@ class Fact(BaseModel):
     source_tbl: str = Field(..., description="출처 식별자 (KOSIS 통계표 ID 또는 API 출처명)", examples=["DT_1IN1502"])
     year: int = Field(..., description="기준연도 또는 측정연도", examples=[2024])
     source_type: Optional[str] = Field(None, description="데이터 소스 유형 (kosis|airkorea|data_go_kr|...)", examples=["kosis"])
+    scope: Optional[str] = Field(
+        None, description="이 수치의 기준 지역명 (예: '여의동' 또는 '영등포구'). 모든 수치에 기준 명시 — 절대 원칙 4", examples=["영등포구"]
+    )
+    scope_level: Optional[str] = Field(
+        None, description="기준 해상도 (읍면동|시군구). 동 모드에서 지표별로 다를 수 있음", examples=["시군구"]
+    )
 
 
 class Implication(BaseModel):

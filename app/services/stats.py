@@ -108,16 +108,23 @@ def collect_facts(
     *,
     sigungu: str = "",
     sido: str = "",
+    resolution: str = "시군구",
+    hcode: str = "",
+    hdong: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
     """(facts, notes, year) 반환. facts 비어있으면 라우터가 ErrorBlock 처리.
 
     sigungu: census 계열 지역코드 역추출 + 에어코리아 측정소 검색용.
     sido: 에어코리아 측정소 검색 폴백용.
+    resolution: '읍면동'이면 동 데이터 있는 테이블(matrix dong_tables)만 hcode로 조회,
+                나머지는 시군구로 폴백(note). hcode/hdong: 행정동 H코드(10자리)·행정동명.
     """
     items = matrix.list_items(use_type)
     if items is None:
         return [], [f"알 수 없는 용도: {use_type}"], None
-    return _facts_from_items(items, sgg_code, year, cache, sigungu, sido)
+    return _facts_from_items(
+        items, sgg_code, year, cache, sigungu, sido, resolution, hcode, hdong
+    )
 
 
 def collect_facts_by_items(
@@ -128,11 +135,15 @@ def collect_facts_by_items(
     sido: str = "",
     year: Optional[int] = None,
     cache: Optional[Cache] = None,
+    resolution: str = "시군구",
+    hcode: str = "",
+    hdong: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
     """이름으로 지정한 지표들의 facts 수집 (용도 무관 — P11 수급진단 demand용).
 
     matrix.json 전체에서 이름이 일치하는 항목을 찾아(이름당 첫 매치) 재사용한다.
     matrix 에 없거나 미확정인 지표는 추정 않고 notes 에 정직하게 기록 (절대 원칙 3).
+    resolution/hcode/hdong: collect_facts 와 동일 (읍면동 해상도 지원).
     """
     all_by_ut = matrix.list_items()  # {용도: [항목...]}
     by_name: dict[str, dict] = {}
@@ -149,7 +160,9 @@ def collect_facts_by_items(
             continue
         items.append(it)
 
-    facts, fnotes, year_used = _facts_from_items(items, sgg_code, year, cache, sigungu, sido)
+    facts, fnotes, year_used = _facts_from_items(
+        items, sgg_code, year, cache, sigungu, sido, resolution, hcode, hdong
+    )
     return facts, notes + fnotes, year_used
 
 
@@ -179,7 +192,13 @@ def collect_common_facts(
     airkorea_items = [it for it in common_items if it.get("source_type") == "airkorea"]
     if not airkorea_items:
         return [], []
-    return _collect_airkorea_facts(airkorea_items, sido, sigungu, cache)
+    facts, notes = _collect_airkorea_facts(airkorea_items, sido, sigungu, cache)
+    # 대기질은 측정소(시군구) 기준 — 모든 수치에 기준 명시 (절대 원칙 4)
+    gu_name = sigungu or sido
+    for f in facts:
+        f.setdefault("scope", gu_name)
+        f.setdefault("scope_level", "시군구")
+    return facts, notes
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -193,6 +212,9 @@ def _facts_from_items(
     cache: Optional[Cache],
     sigungu: str,
     sido: str = "",
+    resolution: str = "시군구",
+    hcode: str = "",
+    hdong: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
     """항목 리스트 → facts. source_type별 디스패처 (P12)."""
     kosis_items: List[dict] = []
@@ -217,16 +239,24 @@ def _facts_from_items(
 
     # KOSIS
     kosis_facts, kosis_notes, year_used = _collect_kosis_facts(
-        kosis_items, sgg_code, year, cache, sigungu
+        kosis_items, sgg_code, year, cache, sigungu, resolution, hcode, hdong
     )
     facts.extend(kosis_facts)
     notes.extend(kosis_notes)
 
-    # 에어코리아 (용도별 항목에 직접 포함된 경우)
+    # 에어코리아 (용도별 항목에 직접 포함된 경우) — 측정소 기반, 항상 시군구
     if airkorea_items:
         ak_facts, ak_notes = _collect_airkorea_facts(airkorea_items, sido, sigungu, cache)
         facts.extend(ak_facts)
         notes.extend(ak_notes)
+        if resolution == "읍면동" and ak_facts:
+            notes.append(f"대기질: 동 단위 측정 없음 → {sigungu or sgg_code} 기준.")
+
+    # scope 기본값 채우기 — KOSIS 외(에어코리아 등)는 시군구 기준 (절대 원칙 4)
+    gu_name = sigungu or sgg_code
+    for f in facts:
+        f.setdefault("scope", gu_name)
+        f.setdefault("scope_level", "시군구")
 
     return facts, notes, year_used
 
@@ -237,8 +267,15 @@ def _collect_kosis_facts(
     year: Optional[int],
     cache: Optional[Cache],
     sigungu: str,
+    resolution: str = "시군구",
+    hcode: str = "",
+    hdong: str = "",
 ) -> Tuple[List[dict], List[str], Optional[int]]:
-    """KOSIS 항목 → facts + notes + 사용된 연도."""
+    """KOSIS 항목 → facts + notes + 사용된 연도.
+
+    resolution='읍면동' + hcode 있음 + 테이블이 dong_tables(검증된 reg-scheme)면 행정동 코드로
+    조회해 동 단위 값을 만든다. 그 외(census·미검증 테이블)는 시군구로 폴백하고 note (절대 원칙 3·4).
+    """
     groups: dict = {}
     notes: List[str] = []
     for it in items:
@@ -246,11 +283,21 @@ def _collect_kosis_facts(
         gk = (k["orgId"], k["tblId"], k.get("objL2"), it.get("region_scheme", "reg"))
         groups.setdefault(gk, []).append(it)
 
+    want_dong = resolution == "읍면동" and bool(hcode)
+    dong_set = matrix.dong_tables()
+    gu_name = sigungu or sgg_code
+    dong_name = hdong or "행정동"
+
     facts: List[dict] = []
     year_used: Optional[int] = year
 
     for (org_id, tbl_id, obj_l2, scheme), grp in groups.items():
-        if scheme == "census":
+        # 이 그룹이 동 단위로 갈 수 있는가: 동 요청 + reg-scheme + 검증된 테이블
+        group_dong = want_dong and scheme == "reg" and tbl_id in dong_set
+        if group_dong:
+            region_code = hcode
+            scope_name, scope_level = dong_name, "읍면동"
+        elif scheme == "census":
             region_code = kosis.resolve_census_region(
                 org_id, tbl_id, sgg_code[:2], sigungu, obj_l2=obj_l2, cache=cache
             )
@@ -258,8 +305,16 @@ def _collect_kosis_facts(
                 names = ", ".join(it["item"] for it in grp)
                 notes.append(f"'{names}': census 지역코드 미확인({sigungu}) — 건너뜀.")
                 continue
+            scope_name, scope_level = gu_name, "시군구"
         else:
             region_code = sgg_code
+            scope_name, scope_level = gu_name, "시군구"
+
+        # 동 요청인데 동으로 못 간 그룹은 정직하게 폴백 사유 표기 (절대 원칙 3·4)
+        if want_dong and not group_dong:
+            names = ", ".join(it["item"] for it in grp)
+            notes.append(f"'{names}': 동 단위 데이터 없음 → {gu_name} 기준.")
+
         try:
             reg = kosis.fetch_table(org_id, tbl_id, region_code, year, obj_l2=obj_l2, cache=cache)
             nat = kosis.fetch_table(org_id, tbl_id, _NATIONAL, reg["year"], obj_l2=obj_l2, cache=cache)
@@ -282,6 +337,8 @@ def _collect_kosis_facts(
                     "source_tbl": tbl_id,
                     "year": reg["year"],
                     "source_type": "kosis",
+                    "scope": scope_name,
+                    "scope_level": scope_level,
                 }
             )
     return facts, notes, year_used
