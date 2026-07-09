@@ -111,12 +111,24 @@ def _cross_block(cross: List[Any]) -> str:
     return "\n".join(lines)
 
 
-def _pool_text(facts, diagnoses, hazards, cross) -> str:
+def _drivers_block(drivers) -> str:
+    if not drivers:
+        return "(없음)"
+    lines = []
+    for d in drivers:
+        ev = _g(d, "evidence") or []
+        ev_txt = "; ".join(f"{_g(e,'key')}={_g(e,'detail')}" for e in ev)
+        lines.append(f"- {_g(d,'rank')}순위 {_g(d,'name')}: {_g(d,'response')} (근거: {ev_txt})")
+    return "\n".join(lines)
+
+
+def _pool_text(facts, diagnoses, hazards, cross, drivers=None) -> str:
     return (
         f"[인구·통계 facts]\n{_facts_block(facts)}\n\n"
         f"[수급진단 (참고)]\n{_diag_block(diagnoses)}\n\n"
         f"[재해위험 사실]\n{_hazard_block(hazards)}\n\n"
-        f"[교차 시사점 (S2·참고)]\n{_cross_block(cross)}"
+        f"[교차 시사점 (S2·참고)]\n{_cross_block(cross)}\n\n"
+        f"[지배 설계 드라이버 (T2·검토 신호)]\n{_drivers_block(drivers)}"
     )
 
 
@@ -229,12 +241,12 @@ def _call(model: str, system: str, user: str, *, thinking: bool, effort: str,
         return None
 
 
-def compose_interpretation(use_type, facts, diagnoses, hazards, cross) -> Tuple[str, str, str]:
+def compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers=None) -> Tuple[str, str, str]:
     """① 사실 종합(해석). (text, source, model)."""
     if not os.getenv("ANTHROPIC_API_KEY"):
         return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", ""
     user = (
-        f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross)}\n\n"
+        f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross, drivers)}\n\n"
         f"위 사실의 수치만 사용해 규칙대로 이 필지를 2~3문단으로 서술하라."
     )
     text = _call(_INTERP_MODEL, _INTERP_SYSTEM, user,
@@ -244,12 +256,12 @@ def compose_interpretation(use_type, facts, diagnoses, hazards, cross) -> Tuple[
     return text, "ai", _INTERP_MODEL
 
 
-def compose_judgment(use_type, facts, diagnoses, hazards, cross) -> Tuple[str, str, str]:
+def compose_judgment(use_type, facts, diagnoses, hazards, cross, drivers=None) -> Tuple[str, str, str]:
     """② AI 판단(의견). (text, source, model). 폴백은 '판단 유보'(가짜 의견 금지)."""
     if not os.getenv("ANTHROPIC_API_KEY"):
         return _rule_judgment(), "rule_based_fallback", ""
     user = (
-        f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross)}\n\n"
+        f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross, drivers)}\n\n"
         f"위 사실 위에서 {use_type} 용도 관점의 의견을 3조건(근거 인용·가정 명시·새 숫자 금지)을 지켜 쓰라."
     )
     system = _JUDGE_SYSTEM.replace("{use_type}", use_type)
@@ -260,11 +272,12 @@ def compose_judgment(use_type, facts, diagnoses, hazards, cross) -> Tuple[str, s
     return text, "ai", _JUDGE_MODEL
 
 
-def synthesize(use_type, facts=None, diagnoses=None, hazards=None, cross=None) -> Synthesis:
+def synthesize(use_type, facts=None, diagnoses=None, hazards=None, cross=None, drivers=None) -> Synthesis:
     """/board 통합 풀 → 두 블록. 그라운딩 사실 없으면 no_data(환각 금지)."""
     facts = facts or []
     diagnoses = diagnoses or []
     cross = cross or []
+    drivers = drivers or []
 
     if not _has_grounding(facts, diagnoses, hazards, cross):
         msg = "그라운딩할 검증된 사실이 없어 종합 해석/판단을 생성하지 않습니다(확인 불가)."
@@ -273,8 +286,8 @@ def synthesize(use_type, facts=None, diagnoses=None, hazards=None, cross=None) -
             judgment=msg, judgment_source="no_data", judgment_label=JUDGMENT_LABEL,
         )
 
-    itext, isrc, imodel = compose_interpretation(use_type, facts, diagnoses, hazards, cross)
-    jtext, jsrc, jmodel = compose_judgment(use_type, facts, diagnoses, hazards, cross)
+    itext, isrc, imodel = compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers)
+    jtext, jsrc, jmodel = compose_judgment(use_type, facts, diagnoses, hazards, cross, drivers)
     return Synthesis(
         interpretation=itext, interpretation_source=isrc, interpretation_model=imodel,
         judgment=jtext, judgment_source=jsrc, judgment_model=jmodel,

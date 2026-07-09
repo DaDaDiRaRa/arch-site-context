@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { board } from "./api.js";
+import { board, boardView } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, ProximityChip } from "./ui.jsx";
 
 const USE_TYPES = ["주거", "상업", "의료"];
@@ -47,6 +47,7 @@ export default function TabI({ address }) {
   const [radius, setRadius] = useState(1000);
   const [synth, setSynth] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
@@ -61,6 +62,20 @@ export default function TabI({ address }) {
       setError(e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function exportBoard() {
+    if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
+    setExporting(true);
+    setError(null);
+    try {
+      const r = await boardView(address, useType, radius, resolution, synth);
+      window.open(r.url, "_blank", "noopener");  // 공유·인쇄(→PDF) 가능한 한 장 보드
+    } catch (e) {
+      setError(e);
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -100,14 +115,25 @@ export default function TabI({ address }) {
         </label>
       </div>
 
-      <button
-        onClick={run}
-        disabled={loading}
-        className="mt-5 px-4 py-2 font-medium disabled:opacity-50"
-        style={{ background: "var(--brand)", color: "#fff", borderRadius: "var(--radius-sm)" }}
-      >
-        종합 읽기
-      </button>
+      <div className="mt-5 flex items-center gap-2 flex-wrap">
+        <button
+          onClick={run}
+          disabled={loading}
+          className="px-4 py-2 font-medium disabled:opacity-50"
+          style={{ background: "var(--brand)", color: "#fff", borderRadius: "var(--radius-sm)" }}
+        >
+          종합 읽기
+        </button>
+        <button
+          onClick={exportBoard}
+          disabled={exporting}
+          title="공유·인쇄(→PDF) 가능한 한 장 보드를 새 탭에 엽니다 (지도·드라이버·지수·출처 포함)"
+          className="px-4 py-2 font-medium disabled:opacity-50"
+          style={{ background: "var(--canvas-elevated)", color: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--radius-sm)" }}
+        >
+          {exporting ? "보드 생성 중…" : "보드 내보내기 ↗"}
+        </button>
+      </div>
 
       {loading && <Spinner label="인구·수급·재해·대지·생활맥락 동시 수집 중… (여러 소스 병렬)" />}
       <div className="mt-4"><ErrorBox error={error} /></div>
@@ -122,6 +148,36 @@ export default function TabI({ address }) {
             {data.region && <Badge>{data.region.name}</Badge>}
             <Badge>기준일 {data.base_date}</Badge>
           </div>
+
+          {/* ★ T2 설계 드라이버 — 분석의 종착점 (이 대지가 설계에 요구하는 것) */}
+          {data.design_drivers && data.design_drivers.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>
+                설계 드라이버 <span style={{ color: "var(--mute)", fontWeight: 400 }}>· 이 대지가 설계에 요구하는 것 (검토 신호·참고)</span>
+              </h3>
+              <div className="space-y-2">
+                {data.design_drivers.map((d, i) => (
+                  <div key={i} className="p-3" style={{ border: "1px solid var(--hairline)", borderRadius: "var(--radius)", borderLeft: "3px solid var(--brand)" }}>
+                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--brand)", fontWeight: 700 }}>#{d.rank}</span>
+                      <span className="text-sm font-semibold" style={{ color: "var(--ink)" }}>{d.name}</span>
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--mute)" }}>강도 {d.strength}</span>
+                      <Badge tone="amber">{d.tag}</Badge>
+                    </div>
+                    <p className="text-sm" style={{ color: "var(--body)" }}>{d.response}</p>
+                    <div className="mt-1.5 flex flex-col gap-0.5">
+                      {d.evidence.map((e, j) => (
+                        <span key={j} className="text-xs flex items-center gap-1.5 flex-wrap" style={{ color: "var(--mute)" }}>
+                          <span>{e.key}: <span style={{ color: "var(--body)" }}>{e.detail}</span></span>
+                          <ProximityChip level={e.proximity} />
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* ★ S4 종합 산출 — 벽으로 분리된 두 블록 (사실 vs AI 의견) */}
           {data.synthesis && (

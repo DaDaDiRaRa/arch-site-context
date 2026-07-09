@@ -29,9 +29,14 @@ class Site(BaseModel):
 class ProjectSeed(BaseModel):
     """대지분석 보드 합본 — 세 앱 결과를 좌표 기준으로 합친 한 덩어리."""
 
+    schema_version: str = Field(
+        "project_seed/1.0", description="계약 버전 — 소비자가 guard (형제앱 호환)"
+    )
     site: Site
     context: Optional[dict] = Field(
-        None, description="터읽기: RegionStat + FacilityResult + DiagnoseResult"
+        None,
+        description="터읽기 블록. /board 로 생성 시 BoardResult(schema_version 'board/1.0') — "
+        "facts(지수·근접도)·수급진단·재해·교차시사점·설계드라이버·종합해석·coverage 포함",
     )
     law: Optional[dict] = Field(
         None, description="arch-law-diagnose: 8카테고리 GREEN/YELLOW/RED + 용도지역 사실"

@@ -124,19 +124,23 @@ def board(req: BoardRequest):
     # 4) ★ S2 교차규칙 — 통합 풀(인구+수급+재해) boolean 조합 (LLM 0, 새 숫자 0)
     cross = derive_cross_context(facts, diagnoses, hazards, use_type=req.use_type)
 
+    # 4.3) ★ T2 설계 드라이버 — 통합 풀을 증거강도로 랭킹 → 지배 드라이버 2~3개 (LLM 0)
+    from app.services.design_drivers import derive_design_drivers
+    drivers = derive_design_drivers(facts, diagnoses, hazards, use_type=req.use_type)
+
     # 4.5) ★ S4 종합 산출 두 블록 (opt-in) — 위 풀 위에서만. ①사실 해석 + ②AI 판단 (벽 분리·라벨)
     synthesis = None
     if req.synthesize:
         try:
             from app.services.synthesis import synthesize as _synthesize
-            synthesis = _synthesize(req.use_type, facts, diagnoses, hazards, cross)
+            synthesis = _synthesize(req.use_type, facts, diagnoses, hazards, cross, drivers)
         except Exception as e:  # noqa: BLE001 — 종합 실패가 보드 전체를 막지 않도록
             notes.append(f"종합 산출(S4): 생성 실패 ({type(e).__name__}).")
 
     # 5) coverage — 도메인별 확보 여부 (no silent skip, 절대 원칙 3)
     coverage = _coverage(facts, diagnoses, hazards, land_price, building, context)
 
-    return BoardResult(
+    result = BoardResult(
         site=site,
         use_type=req.use_type,
         radius=req.radius,
@@ -151,16 +155,81 @@ def board(req: BoardRequest):
         real_estate=real_estate,
         context=context,
         cross_implications=cross,
+        design_drivers=drivers,
         coverage=coverage,
         synthesis=synthesis,
         base_date=date.today().isoformat(),
         notes=notes,
     )
+    # 계약(2단계): 제안서·형제앱 주입용 압축 투영 (원시 seed context 제외)
+    if req.brief:
+        from app.services.board_contract import board_brief
+        return board_brief(result)
+    return result
 
 
 def site_notes(site) -> List[str]:
     """build_site 자체는 notes 를 안 남기므로 자리만 (계약 안정)."""
     return []
+
+
+def _satellite_anchor(lat: float, lon: float, radius_m: int) -> Optional[str]:
+    """대지 중심 위성 사진 + 반경 링 → JPEG data URI (지도 앵커). 실패 시 None (graceful)."""
+    try:
+        import base64
+        import io
+        import math
+
+        from PIL import ImageDraw
+
+        from app.services.tiles import compose_basemap
+
+        z = {500: 16, 1000: 15, 2000: 14}.get(int(radius_m), 15)
+        W, H = 720, 420
+        img, _ = compose_basemap(lat, lon, z, W, H, "vworld")
+        img = img.convert("RGBA")
+        cx, cy = W // 2, H // 2
+        mpp = 156543.03392 * math.cos(math.radians(lat)) / (2 ** z)  # Web Mercator m/px
+        rpx = radius_m / mpp if mpp else 0
+        d = ImageDraw.Draw(img, "RGBA")
+        if rpx:
+            d.ellipse([cx - rpx, cy - rpx, cx + rpx, cy + rpx], outline=(230, 0, 18, 220), width=3)
+        d.ellipse([cx - 5, cy - 5, cx + 5, cy + 5], fill=(230, 0, 18, 255), outline=(255, 255, 255, 255))
+        out = io.BytesIO()
+        img.convert("RGB").save(out, format="JPEG", quality=82)
+        return "data:image/jpeg;base64," + base64.standard_b64encode(out.getvalue()).decode()
+    except Exception:  # noqa: BLE001 — 지도 실패는 비치명, 보드는 지도 없이도 완결
+        return None
+
+
+@router.post("/board/view", response_model=None)
+def board_view(req: BoardRequest):
+    """대지 종합 읽기 → 공유·인쇄 가능한 한 장 HTML. /files 에 저장 후 공유 URL 반환 (T4)."""
+    import hashlib
+
+    from app.config import OUT_DIR
+    from app.services.board_view import render_board_html
+
+    # 전체 board 강제(brief=False) — 렌더는 facts 등 전체 필드 사용
+    full = board(BoardRequest(**{**req.model_dump(), "brief": False}))
+    if isinstance(full, JSONResponse):
+        return full
+    sat = _satellite_anchor(full.site.lat, full.site.lon, req.radius)
+    html_str = render_board_html(full.model_dump(), satellite_data_uri=sat)
+
+    boards_dir = OUT_DIR / "boards"
+    boards_dir.mkdir(parents=True, exist_ok=True)
+    key = hashlib.md5(
+        f"{req.address}|{req.use_type}|{req.radius}|{req.resolution}|{req.synthesize}|{full.base_date}".encode()
+    ).hexdigest()[:12]
+    fname = f"board_{key}.html"
+    (boards_dir / fname).write_text(html_str, encoding="utf-8")
+    return {
+        "url": f"/files/boards/{fname}",
+        "site": full.site.sigungu,
+        "has_map": sat is not None,
+        "base_date": full.base_date,
+    }
 
 
 def _hazard_state(hazards) -> str:

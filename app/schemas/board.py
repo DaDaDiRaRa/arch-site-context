@@ -12,6 +12,7 @@ from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from app.schemas.cross_context import CrossImplication
+from app.schemas.design_drivers import DesignDriver
 from app.schemas.diagnose import Diagnosis
 from app.schemas.project_seed import Site
 from app.schemas.region import Fact, Implication, Region, Resolution
@@ -32,6 +33,10 @@ class BoardRequest(BaseModel):
     synthesize: bool = Field(
         False,
         description="S4 종합 산출(①사실 해석 + ②AI 판단 두 블록) 생성 여부. Claude 2콜 — opt-in(기본 off)",
+    )
+    brief: bool = Field(
+        False,
+        description="압축 투영(board_brief) 반환 여부. 제안서·프롬프트·형제앱 주입용 — 원시 seed context 제외 (계약 board_brief/1.0)",
     )
 
 
@@ -77,6 +82,9 @@ class BoardResult(BaseModel):
     S2 엔진이 그 위에서 boolean 조합한 '참고' 시사점. coverage 는 결측/확인불가 투명 목록.
     """
 
+    schema_version: str = Field(
+        "board/1.0", description="계약 버전 — 형제앱(competition·MCP·site-model)이 guard"
+    )
     site: Site = Field(..., description="공유 대지 식별자 (좌표·pnu·코드)")
     use_type: str
     radius: int
@@ -96,6 +104,9 @@ class BoardResult(BaseModel):
 
     cross_implications: List[CrossImplication] = Field(
         default_factory=list, description="★ S2 도메인 횡단 '참고' 시사점 (근거·근접도 인용)"
+    )
+    design_drivers: List[DesignDriver] = Field(
+        default_factory=list, description="★ T2 지배 설계 드라이버 2~3개 (증거강도 랭킹·검토 신호)"
     )
     coverage: List[DomainCoverage] = Field(
         default_factory=list, description="도메인별 데이터 확보 여부 (no silent skip)"

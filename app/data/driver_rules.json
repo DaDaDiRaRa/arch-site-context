@@ -1,0 +1,97 @@
+{
+  "_meta": {
+    "설명": "T2 설계 드라이버 규칙 — 통합 풀을 증거 강도로 랭킹해 지배 드라이버 2~3개 산출 (CLAUDE.md §8.12). 건축가가 코드 없이 편집 (절대 원칙 7).",
+    "동작": "각 드라이버의 signals 중 충족된 것들의 강도를 합산 → strength. min_strength 넘고 근거 1개 이상이면 후보 → strength 내림차순 상위 max_drivers. 값은 가중합만 — 새 숫자 안 만듦 (절대 원칙 1·2).",
+    "signal 종류": {
+      "pop": "인구 지수. {pop:지표, dir:'high'|'low'} — fact.index(전국=100)로 판정, 강도=|index-100|/10×pop_per_10pt×근접도가중",
+      "supply": "수급 공급수준. {supply:규칙명, level:'적음'|'많음'} — 강도=supply_level×근접도가중",
+      "demand": "수급 수요수준. {demand:규칙명, level:'높음'|'낮음'} — 강도=demand_level",
+      "hazard": "재해 영향범위. {hazard:'flood'|'landslide', in_zone:true} — 강도=hazard_zone",
+      "hazard_exposure": "영향범위 내 지표. {hazard_exposure:'flood', metric:'지하건물'} — affected>0면 강도=hazard_exposure",
+      "heatwave": "폭염특보. {heatwave:'alert_count', min:5} — 강도=heatwave"
+    },
+    "주의": "strength·임계는 휴리스틱 — 전부 '검토 신호'·'참고'. 최종 설계 판단은 사람 (절대 원칙 5). 제안서 컨셉안은 형제앱(competition) 영역."
+  },
+  "min_strength": 1.0,
+  "max_drivers": 3,
+  "weights": {
+    "pop_per_10pt": 1.0,
+    "supply_level": 2.0,
+    "demand_level": 1.0,
+    "hazard_zone": 3.0,
+    "hazard_exposure": 1.0,
+    "heatwave": 1.5,
+    "proximity": { "대지": 1.3, "반경": 1.2, "읍면동": 1.1, "시군구": 1.0, "proxy": 0.7 }
+  },
+  "drivers": [
+    {
+      "name": "접근성·무장애 동선",
+      "signals": [
+        { "pop": "고령인구비율", "dir": "high" },
+        { "supply": "의료시설 수급", "level": "적음" }
+      ],
+      "response": "고령 인구·의료 접근성을 고려한 무장애 코어·1층 진입성·완만한 동선·응급 이송 동선 검토",
+      "use_types": ["주거", "의료", "복지"],
+      "tag": "참고"
+    },
+    {
+      "name": "방재·침수 대비",
+      "signals": [
+        { "hazard": "flood", "in_zone": true },
+        { "hazard_exposure": "flood", "metric": "지하건물" },
+        { "hazard_exposure": "flood", "metric": "노후건물" }
+      ],
+      "response": "홍수 영향범위·지하 취약을 고려한 대지 레벨·방수판·전기실 위치·배수 계획·출입구 단차 검토",
+      "use_types": [],
+      "tag": "참고"
+    },
+    {
+      "name": "사면·복합 재해 대비",
+      "signals": [
+        { "hazard": "landslide", "in_zone": true }
+      ],
+      "response": "산사태 영향범위를 고려한 사면·옹벽·배수·우기 시공 안전 검토",
+      "use_types": [],
+      "tag": "참고"
+    },
+    {
+      "name": "공용 완충·취약계층 대응",
+      "signals": [
+        { "pop": "1인가구비율", "dir": "high" },
+        { "heatwave": "alert_count", "min": 5 }
+      ],
+      "response": "1인가구·폭염을 고려한 공용 완충공간·그늘·야간환기·공용 냉방·쉼터 검토",
+      "use_types": ["주거", "복지"],
+      "tag": "참고"
+    },
+    {
+      "name": "보육·가족 인프라",
+      "signals": [
+        { "pop": "유소년인구비율", "dir": "high" },
+        { "supply": "보육시설 수급", "level": "적음" }
+      ],
+      "response": "유소년·보육 수요를 고려한 가족 대상 공간·보육 연계·놀이·대기·수유 공간 검토",
+      "use_types": ["주거", "의료", "복지"],
+      "tag": "참고"
+    },
+    {
+      "name": "생활·문화 인프라",
+      "signals": [
+        { "pop": "생산가능인구비율", "dir": "high" },
+        { "supply": "문화시설 수급", "level": "적음" }
+      ],
+      "response": "생활문화·여가 수요를 고려한 저층부 커뮤니티·생활문화 공간 검토",
+      "use_types": ["주거", "문화", "상업"],
+      "tag": "참고"
+    },
+    {
+      "name": "소형 주거·1인가구 대응",
+      "signals": [
+        { "pop": "1인가구비율", "dir": "high" }
+      ],
+      "response": "1인가구 비중을 고려한 소형 평형·공유주방·세탁·라운지 등 공유공간 검토",
+      "use_types": ["주거"],
+      "tag": "참고"
+    }
+  ]
+}

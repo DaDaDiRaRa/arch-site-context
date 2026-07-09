@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "teoilgi": {
+      "command": "d:/APPS/arch-site-context/.venv/Scripts/python.exe",
+      "args": ["d:/APPS/arch-site-context/mcp_server/server.py"]
+    }
+  }
+}
