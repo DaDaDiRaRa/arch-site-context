@@ -1,0 +1,87 @@
+{
+  "_meta": {
+    "설명": "S2 교차규칙 — 도메인 횡단 '참고' 시사점 (CLAUDE.md §8.11). 건축가가 코드 없이 편집 (절대 원칙 7).",
+    "동작": "각 규칙의 when(절 리스트)이 모두 참일 때만 발화. 값은 조합·인용만 — 새 숫자 안 만듦 (절대 원칙 1·2).",
+    "절 종류": {
+      "pop": "인구 fact. {pop:지표, op:>|>=|<|<=, vs:'national', margin:N} 또는 {pop:지표, op:.., value:N}(절대값)",
+      "supply": "수급진단 공급수준. {supply:규칙명, level:'적음'|['적음','보통']}",
+      "demand": "수급진단 수요수준. {demand:규칙명, level:'높음'|[..]}",
+      "hazard": "재해 영향범위 포함. {hazard:'flood'|'landslide', in_zone:true}",
+      "hazard_exposure": "영향범위 내 지표. {hazard_exposure:'flood'|'landslide', metric:'지하건물', op:>, value:0}",
+      "heatwave": "폭염특보 이력. {heatwave:'alert_count'|'warning_count', op:>=, value:N}"
+    },
+    "주의": "임계값(margin·value)은 휴리스틱 — 전부 '참고' 태그. 판단은 사람 (절대 원칙 5). 특정 지역 수치로 일반화 말 것."
+  },
+  "rules": [
+    {
+      "name": "의료 접근성",
+      "when": [
+        {"pop": "고령인구비율", "op": ">", "vs": "national", "margin": 2},
+        {"supply": "의료시설 수급", "level": ["적음"]}
+      ],
+      "then": "고령 인구 비중이 전국보다 높은데 반경 내 의료시설 공급이 적음 — 의료 접근성·응급 이송 동선·1층 진입성 검토",
+      "use_types": ["주거", "의료", "복지"],
+      "tag": "참고"
+    },
+    {
+      "name": "보육 인프라",
+      "when": [
+        {"pop": "유소년인구비율", "op": ">", "vs": "national", "margin": 1},
+        {"supply": "보육시설 수급", "level": ["적음"]}
+      ],
+      "then": "유소년 인구 비중이 전국보다 높은데 반경 내 보육시설 공급이 적음 — 보육 인프라 수요·가족 대상 공간 검토",
+      "use_types": ["주거", "의료", "복지"],
+      "tag": "참고"
+    },
+    {
+      "name": "문화·생활 인프라",
+      "when": [
+        {"pop": "생산가능인구비율", "op": ">", "vs": "national", "margin": 1},
+        {"supply": "문화시설 수급", "level": ["적음"]}
+      ],
+      "then": "생산가능인구 비중이 전국보다 높은데 반경 내 문화시설 공급이 적음 — 생활문화·여가 인프라 수요 검토",
+      "use_types": ["주거", "문화", "상업"],
+      "tag": "참고"
+    },
+    {
+      "name": "지하 침수 대비",
+      "when": [
+        {"hazard": "flood", "in_zone": true},
+        {"hazard_exposure": "flood", "metric": "지하건물", "op": ">", "value": 0}
+      ],
+      "then": "홍수위험 영향범위에 포함되고 영향범위 내 지하건물이 존재 — 지하층 침수 대비(방수판·배수펌프·전기실 위치·출입구 단차) 검토",
+      "use_types": [],
+      "tag": "참고"
+    },
+    {
+      "name": "노후건물 침수 취약",
+      "when": [
+        {"hazard": "flood", "in_zone": true},
+        {"hazard_exposure": "flood", "metric": "노후건물", "op": ">", "value": 0}
+      ],
+      "then": "홍수위험 영향범위에 포함되고 영향범위 내 노후건물이 존재 — 저층 노후 주변부 침수 취약, 대지 레벨·방재 계획 검토",
+      "use_types": [],
+      "tag": "참고"
+    },
+    {
+      "name": "취약계층 폭염 대응",
+      "when": [
+        {"pop": "1인가구비율", "op": ">", "vs": "national", "margin": 3},
+        {"heatwave": "alert_count", "op": ">=", "value": 5}
+      ],
+      "then": "1인가구 비중이 전국보다 높고 최근 여름 폭염경보가 잦음 — 취약계층 폭염 대응(그늘·쉼터·야간환기·공용 냉방공간) 검토",
+      "use_types": ["주거", "복지"],
+      "tag": "참고"
+    },
+    {
+      "name": "복합 재해 노출",
+      "when": [
+        {"hazard": "flood", "in_zone": true},
+        {"hazard": "landslide", "in_zone": true}
+      ],
+      "then": "홍수·산사태 위험 영향범위에 동시 포함 — 복합 재해 대비(배수·사면·옹벽·비상 동선) 통합 검토",
+      "use_types": [],
+      "tag": "참고"
+    }
+  ]
+}

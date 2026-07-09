@@ -9,9 +9,39 @@ from __future__ import annotations
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from app.schemas.proximity import Proximity, proximity_of
 
 Resolution = Literal["시군구", "읍면동", "반경"]
+
+# T1 — 전국=100 정규화 지수 (Esri US=100 방식). 밴드 임계는 ±10%.
+_INDEX_HIGH = 110
+_INDEX_LOW = 90
+
+
+def compute_index(value: Optional[float], national_avg: Optional[float], unit: str) -> Optional[int]:
+    """전국=100 지수 = value/national×100 (기존 두 수치의 비율일 뿐 — 새 숫자 아님, 절대 원칙 2).
+
+    비율(%) 지표에만 의미가 있다 — 절대수(총인구 명·세대 가구)는 national_avg 가 전국 총량이라
+    지수가 무의미하므로 None. 100=전국 수준, >100=상회, <100=하회. '판정'이 아니라 신호.
+    """
+    if national_avg is None or not national_avg:
+        return None
+    if (unit or "").strip() != "%":
+        return None
+    return round(value / national_avg * 100)
+
+
+def index_band(index: Optional[int]) -> Optional[str]:
+    """전국 대비 밴드 — 서술적 라벨(상회|비슷|하회), 평가 아님. ±10% 기준."""
+    if index is None:
+        return None
+    if index >= _INDEX_HIGH:
+        return "상회"
+    if index <= _INDEX_LOW:
+        return "하회"
+    return "비슷"
 
 
 class AnalyzeRequest(BaseModel):
@@ -58,6 +88,30 @@ class Fact(BaseModel):
     scope_level: Optional[str] = Field(
         None, description="기준 해상도 (읍면동|시군구). 동 모드에서 지표별로 다를 수 있음", examples=["시군구"]
     )
+    proximity: Optional[Proximity] = Field(
+        None,
+        description="데이터 근접도 등급 (대지>반경>읍면동>시군구>proxy). scope_level에서 정규화 — S1. 순수 메타데이터",
+        examples=["시군구"],
+    )
+    index: Optional[int] = Field(
+        None,
+        description="전국=100 지수 (비율 지표만; value/national×100). 100=전국 수준·>100=상회 — 판정 아닌 신호 (T1)",
+        examples=[113],
+    )
+    index_band: Optional[str] = Field(
+        None, description="전국 대비 밴드 (상회|비슷|하회, ±10%). 서술 라벨 — T1", examples=["상회"]
+    )
+
+    @model_validator(mode="after")
+    def _fill_derived(self) -> "Fact":
+        """proximity(S1)·index(T1) 미지정 시 파생. 새 숫자 안 만듦 — 순수 비율/메타데이터."""
+        if self.proximity is None:
+            self.proximity = proximity_of(self.scope_level)
+        if self.index is None:
+            self.index = compute_index(self.value, self.national_avg, self.unit)
+        if self.index_band is None:
+            self.index_band = index_band(self.index)
+        return self
 
 
 class Implication(BaseModel):

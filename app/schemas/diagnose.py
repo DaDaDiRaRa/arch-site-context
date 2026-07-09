@@ -9,10 +9,11 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.facility import Center
-from app.schemas.region import Region, Resolution
+from app.schemas.proximity import Proximity, proximity_of
+from app.schemas.region import Region, Resolution, compute_index, index_band
 
 
 class DiagnoseRequest(BaseModel):
@@ -45,6 +46,27 @@ class DemandSignal(BaseModel):
     scope_level: Optional[str] = Field(
         None, description="수요 기준 해상도 (읍면동|시군구)", examples=["시군구"]
     )
+    proximity: Optional[Proximity] = Field(
+        None,
+        description="수요 데이터 근접도 등급 (대지>반경>읍면동>시군구>proxy). scope_level에서 정규화 — S1",
+        examples=["시군구"],
+    )
+    index: Optional[int] = Field(
+        None, description="전국=100 지수 (value/national×100, 비율 지표만) — T1", examples=[81]
+    )
+    index_band: Optional[str] = Field(
+        None, description="전국 대비 밴드 (상회|비슷|하회) — T1", examples=["하회"]
+    )
+
+    @model_validator(mode="after")
+    def _fill_derived(self) -> "DemandSignal":
+        if self.proximity is None:
+            self.proximity = proximity_of(self.scope_level)
+        if self.index is None:
+            self.index = compute_index(self.value, self.national_avg, self.unit)
+        if self.index_band is None:
+            self.index_band = index_band(self.index)
+        return self
 
 
 class SupplySignal(BaseModel):
@@ -77,6 +99,11 @@ class SupplySignal(BaseModel):
     )
     capacity_scope: str = Field(
         "", description="정원 출처 범위 (시군구명 — 반경 개수와 단위 다름)", examples=["영등포구"]
+    )
+    proximity: Proximity = Field(
+        "반경",
+        description="공급 데이터 근접도 등급 — 개수는 항상 반경 내 실측이므로 '반경'. capacity(정원)만 시군구 (capacity_scope 참조) — S1",
+        examples=["반경"],
     )
 
 

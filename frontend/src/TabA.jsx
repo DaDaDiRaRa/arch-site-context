@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { analyze } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes, CopyButton } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, CopyButton, ProximityChip, IndexBar } from "./ui.jsx";
 
 const USE_TYPES = ["주거", "상업", "의료"];
 
@@ -47,6 +47,7 @@ export default function TabA({ address }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const [open, setOpen] = useState({});  // T1 근거 드릴다운 (fact index → 열림 여부)
 
   async function run() {
     if (!address.trim()) {
@@ -165,33 +166,57 @@ export default function TabA({ address }) {
                   <th className="text-left px-3 py-2 font-medium">항목</th>
                   <th className="text-right px-3 py-2 font-medium">값</th>
                   <th className="text-right px-3 py-2 font-medium">전국 평균</th>
-                  <th className="text-left px-3 py-2 font-medium">기준 지역</th>
+                  <th className="text-left px-3 py-2 font-medium">전국 대비 (100)</th>
+                  <th className="text-left px-3 py-2 font-medium">기준 지역 · 근접도</th>
                   <th className="text-left px-3 py-2 font-medium">출처 · 연도</th>
                 </tr>
               </thead>
               <tbody>
                 {data.facts.map((f, i) => (
-                  <tr key={i} style={{borderTop:'1px solid var(--hairline)'}}>
-                    <td className="px-3 py-2" style={{color:'var(--body)'}}>{f.item}</td>
-                    <td className="px-3 py-2 text-right font-semibold" style={{color:'var(--ink)'}}>
-                      {fmt(f.value)}{f.unit}
-                    </td>
-                    <td className="px-3 py-2 text-right" style={{color:'var(--mute)'}}>
-                      {f.national_avg != null ? fmt(f.national_avg) : "—"}{f.national_avg != null ? f.unit : ""}
-                    </td>
-                    <td className="px-3 py-2">
-                      {f.scope ? (
-                        <Badge tone={f.scope_level === "읍면동" || f.scope_level === "반경" ? "green" : "slate"}>
-                          {f.scope}
-                        </Badge>
-                      ) : (
-                        <span style={{color:'var(--hairline)'}}>—</span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-xs" style={{color:'var(--mute)'}}>
-                      {f.source_tbl} · {f.year}
-                    </td>
-                  </tr>
+                  <Fragment key={i}>
+                    <tr
+                      onClick={() => setOpen((o) => ({ ...o, [i]: !o[i] }))}
+                      style={{ borderTop: '1px solid var(--hairline)', cursor: 'pointer' }}
+                      title="클릭 → 근거 보기"
+                    >
+                      <td className="px-3 py-2" style={{color:'var(--body)'}}>
+                        <span style={{color:'var(--mute)',fontSize:10,marginRight:4}}>{open[i] ? "▾" : "▸"}</span>
+                        {f.item}
+                      </td>
+                      <td className="px-3 py-2 text-right font-semibold" style={{color:'var(--ink)'}}>
+                        {fmt(f.value)}{f.unit}
+                      </td>
+                      <td className="px-3 py-2 text-right" style={{color:'var(--mute)'}}>
+                        {f.national_avg != null ? fmt(f.national_avg) : "—"}{f.national_avg != null ? f.unit : ""}
+                      </td>
+                      <td className="px-3 py-2"><IndexBar index={f.index} /></td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1.5">
+                          {f.scope ? (
+                            <Badge tone="slate">{f.scope}</Badge>
+                          ) : (
+                            <span style={{color:'var(--hairline)'}}>—</span>
+                          )}
+                          <ProximityChip level={f.proximity} />
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-xs" style={{color:'var(--mute)'}}>
+                        {f.source_tbl} · {f.year}
+                      </td>
+                    </tr>
+                    {open[i] && (
+                      <tr style={{ background: 'var(--canvas)' }}>
+                        <td colSpan={6} className="px-3 py-2 text-xs" style={{ color: 'var(--body)' }}>
+                          <span style={{ color: 'var(--mute)' }}>근거 · </span>
+                          {f.item} <b>{fmt(f.value)}{f.unit}</b>
+                          {f.national_avg != null && <> (전국 {fmt(f.national_avg)}{f.unit}{f.index != null && <> · 지수 <b>{f.index}</b> {f.index_band}</>})</>}
+                          {" · "}기준 지역 <b>{f.scope || "—"}</b> (근접도 {f.proximity || "—"})
+                          {" · "}출처 <b>{f.source_tbl}</b> · {f.year}
+                          {f.source_type && <> · {f.source_type}</>}
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

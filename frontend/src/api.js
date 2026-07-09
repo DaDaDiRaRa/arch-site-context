@@ -56,3 +56,6 @@ export const seed = (address, radius = 1000) =>
 
 export const readout = (address, project_type = "재건축", use_type = "주거") =>
   post("/readout", { address, project_type, use_type });
+
+export const board = (address, use_type, radius = 1000, resolution = "시군구", synthesize = false) =>
+  post("/board", { address, use_type, radius, resolution, synthesize });

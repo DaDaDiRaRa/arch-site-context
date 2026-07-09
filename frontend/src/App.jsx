@@ -7,10 +7,11 @@ import TabE from "./TabE.jsx";
 import TabF from "./TabF.jsx";
 import TabG from "./TabG.jsx";
 import TabH from "./TabH.jsx";
+import TabI from "./TabI.jsx";
 
 export default function App() {
   const [address, setAddress] = useState("");
-  const [tab, setTab] = useState("A");
+  const [tab, setTab] = useState("I");
   const [inputFocused, setInputFocused] = useState(false);
 
   return (
@@ -55,6 +56,7 @@ export default function App() {
         {/* 탭 */}
         <div className="flex gap-1 mb-5" style={{borderBottom:'1px solid var(--hairline)'}}>
           {[
+            ["I", "종합 읽기"],
             ["A", "지역 통계"],
             ["B", "주변 시설"],
             ["C", "수급진단"],
@@ -78,6 +80,9 @@ export default function App() {
         </div>
 
         {/* 탭 내용 (마운트 유지로 입력 상태 보존) */}
+        <div className={tab === "I" ? "" : "hidden"}>
+          <TabI address={address} />
+        </div>
         <div className={tab === "A" ? "" : "hidden"}>
           <TabA address={address} />
         </div>

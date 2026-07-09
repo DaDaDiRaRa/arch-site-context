@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { diagnose } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, ProximityChip, IndexBar } from "./ui.jsx";
 
 const RADII_OPTIONS = [500, 1000, 2000];
 const RESOLUTIONS = ["시군구", "읍면동", "반경"];
@@ -135,22 +135,34 @@ export default function TabC({ address }) {
                 {/* 원수치 노출 */}
                 <div className="mt-2 grid grid-cols-2 gap-3 text-sm">
                   <div style={{color:'var(--body)'}}>
-                    <span className="text-xs block" style={{color:'var(--mute)'}}>
-                      수요 · {d.demand.source_tbl} {d.demand.year}
-                      {d.demand.scope && (
-                        <span style={{color: d.demand.scope_level === "읍면동" || d.demand.scope_level === "반경" ? 'var(--ok)' : 'var(--mute)'}}>
-                          {" · "}{d.demand.scope} 기준
-                        </span>
-                      )}
+                    <span className="text-xs flex items-center gap-1.5 flex-wrap" style={{color:'var(--mute)'}}>
+                      <span>
+                        수요 · {d.demand.source_tbl} {d.demand.year}
+                        {d.demand.scope && (
+                          <span style={{color: d.demand.scope_level === "읍면동" || d.demand.scope_level === "반경" ? 'var(--ok)' : 'var(--mute)'}}>
+                            {" · "}{d.demand.scope} 기준
+                          </span>
+                        )}
+                      </span>
+                      <ProximityChip level={d.demand.proximity} />
                     </span>
                     {d.demand.item}{" "}
                     <span className="font-semibold" style={{color:'var(--ink)'}}>{d.demand.value}{d.demand.unit}</span>
                     {d.demand.national_avg != null && (
                       <span style={{color:'var(--mute)'}}> (전국 {d.demand.national_avg}{d.demand.unit})</span>
                     )}
+                    {d.demand.index != null && (
+                      <span className="flex items-center gap-1.5 mt-0.5">
+                        <IndexBar index={d.demand.index} />
+                        <span className="text-xs" style={{color:'var(--mute)'}}>전국={"100"} · {d.demand.index_band}</span>
+                      </span>
+                    )}
                   </div>
                   <div style={{color:'var(--body)'}}>
-                    <span className="text-xs block" style={{color:'var(--mute)'}}>공급 · 반경 {d.supply.radius}m</span>
+                    <span className="text-xs flex items-center gap-1.5 flex-wrap" style={{color:'var(--mute)'}}>
+                      <span>공급 · 반경 {d.supply.radius}m</span>
+                      <ProximityChip level={d.supply.proximity} />
+                    </span>
                     {d.supply.kinds.join("·")}{" "}
                     <span className="font-semibold" style={{color:'var(--ink)'}}>{d.supply.count}개</span>
                     {d.supply.capacity != null && (
