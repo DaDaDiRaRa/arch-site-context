@@ -44,4 +44,9 @@ class ProjectSeed(BaseModel):
     knowledge: Optional[dict] = Field(
         None, description="arch-law-graph: 근거 조문 노드 id 목록"
     )
+    model: Optional[dict] = Field(
+        None,
+        description="arch-site-model: 물리 3D 레이어(건물·터레인·지적·도로 geometry + origin_offset·파일). "
+        "형제앱이 스키마 주인 — 느슨한 dict (경계). 터읽기는 렌더·요약만, 호출 안 함",
+    )
     base_date: str = Field(..., description="기준일 YYYY-MM-DD")

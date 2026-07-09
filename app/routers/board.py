@@ -175,6 +175,11 @@ def board(req: BoardRequest):
     from app.services.methodology import build_methodology
     result.methodology = build_methodology(result)
 
+    # 7) arch-site-model 물리 3D 결합 — assembler 가 넘긴 모델을 요약 (호출 안 함, provider 경계)
+    if req.model is not None:
+        from app.services.site_model import summarize_model
+        result.model = summarize_model(req.model)
+
     # 계약(2단계): 제안서·형제앱 주입용 압축 투영 (원시 seed context 제외)
     if req.brief:
         from app.services.board_contract import board_brief
@@ -216,6 +221,74 @@ def _satellite_anchor(lat: float, lon: float, radius_m: int) -> Optional[str]:
         return None
 
 
+def _massing_anchor(model) -> Optional[str]:
+    """arch-site-model 건물 footprint → 축측(axonometric) 매싱 미리보기 JPEG data URI.
+
+    geometry 가 이미 로컬 미터라 재투영 없이 이소 투영(2:1)만. three.js 없이 서버사이드 PIL —
+    보드의 자체완결·오프라인 원칙 유지 (위성 앵커와 동일 패턴). 실패 시 None (graceful).
+    """
+    try:
+        import base64
+        import io
+
+        from PIL import Image, ImageDraw
+
+        fps = list(getattr(model, "footprints", None) or [])
+        hs = list(getattr(model, "heights_m", None) or [])
+        if not fps:
+            return None
+        W, H = 720, 420
+        C, S = 0.866, 0.5  # 이소 투영 (x-y)·(x+y), z 위로
+
+        def proj(x, y, z):
+            return ((x - y) * C, (x + y) * S - z)
+
+        allp: list = []
+        prisms: list = []
+        for i, fp in enumerate(fps):
+            if len(fp) < 3:
+                continue
+            h = hs[i] if i < len(hs) else 0.0
+            base = [proj(p[0], p[1], 0.0) for p in fp]
+            roof = [proj(p[0], p[1], h) for p in fp]
+            cx = sum(p[0] for p in fp) / len(fp)
+            cy = sum(p[1] for p in fp) / len(fp)
+            prisms.append((cx + cy, base, roof))
+            allp.extend(base)
+            allp.extend(roof)
+        if not prisms:
+            return None
+        xs = [p[0] for p in allp]
+        ys = [p[1] for p in allp]
+        minx, miny = min(xs), min(ys)
+        spanx = (max(xs) - minx) or 1.0
+        spany = (max(ys) - miny) or 1.0
+        m = 24
+        sc = min((W - 2 * m) / spanx, (H - 2 * m) / spany)
+
+        def to_screen(pt):
+            return (m + (pt[0] - minx) * sc, m + (pt[1] - miny) * sc)
+
+        img = Image.new("RGB", (W, H), (250, 250, 250))
+        d = ImageDraw.Draw(img, "RGBA")
+        prisms.sort(key=lambda t: t[0])  # painter: 뒤(작은 x+y) 먼저
+        WALL, ROOF = (230, 0, 18, 55), (255, 255, 255, 235)
+        EDGE, REDGE = (120, 120, 120, 200), (230, 0, 18, 190)
+        for _, base, roof in prisms:
+            bs = [to_screen(p) for p in base]
+            rs = [to_screen(p) for p in roof]
+            n = len(bs)
+            for k in range(n):
+                k2 = (k + 1) % n
+                d.polygon([bs[k], bs[k2], rs[k2], rs[k]], fill=WALL, outline=EDGE)
+            d.polygon(rs, fill=ROOF, outline=REDGE)
+        out = io.BytesIO()
+        img.save(out, format="JPEG", quality=82)
+        return "data:image/jpeg;base64," + base64.standard_b64encode(out.getvalue()).decode()
+    except Exception:  # noqa: BLE001 — 매싱 실패는 비치명, 보드는 3D 없이도 완결
+        return None
+
+
 @router.post("/board/view", response_model=None)
 def board_view(req: BoardRequest):
     """대지 종합 읽기 → 공유·인쇄 가능한 한 장 HTML. /files 에 저장 후 공유 URL 반환 (T4)."""
@@ -229,7 +302,8 @@ def board_view(req: BoardRequest):
     if isinstance(full, JSONResponse):
         return full
     sat = _satellite_anchor(full.site.lat, full.site.lon, req.radius)
-    html_str = render_board_html(full.model_dump(), satellite_data_uri=sat)
+    mass = _massing_anchor(full.model) if full.model else None
+    html_str = render_board_html(full.model_dump(), satellite_data_uri=sat, massing_data_uri=mass)
 
     boards_dir = OUT_DIR / "boards"
     boards_dir.mkdir(parents=True, exist_ok=True)

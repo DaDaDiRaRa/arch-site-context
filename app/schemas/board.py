@@ -20,6 +20,7 @@ from app.schemas.program import ProgramItem
 from app.schemas.project_seed import Site
 from app.schemas.region import Fact, Implication, Region, Resolution
 from app.schemas.site import BuildingInfo, LandPrice, RealEstate, SiteHazards
+from app.schemas.site_model import SiteModelSummary
 
 
 class BoardRequest(BaseModel):
@@ -40,6 +41,11 @@ class BoardRequest(BaseModel):
     brief: bool = Field(
         False,
         description="압축 투영(board_brief) 반환 여부. 제안서·프롬프트·형제앱 주입용 — 원시 seed context 제외 (계약 board_brief/1.0)",
+    )
+    model: Optional[dict] = Field(
+        None,
+        description="arch-site-model 물리 3D 출력(assembler 가 넘김 — 터읽기는 렌더·요약만, 호출 안 함). "
+        "있으면 BoardResult.model 요약 + 보드 매싱 미리보기",
     )
 
 
@@ -125,6 +131,9 @@ class BoardResult(BaseModel):
     )
     methodology: Optional[Methodology] = Field(
         None, description="★ T5 방법론·데이터 부록 — 사용 출처·산정식·한계 자동 각인 (공모·감사 대비, LLM 0)"
+    )
+    model: Optional[SiteModelSummary] = Field(
+        None, description="arch-site-model 물리 3D 요약 (요청에 model 넘어온 경우만). 물리+인문 = 완전한 보드"
     )
     base_date: str = Field(..., description="기준일 YYYY-MM-DD", examples=["2026-07-09"])
     notes: List[str] = Field(

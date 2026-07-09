@@ -393,6 +393,41 @@ export default function TabI({ address }) {
             </section>
           )}
 
+          {/* 물리 모델 (arch-site-model) — assembler 가 넘긴 경우만 (물리 3D + 인문 = 완전한 보드) */}
+          {data.model && (
+            <section>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>
+                물리 모델 <span style={{ color: "var(--mute)", fontWeight: 400 }}>· arch-site-model 3D (건물·터레인·지적)</span>
+              </h3>
+              <div className="p-3" style={{ border: "1px solid var(--hairline)", borderRadius: "var(--radius)", borderLeft: "3px solid var(--brand)" }}>
+                <div className="text-sm flex flex-wrap gap-x-3 gap-y-1" style={{ color: "var(--body)" }}>
+                  {data.model.building_count != null && <span>건물 <b style={{ color: "var(--ink)" }}>{data.model.building_count}</b>동</span>}
+                  {data.model.solids != null && <span>솔리드 {data.model.solids}</span>}
+                  {data.model.cadastral_parcels != null && <span>필지 {data.model.cadastral_parcels}</span>}
+                  {data.model.elev_range_m?.length >= 2 && (
+                    <span>표고 {Math.round(data.model.elev_range_m[0])}~{Math.round(data.model.elev_range_m[1])}m</span>
+                  )}
+                  {data.model.radius_m != null && <span>반경 {data.model.radius_m}m</span>}
+                </div>
+                {data.model.provenance?.building_src && (
+                  <div className="text-xs mt-1" style={{ color: "var(--mute)" }}>출처: {data.model.provenance.building_src}</div>
+                )}
+                {Object.entries(data.model.files || {}).filter(([, v]) => typeof v === "string" && v.startsWith("http")).length > 0 && (
+                  <div className="text-xs mt-1 flex gap-2" style={{ color: "var(--body)" }}>
+                    다운로드:
+                    {Object.entries(data.model.files).filter(([, v]) => typeof v === "string" && v.startsWith("http")).map(([k, v]) => (
+                      <a key={k} href={v} target="_blank" rel="noopener" style={{ color: "var(--brand)" }}>{k}</a>
+                    ))}
+                  </div>
+                )}
+                <div className="text-xs mt-1.5" style={{ color: "var(--mute)" }}>
+                  축측 3D 미리보기는 <b style={{ color: "var(--body)" }}>보드 내보내기 ↗</b>에서 확인됩니다.
+                  {data.model.note && <> · {data.model.note}</>}
+                </div>
+              </div>
+            </section>
+          )}
+
           {/* ★ T5 방법론·데이터 부록 — 출처·산정식·한계 (공모·감사 대비) */}
           {data.methodology && (
             <section>

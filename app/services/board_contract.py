@@ -43,13 +43,18 @@ def _dump(obj: Any) -> Any:
 
 def board_to_project_seed(
     board: Any, law: Optional[dict] = None, knowledge: Optional[dict] = None,
+    model: Optional[dict] = None,
 ) -> ProjectSeed:
-    """BoardResult → ProjectSeed 봉투. context=터읽기 전체 블록, law·knowledge=형제앱 자리."""
+    """BoardResult → ProjectSeed 봉투. context=터읽기, law·knowledge·model=형제앱 자리.
+
+    model = arch-site-model 물리 3D 레이어 (assembler 가 넘김 — 터읽기는 담기만, 호출 안 함).
+    """
     site = _g(board, "site")
     site_obj = site if isinstance(site, Site) else Site(**_dump(site)) if site else None
     context = board.model_dump() if hasattr(board, "model_dump") else dict(board)
     base = _g(board, "base_date") or date.today().isoformat()
-    return ProjectSeed(site=site_obj, context=context, law=law, knowledge=knowledge, base_date=base)
+    return ProjectSeed(site=site_obj, context=context, law=law, knowledge=knowledge,
+                       model=model, base_date=base)
 
 
 def _hazard_brief(hazards: Any) -> Optional[dict]:

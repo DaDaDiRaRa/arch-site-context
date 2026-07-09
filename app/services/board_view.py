@@ -144,8 +144,12 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--hairline);fon
 @media(max-width:560px){.wm{font-size:19px}}"""
 
 
-def render_board_html(board: Any, satellite_data_uri: Optional[str] = None) -> str:
-    """BoardResult(또는 model_dump dict) → 자체완결 HTML 문서 문자열."""
+def render_board_html(board: Any, satellite_data_uri: Optional[str] = None,
+                      massing_data_uri: Optional[str] = None) -> str:
+    """BoardResult(또는 model_dump dict) → 자체완결 HTML 문서 문자열.
+
+    massing_data_uri: arch-site-model 물리 모델 축측 미리보기(있으면 임베드 — 물리+인문 = 완전한 보드).
+    """
     site = _g(board, "site") or {}
     reg = _g(board, "region") or {}
     parts: list = []
@@ -165,6 +169,43 @@ def render_board_html(board: Any, satellite_data_uri: Optional[str] = None) -> s
     <span class="tag">기준일 {_e(_g(board, "base_date"))}</span>
   </div>{sat}
 </header>''')
+
+    # 물리 모델 (arch-site-model) — 넘겨받은 경우만 (물리 3D + 인문 = 완전한 보드)
+    model = _g(board, "model")
+    if model:
+        bc = _g(model, "building_count")
+        rad_m = _g(model, "radius_m")
+        cap = "물리 모델: arch-site-model · 축측 미리보기"
+        if bc is not None:
+            cap += f" · 건물 {_e(bc)}동"
+        if rad_m:
+            cap += f" · 반경 {_e(rad_m)}m"
+        mimg = (f'<div class="sat"><img src="{_e(massing_data_uri)}" alt="물리 매싱 미리보기">'
+                f'<div class="sat-cap">{cap}</div></div>') if massing_data_uri else ""
+        bits = []
+        if bc is not None:
+            bits.append(f"건물 {_e(bc)}동")
+        if _g(model, "solids") is not None:
+            bits.append(f"솔리드 {_e(_g(model, 'solids'))}")
+        if _g(model, "cadastral_parcels") is not None:
+            bits.append(f"필지 {_e(_g(model, 'cadastral_parcels'))}")
+        er = _g(model, "elev_range_m")
+        if er and len(er) >= 2:
+            bits.append(f"표고 {er[0]:.0f}~{er[1]:.0f}m")
+        prov = _g(model, "provenance") or {}
+        bsrc = prov.get("building_src") if isinstance(prov, dict) else None
+        if bsrc:
+            bits.append(f"출처 {_e(bsrc)}")
+        files = _g(model, "files") or {}
+        links = " · ".join(f'<a href="{_e(v)}">{_e(k)}</a>'
+                           for k, v in files.items() if isinstance(v, str) and v.startswith("http"))
+        note = _g(model, "note")
+        parts.append(
+            f'<section><h2>물리 모델 <span class="h2-sub">· arch-site-model 3D (건물·터레인·지적)</span></h2>'
+            f'{mimg}<p class="appx-sum">{" · ".join(bits)}'
+            + (f'<br>다운로드: {links}' if links else "")
+            + (f'<br><span style="color:var(--mute)">{_e(note)}</span>' if note else "")
+            + '</p></section>')
 
     # ★ 대지 아키타입 (동네 유형)
     arch = _g(board, "archetype")
