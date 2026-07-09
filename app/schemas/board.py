@@ -11,9 +11,11 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
+from app.schemas.archetype import Archetype
 from app.schemas.cross_context import CrossImplication
 from app.schemas.design_drivers import DesignDriver
 from app.schemas.diagnose import Diagnosis
+from app.schemas.program import ProgramItem
 from app.schemas.project_seed import Site
 from app.schemas.region import Fact, Implication, Region, Resolution
 from app.schemas.site import BuildingInfo, LandPrice, RealEstate, SiteHazards
@@ -90,6 +92,9 @@ class BoardResult(BaseModel):
     radius: int
     resolution: str
     region: Optional[Region] = Field(None, description="인구/수요 산정 단위 (시군구/읍면동/반경)")
+    archetype: Optional[Archetype] = Field(
+        None, description="★ T1.5 대지 아키타입(동네 유형) — 규칙 룩업 '이 동네는 ○○형'"
+    )
 
     facts: List[Fact] = Field(default_factory=list, description="인구 통계 (근접도 부착 — S1)")
     implications: List[Implication] = Field(
@@ -107,6 +112,9 @@ class BoardResult(BaseModel):
     )
     design_drivers: List[DesignDriver] = Field(
         default_factory=list, description="★ T2 지배 설계 드라이버 2~3개 (증거강도 랭킹·검토 신호)"
+    )
+    program_implications: List[ProgramItem] = Field(
+        default_factory=list, description="★ T3 프로그램 함의(POR) — 카테고리별 공간·프로그램 권고"
     )
     coverage: List[DomainCoverage] = Field(
         default_factory=list, description="도메인별 데이터 확보 여부 (no silent skip)"

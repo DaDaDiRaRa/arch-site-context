@@ -30,9 +30,14 @@
 | 2 | **수치는 코드, 표현만 AI** | `facts[]`·`implications[]`은 규칙·KOSIS가 만든다. Claude는 `draft_paragraph` 서술만 |
 | 3 | **확인 불가 하드블록** | 데이터 없으면 `ErrorBlock` 반환 or `notes` 기록, 빈 추정값 생성 금지 |
 | 4 | **출처·기준 명시** | 모든 `Fact`에 `source_tbl`, `year` 필드. "○○구 기준" 문단 필수 |
-| 5 | **판단은 사람** | 모든 `Implication`·`Diagnosis`가 `tag:"참고"`. 종합점수 없음 |
-| 6 | **모델은 Claude 하나** | `narrative.py`, `ask.py` 전부 `claude-opus-4-8`. 교차검증 없음 |
-| 7 | **설정은 JSON** | `matrix.json`, `implications.json`, `supply_demand.json` — 코드 수정 없이 건축가가 편집 |
+| 5 | **판단은 분리·라벨하되 최종 결정은 사람** | 사실/AI의견을 벽 분리(종합 산출 `synthesis` ①사실 ②AI판단). 모든 `Implication`·`Diagnosis`·드라이버·POR가 `tag:"참고"`. **종합점수·순위 없음** |
+| 6 | **모델은 Claude 하나** | 다벤더·교차검증 금지. Claude 계열 내 티어 분리 허용: `synthesis.py` ①`claude-sonnet-5`·②`claude-opus-4-8`, `narrative.py`·`ask.py`는 Opus |
+| 7 | **설정은 JSON** | `matrix`·`implications`·`supply_demand`·`cross_context`·`driver_rules`·`archetype_rules`·`program_rules`.json — 코드 수정 없이 건축가가 편집 |
+
+> **S/T 시리즈 (종합 읽기·2026-07-09):** 위 원칙 위에서 흩어진 출력을 `/board` 로 합성 + 해석 레이어를 얹었다.
+> **S1** 데이터 근접도 등급 · **S2** 교차규칙 엔진 · **S3** `/board` 통합 진입점 · **S4** 종합 산출(사실/AI의견 벽 분리) ·
+> **T1** 정규화 지수(전국=100)+근거 드릴다운 · **T1.5** 대지 아키타입 · **T2** 설계 드라이버 · **T3** 프로그램 함의(POR) · **T4** 보드 내보내기.
+> 전부 LLM 0(S4 표현만)·새 숫자 0. 상세: CLAUDE.md §8.11·§8.12.
 
 ---
 
@@ -51,6 +56,7 @@ arch-site-context/
 │   │   ├── site.py              # POST /site      (P14 대지 기본정보)
 │   │   ├── seed.py              # POST /seed      (P14 보드 합본, ThreadPoolExecutor 병렬)
 │   │   ├── readout.py           # POST /readout   (공동주택 대지 readout)
+│   │   ├── board.py             # POST /board, /board/view (S/T 종합 읽기 + 보드 렌더)
 │   │   ├── matrix.py            # GET  /matrix    (투명성)
 │   │   └── health.py            # GET  /health
 │   ├── services/
@@ -68,6 +74,14 @@ arch-site-context/
 │   │   ├── diagnose.py          # P11 수급진단 오케스트레이션
 │   │   ├── compare.py           # P9 후보지 비교 번들
 │   │   ├── ask.py               # P10 그라운디드 답변 + 웹검색 폴백
+│   │   ├── sgis.py              # SGIS 반경 집계구 실인구 · 재해위험(홍수·산사태·폭염)
+│   │   ├── cross_context.py     # S2 도메인 횡단 교차 시사점 엔진 (규칙, LLM 0)
+│   │   ├── design_drivers.py    # T2 설계 드라이버 랭킹 (증거강도)
+│   │   ├── archetype.py         # T1.5 대지 아키타입 분류 (규칙 룩업)
+│   │   ├── program.py           # T3 프로그램 함의(POR) — 카테고리별 (cross_context 절 재사용)
+│   │   ├── synthesis.py         # S4 종합 산출 ①사실(Sonnet) ②AI판단(Opus)
+│   │   ├── board_contract.py    # /board 공유 계약 (board_brief·board_to_project_seed)
+│   │   ├── board_view.py        # T4 대지분석 보드 자체완결 HTML 렌더
 │   │   ├── map_compose.py       # PIL 위성 PNG 합성
 │   │   ├── tmap.py              # TMAP 보행자 경로 → 등시선 폴리곤
 │   │   ├── tiles.py             # VWorld 타일 조합 + 좌표↔픽셀 변환
@@ -87,14 +101,19 @@ arch-site-context/
 │   ├── schemas/                 # Pydantic v2 데이터 계약 (§5)
 │   └── data/                    # 외부 JSON 설정 (§6)
 │       ├── matrix.json          # 용도별 KOSIS 지표 목록
-│       ├── implications.json    # 함의 규칙
-│       └── supply_demand.json   # 수급진단 규칙·임계값
+│       ├── implications.json    # 단일 지표 함의 규칙
+│       ├── supply_demand.json   # 수급진단 규칙·임계값
+│       ├── cross_context.json   # S2 교차 시사점 규칙
+│       ├── driver_rules.json    # T2 설계 드라이버 규칙·가중치
+│       ├── archetype_rules.json # T1.5 대지 아키타입 규칙
+│       └── program_rules.json   # T3 프로그램 함의(POR) 규칙
+├── mcp_server/                  # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
 ├── frontend/                    # React + Vite + Tailwind
 │   └── src/
-│       ├── App.jsx              # 탭 라우팅 (A~H)
-│       ├── TabA.jsx ~ TabH.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H 공동주택readout
+│       ├── App.jsx              # 탭 라우팅 (A~I)
+│       ├── TabA.jsx ~ TabI.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(/board)
 │       ├── api.js               # fetch 헬퍼
-│       └── ui.jsx               # 공통 UI 컴포넌트
+│       └── ui.jsx               # 공통 UI (IndexBar·ProximityChip 등)
 └── tests/                       # pytest (순수 로직 + live skipif)
 ```
 
@@ -383,16 +402,57 @@ resolve_address(address)
 
 **출력 (ReadoutResult):** `site` · `project_type` · `demographics[]`(matrix 지표) · `context[]`(census 지표, 일부 breakdown) · `derived[]`(파생) · `notes[]`(시군구 캐비엇·greenfield 경고). 각 지표 graceful.
 
+### 4.10 POST /board — 종합 읽기 (S/T 시리즈) ★
+
+**입력:** `{ address, use_type, radius=1000, resolution="시군구", synthesize=false, brief=false }`
+
+**처리 흐름 (오케스트레이션만·재계산 0):**
+```
+build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
+  → 4 도메인 브랜치 병렬 (ThreadPoolExecutor):
+       analyze() → facts(지수·근접도)+implications+region
+       build_diagnosis() → diagnoses(수급)
+       site_info() → hazards·공시지가·건축물대장·실거래
+       seed() → context(상권·학교·문화·날씨…)
+  → derive_cross_context()  // S2 교차 시사점
+  → derive_design_drivers()  // T2 지배 드라이버 2~3개
+  → classify_archetype()     // T1.5 동네 유형
+  → derive_program()         // T3 프로그램 함의(POR)
+  → (synthesize=true) synthesize()  // S4 ①사실(Sonnet) ②AI판단(Opus)
+  → coverage(도메인 확보 여부, no silent skip)
+```
+
+**출력 (BoardResult, `schema_version:"board/1.0"`):** `site` · `region` · `archetype` · `facts[]`(index·proximity) · `implications[]` · `diagnoses[]` · `design_drivers[]` · `program_implications[]` · `hazards` · `land_price`·`building`·`real_estate` · `context` · `cross_implications[]` · `coverage[]` · `synthesis`(opt-in) · `notes[]`.
+
+- **`brief=true`** → `board_brief`(압축 투영, ~66KB→~7KB, 원시 seed context 제외·해석층만). 제안서·MCP·형제앱 주입용.
+- 종합점수·순위 없음 (원칙 5). 각 브랜치 graceful — 실패 격리.
+
+### 4.11 POST /board/view — 대지분석 보드 렌더 (T4)
+
+/board 빌드 → `board_view.render_board_html`(자체완결 HTML: 지도 앵커·아키타입·드라이버·POR·종합·지수) → `out/boards/*.html` 저장 → `{ url: "/files/boards/…", has_map }` 반환. 인쇄 시 PDF. `_satellite_anchor`가 VWorld 위성+반경링 data URI 임베드(graceful).
+
+**MCP (`mcp_server/server.py`, FastMCP):** `read_site_context`(→board_brief) · `diagnose_supply`(→수급진단). 기존 서비스 얇게 래핑 — 개별·에이전트 파이프라인 둘 다.
+
 ---
 
 ## 5. 데이터 계약 요약
 
 ### 5.1 공통 패턴
 
-- **`Fact`**: 항상 `{ item, value, national_avg, unit, source_tbl, year }` — 수치와 출처 분리 불가
+- **`Fact`**: `{ item, value, national_avg, unit, source_tbl, year, scope, scope_level }` + 파생 `proximity`(S1: 대지>반경>읍면동>시군구>proxy), `index`(T1: 전국=100=value/national×100, 비율 지표만), `index_band`(상회|비슷|하회). 수치와 출처 분리 불가
 - **`Implication`**: 항상 `{ text, basis, tag:"참고" }` — '좋다/나쁘다' 단정 없음
 - **`ErrorBlock`**: `{ code, message }` + HTTP 422 — 추정·빈 값 반환 없음
 - **`notes[]`**: 모든 응답에 포함 — 실패·우회·주의 사항 정직 기록
+
+### 5.1b S/T 시리즈 스키마 (해석 레이어)
+
+- **`Proximity`**(schemas/proximity): 근접도 등급 Literal + `proximity_of(scope_level)`·`proximity_rank`. 순수 메타데이터.
+- **`CrossImplication`**(S2): `{ name, text, basis[{key,detail,proximity}], domains, tag }` — 도메인 횡단 시사점.
+- **`DesignDriver`**(T2): `{ rank, name, response, strength, evidence[], tag }` — 증거강도 랭킹.
+- **`Archetype`**(T1.5): `{ name, group, description, match_score, evidence[], alternatives[], tag }` — 동네 유형.
+- **`ProgramItem`**(T3): `{ category, recommendation, basis[], tag }` — 카테고리별 POR 권고.
+- **`Synthesis`**(S4): `{ interpretation, interpretation_source/model, judgment, judgment_source/model, judgment_label }` — 사실/AI의견 벽 분리.
+- **`BoardResult`**(S3, `board/1.0`) / **`board_brief`**(`board_brief/1.0`) / **`Site`·`ProjectSeed`**(`project_seed/1.0`, 형제앱 공유 계약).
 
 ### 5.2 SupplySignal 필드 (P11 확장 후)
 
@@ -428,6 +488,8 @@ class ResolvedAddress:
 ---
 
 ## 6. 설정 파일 (건축가 편집 가능, 코드 수정 불필요)
+
+> 아래 6.1~6.3 외에, S/T 시리즈 규칙도 전부 외부 JSON이다(원칙 7): `cross_context.json`(S2 교차 시사점)·`driver_rules.json`(T2 드라이버·가중치)·`archetype_rules.json`(T1.5 동네 유형)·`program_rules.json`(T3 POR 카테고리). 스키마·동작은 각 파일 `_meta` 및 CLAUDE.md §8.12 참조.
 
 ### 6.1 matrix.json — 용도별 지표
 

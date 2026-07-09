@@ -1,0 +1,106 @@
+{
+  "_meta": {
+    "설명": "T1.5 대지 아키타입 규칙 — '이 동네는 ○○형' (CLAUDE.md §8.12). Esri Tapestry legibility 를 규칙 룩업으로(K-means 금지·원칙1). 건축가가 코드 없이 편집(원칙7).",
+    "동작": "각 유형의 signals 중 충족된 것의 가중합=match_score, 매칭 수>=min_match 이고 score>=min_score 면 후보. 최고점=지배 유형(primary), 차점=alternatives. 값은 조합만·새 숫자 없음(원칙1·2).",
+    "signal 종류": {
+      "pop": "인구 비율 지수. {pop:지표, dir:'high'|'low'} — fact.index_band(상회/하회)",
+      "fact": "원시 fact 값 임계. {fact:지표, op:>|>=|<|<=, value:N} 또는 {fact:지표, op, vs:'national', margin:N}",
+      "hazard": "재해 영향범위. {hazard:'flood'|'landslide', in_zone:true}",
+      "supply": "수급 공급수준. {supply:규칙명, level:'적음'|'많음'}"
+    },
+    "주의": "유형은 '참고 라벨'이지 판정 아님. 임계는 휴리스틱. 뚜렷하지 않으면 '혼합형' 폴백(억지 분류 금지)."
+  },
+  "min_score": 1.0,
+  "archetypes": [
+    {
+      "name": "고령 정주형 주거지",
+      "group": "주거·정주",
+      "min_match": 1,
+      "signals": [
+        { "pop": "고령인구비율", "dir": "high" },
+        { "pop": "유소년인구비율", "dir": "low" }
+      ],
+      "description": "고령 인구 비중이 전국보다 높고 유소년은 낮은 정주형 주거지 — 오래 거주한 주민 비중이 큰 동네.",
+      "use_types": []
+    },
+    {
+      "name": "1인가구 도심 임대권",
+      "group": "주거·1인",
+      "min_match": 1,
+      "signals": [
+        { "pop": "1인가구비율", "dir": "high" },
+        { "fact": "평균가구원수", "op": "<", "value": 2.3 }
+      ],
+      "description": "1인가구 비중이 전국보다 크게 높고 평균 가구원수가 작은 도심 임대 주거권 — 소형·단신 세대가 밀집한 동네.",
+      "use_types": []
+    },
+    {
+      "name": "육아·가족 정주형",
+      "group": "주거·가족",
+      "min_match": 1,
+      "signals": [
+        { "pop": "유소년인구비율", "dir": "high" },
+        { "pop": "고령인구비율", "dir": "low" }
+      ],
+      "description": "유소년 비중이 전국보다 높은 가족 중심 주거지 — 양육기 가구가 많은 동네.",
+      "use_types": []
+    },
+    {
+      "name": "인구 유출 관망지",
+      "group": "동태·유출",
+      "min_match": 1,
+      "signals": [
+        { "fact": "순이동", "op": "<", "value": 0 }
+      ],
+      "description": "인구가 순유출되는 관망 국면 — 배후 수요의 지속성 확인이 필요한 동네.",
+      "use_types": []
+    },
+    {
+      "name": "인구 유입 성장지",
+      "group": "동태·유입",
+      "min_match": 1,
+      "signals": [
+        { "fact": "순이동", "op": ">", "value": 0 }
+      ],
+      "description": "인구가 순유입되는 성장 국면 — 배후 수요가 확대되는 동네.",
+      "use_types": []
+    },
+    {
+      "name": "생산연령 밀집 도심",
+      "group": "활력·도심",
+      "min_match": 2,
+      "signals": [
+        { "pop": "생산가능인구비율", "dir": "high" },
+        { "fact": "인구밀도", "op": ">", "value": 15000 }
+      ],
+      "description": "생산가능인구가 밀집한 고밀 도심 — 주간 활동 인구가 두터운 동네.",
+      "use_types": []
+    },
+    {
+      "name": "저지대 침수 민감지",
+      "group": "재해·침수",
+      "min_match": 1,
+      "signals": [
+        { "hazard": "flood", "in_zone": true }
+      ],
+      "description": "홍수위험 영향범위에 포함되는 저지대 — 방재가 대지 조건의 핵심 제약인 동네.",
+      "use_types": []
+    },
+    {
+      "name": "사면 인접 산지형",
+      "group": "재해·사면",
+      "min_match": 1,
+      "signals": [
+        { "hazard": "landslide", "in_zone": true }
+      ],
+      "description": "산사태위험 영향범위에 인접한 사면 지형 — 사면·배수 안전이 중요한 동네.",
+      "use_types": []
+    }
+  ],
+  "fallback": {
+    "name": "혼합형 시가지",
+    "group": "혼합",
+    "description": "뚜렷한 지배 유형이 약한 혼합 시가지 — 여러 특성이 섞여 단일 유형으로 규정하기 어려운 동네.",
+    "tag": "참고"
+  }
+}

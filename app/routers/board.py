@@ -128,12 +128,20 @@ def board(req: BoardRequest):
     from app.services.design_drivers import derive_design_drivers
     drivers = derive_design_drivers(facts, diagnoses, hazards, use_type=req.use_type)
 
+    # 4.4) ★ T1.5 대지 아키타입 — "이 동네는 ○○형" 규칙 룩업 (LLM 0)
+    from app.services.archetype import classify_archetype
+    archetype = classify_archetype(facts, diagnoses, hazards, use_type=req.use_type)
+
+    # 4.45) ★ T3 프로그램 함의(POR) — 카테고리별 공간·프로그램 권고 (LLM 0)
+    from app.services.program import derive_program
+    program = derive_program(facts, diagnoses, hazards, use_type=req.use_type)
+
     # 4.5) ★ S4 종합 산출 두 블록 (opt-in) — 위 풀 위에서만. ①사실 해석 + ②AI 판단 (벽 분리·라벨)
     synthesis = None
     if req.synthesize:
         try:
             from app.services.synthesis import synthesize as _synthesize
-            synthesis = _synthesize(req.use_type, facts, diagnoses, hazards, cross, drivers)
+            synthesis = _synthesize(req.use_type, facts, diagnoses, hazards, cross, drivers, archetype)
         except Exception as e:  # noqa: BLE001 — 종합 실패가 보드 전체를 막지 않도록
             notes.append(f"종합 산출(S4): 생성 실패 ({type(e).__name__}).")
 
@@ -146,6 +154,7 @@ def board(req: BoardRequest):
         radius=req.radius,
         resolution=req.resolution,
         region=region,
+        archetype=archetype,
         facts=facts,
         implications=implications,
         diagnoses=diagnoses,
@@ -156,6 +165,7 @@ def board(req: BoardRequest):
         context=context,
         cross_implications=cross,
         design_drivers=drivers,
+        program_implications=program,
         coverage=coverage,
         synthesis=synthesis,
         base_date=date.today().isoformat(),

@@ -1,0 +1,102 @@
+{
+  "_meta": {
+    "설명": "T3 프로그램 함의 규칙 — 맥락→건축 카테고리별 공간·프로그램 권고(POR seeds). CLAUDE.md §8.12. 건축가가 코드 없이 편집(원칙7).",
+    "동작": "각 규칙 when(절 리스트, S2와 동일 어휘)이 모두 참이면 items(카테고리별 권고)를 방출. 값 조합만·새 숫자 없음(원칙1·2). 카테고리+권고 중복은 병합(basis 합침).",
+    "절 종류": "S2 cross_context 와 동일 — pop/supply/demand/hazard/hazard_exposure/heatwave (services/cross_context._eval_clause 재사용)",
+    "주의": "권고는 '검토 항목·참고'. 임계는 휴리스틱. 최종 프로그램은 사람이 (원칙5). S2(왜)·T2(지배 신호)와 구분: T3는 '무엇을, 어느 카테고리에'."
+  },
+  "categories": ["대지·배치", "저층부", "평면·세대", "코어·동선", "공용부", "방재·설비", "조경·외부"],
+  "rules": [
+    {
+      "name": "고령·의료 접근성",
+      "when": [
+        { "pop": "고령인구비율", "op": ">", "vs": "national", "margin": 2 },
+        { "supply": "의료시설 수급", "level": ["적음"] }
+      ],
+      "items": [
+        { "category": "코어·동선", "recommendation": "무장애 코어·완만한 램프·1층 주출입 (고령 접근성·응급 이송 동선)" },
+        { "category": "공용부", "recommendation": "휴게·돌봄·의료 연계 공용공간 검토" }
+      ],
+      "use_types": ["주거", "의료", "복지"]
+    },
+    {
+      "name": "1인가구 소형·공유",
+      "when": [
+        { "pop": "1인가구비율", "op": ">", "vs": "national", "margin": 3 }
+      ],
+      "items": [
+        { "category": "평면·세대", "recommendation": "소형 평형 비중 상향 검토 (1인가구 대응)" },
+        { "category": "공용부", "recommendation": "공유주방·공유세탁·라운지 등 공유 생활공간" }
+      ],
+      "use_types": ["주거"]
+    },
+    {
+      "name": "육아·가족",
+      "when": [
+        { "pop": "유소년인구비율", "op": ">", "vs": "national", "margin": 1 },
+        { "supply": "보육시설 수급", "level": ["적음"] }
+      ],
+      "items": [
+        { "category": "평면·세대", "recommendation": "가족형 평형·수납 검토 (양육기 가구)" },
+        { "category": "저층부", "recommendation": "보육 연계·놀이·대기·수유 공간" }
+      ],
+      "use_types": ["주거", "의료", "복지"]
+    },
+    {
+      "name": "홍수 방재",
+      "when": [
+        { "hazard": "flood", "in_zone": true }
+      ],
+      "items": [
+        { "category": "방재·설비", "recommendation": "지하층 방수판·배수펌프, 전기실·기계실 상부 배치" },
+        { "category": "대지·배치", "recommendation": "지반고·1층 레벨 상향, 출입구 단차·차수판" }
+      ],
+      "use_types": []
+    },
+    {
+      "name": "노후·저지대 침수 취약",
+      "when": [
+        { "hazard": "flood", "in_zone": true },
+        { "hazard_exposure": "flood", "metric": "노후건물", "op": ">", "value": 0 }
+      ],
+      "items": [
+        { "category": "대지·배치", "recommendation": "주변 노후 저층 침수 취약 — 대지 레벨·경계부 배수 계획" }
+      ],
+      "use_types": []
+    },
+    {
+      "name": "사면·산사태 대비",
+      "when": [
+        { "hazard": "landslide", "in_zone": true }
+      ],
+      "items": [
+        { "category": "대지·배치", "recommendation": "사면·옹벽·우수 배수 계획, 우기 시공 안전" },
+        { "category": "조경·외부", "recommendation": "사면 완충 식재·표면 배수 검토" }
+      ],
+      "use_types": []
+    },
+    {
+      "name": "취약계층 폭염",
+      "when": [
+        { "pop": "1인가구비율", "op": ">", "vs": "national", "margin": 3 },
+        { "heatwave": "alert_count", "op": ">=", "value": 5 }
+      ],
+      "items": [
+        { "category": "공용부", "recommendation": "그늘·쉼터·공용 냉방공간 (폭염 취약계층)" },
+        { "category": "방재·설비", "recommendation": "야간 자연환기·차양·고효율 냉방 검토" }
+      ],
+      "use_types": ["주거", "복지"]
+    },
+    {
+      "name": "생활·문화 인프라",
+      "when": [
+        { "pop": "생산가능인구비율", "op": ">", "vs": "national", "margin": 1 },
+        { "supply": "문화시설 수급", "level": ["적음"] }
+      ],
+      "items": [
+        { "category": "저층부", "recommendation": "저층부 커뮤니티·생활문화 공간 (여가 수요)" }
+      ],
+      "use_types": ["주거", "문화", "상업"]
+    }
+  ]
+}

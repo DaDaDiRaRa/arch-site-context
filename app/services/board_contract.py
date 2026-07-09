@@ -86,12 +86,15 @@ def board_brief(board: Any) -> dict:
             "pnu": _g(site, "pnu"), "lat": _g(site, "lat"), "lon": _g(site, "lon"),
         },
         "region": _g(region, "name") if region else None,
+        "archetype": _dump(_g(board, "archetype")),  # ★ 동네 유형 (T1.5)
         "use_type": _g(board, "use_type"),
         "radius": _g(board, "radius"),
         "coverage": [{"domain": _g(c, "domain"), "available": _g(c, "available"),
                       "detail": _g(c, "detail")} for c in (_g(board, "coverage") or [])],
         # ★ 설계 드라이버 (T2) — 제안서 컨셉 방향의 핵심 재료
         "design_drivers": _dump(_g(board, "design_drivers")),
+        # ★ 프로그램 함의 (T3) — 카테고리별 공간·프로그램 권고 (POR)
+        "program_implications": _dump(_g(board, "program_implications")),
         # 교차 시사점 (S2)
         "cross_implications": [
             {"name": _g(c, "name"), "text": _g(c, "text"), "domains": _g(c, "domains"),

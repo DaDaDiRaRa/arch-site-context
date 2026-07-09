@@ -73,6 +73,18 @@ header{margin-bottom:20px}
 .sat img{display:block;width:100%;height:auto}
 .sat-cap{font-family:var(--mono);font-size:10.5px;color:var(--mute);padding:6px 10px;border-top:1px solid var(--hairline)}
 section{margin-top:26px}
+.arch{border:1px solid var(--brand);border-radius:var(--r);padding:14px 16px;background:linear-gradient(0deg,#fff,#fff)}
+.arch-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:5px}
+.arch-g{font-family:var(--mono);font-size:11px;color:var(--brand);border:1px solid var(--brand);border-radius:999px;padding:2px 9px}
+.arch-n{font-size:18px;font-weight:700;color:var(--ink);letter-spacing:-.01em}
+.arch-d{margin:0 0 8px;font-size:13.5px;color:var(--body)}
+.arch-alt{margin-top:6px;font-family:var(--mono);font-size:11px;color:var(--mute)}
+.pgroups{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px}
+.pgroup{border:1px solid var(--hairline);border-radius:var(--r);padding:12px 14px;background:var(--elev)}
+.pcat{font-family:var(--mono);font-size:11px;color:var(--brand);letter-spacing:.04em;margin-bottom:6px}
+.plist{margin:0;padding-left:16px;display:flex;flex-direction:column;gap:5px}
+.plist li{font-size:13px;color:var(--body)}
+.pbasis{color:var(--mute);font-size:11px}
 h2{font-size:14px;font-weight:600;color:var(--ink);margin:0 0 12px}
 .h2-sub{font-weight:400;color:var(--mute)}
 .cov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
@@ -145,6 +157,20 @@ def render_board_html(board: Any, satellite_data_uri: Optional[str] = None) -> s
   </div>{sat}
 </header>''')
 
+    # ★ 대지 아키타입 (동네 유형)
+    arch = _g(board, "archetype")
+    if arch:
+        ev = "".join(f'<span class="ev"><span class="ev-k">{_e(_g(x, "key"))}</span>'
+                     f'<span class="ev-d">{_e(_g(x, "detail"))}</span>{_prox_chip(_g(x, "proximity"))}</span>'
+                     for x in (_g(arch, "evidence") or []))
+        alts = _g(arch, "alternatives") or []
+        alt = (f'<div class="arch-alt">차점 특성: {" · ".join(_e(a) for a in alts)}</div>') if alts else ""
+        parts.append(f'''<section><div class="arch">
+      <div class="arch-h"><span class="arch-g">{_e(_g(arch, "group"))}</span>
+        <span class="arch-n">{_e(_g(arch, "name"))}</span><span class="chip amber">{_e(_g(arch, "tag", "참고"))}</span></div>
+      <p class="arch-d">{_e(_g(arch, "description"))}</p>
+      <div class="evs">{ev}</div>{alt}</div></section>''')
+
     # 커버리지
     cov = "".join(
         f'''<div class="cov {'ok' if _g(c, 'available') else 'warn'}">
@@ -166,6 +192,23 @@ def render_board_html(board: Any, satellite_data_uri: Optional[str] = None) -> s
         <span class="strength">강도 {_e(_g(d, 'strength'))}</span><span class="chip amber">{_e(_g(d, 'tag', '참고'))}</span></div>
       <p class="driver-r">{_e(_g(d, 'response'))}</p><div class="evs">{ev}</div></div>'''
         parts.append(f'<section><h2>설계 드라이버 <span class="h2-sub">· 이 대지가 설계에 요구하는 것 (검토 신호·참고)</span></h2><div class="drivers">{drv}</div></section>')
+
+    # ★ 프로그램 함의 (POR) — 카테고리별
+    prog = _g(board, "program_implications") or []
+    if prog:
+        groups: list = []
+        for it in prog:
+            cat = _g(it, "category")
+            if not groups or groups[-1][0] != cat:
+                groups.append((cat, []))
+            groups[-1][1].append(it)
+        blocks = ""
+        for cat, items in groups:
+            lis = "".join(f'<li>{_e(_g(it, "recommendation"))}'
+                          f'<span class="pbasis"> · {_e(" · ".join(_g(it, "basis") or []))}</span></li>'
+                          for it in items)
+            blocks += f'<div class="pgroup"><div class="pcat">{_e(cat)}</div><ul class="plist">{lis}</ul></div>'
+        parts.append(f'<section><h2>프로그램 함의 <span class="h2-sub">· 카테고리별 공간·프로그램 권고 (POR·참고)</span></h2><div class="pgroups">{blocks}</div></section>')
 
     # S4 종합
     s = _g(board, "synthesis")

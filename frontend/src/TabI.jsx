@@ -149,6 +149,31 @@ export default function TabI({ address }) {
             <Badge>기준일 {data.base_date}</Badge>
           </div>
 
+          {/* ★ T1.5 대지 아키타입 — 이 동네는 ○○형 */}
+          {data.archetype && (
+            <div className="p-4" style={{ border: "1px solid var(--brand)", borderRadius: "var(--radius)" }}>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--brand)", border: "1px solid var(--brand)", borderRadius: 999, padding: "2px 9px" }}>{data.archetype.group}</span>
+                <span style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", letterSpacing: "-0.01em" }}>{data.archetype.name}</span>
+                <Badge tone="amber">{data.archetype.tag}</Badge>
+              </div>
+              <p className="text-sm" style={{ color: "var(--body)" }}>{data.archetype.description}</p>
+              <div className="mt-1.5 flex flex-col gap-0.5">
+                {data.archetype.evidence.map((e, j) => (
+                  <span key={j} className="text-xs flex items-center gap-1.5 flex-wrap" style={{ color: "var(--mute)" }}>
+                    <span>{e.key}: <span style={{ color: "var(--body)" }}>{e.detail}</span></span>
+                    <ProximityChip level={e.proximity} />
+                  </span>
+                ))}
+              </div>
+              {data.archetype.alternatives.length > 0 && (
+                <div className="mt-1.5 text-xs" style={{ color: "var(--mute)", fontFamily: "var(--font-mono)" }}>
+                  차점 특성: {data.archetype.alternatives.join(" · ")}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ★ T2 설계 드라이버 — 분석의 종착점 (이 대지가 설계에 요구하는 것) */}
           {data.design_drivers && data.design_drivers.length > 0 && (
             <section>
@@ -173,6 +198,35 @@ export default function TabI({ address }) {
                         </span>
                       ))}
                     </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* ★ T3 프로그램 함의 (POR) — 카테고리별 공간·프로그램 권고 */}
+          {data.program_implications && data.program_implications.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>
+                프로그램 함의 <span style={{ color: "var(--mute)", fontWeight: 400 }}>· 카테고리별 공간·프로그램 권고 (POR·참고)</span>
+              </h3>
+              <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))" }}>
+                {Object.entries(
+                  data.program_implications.reduce((acc, it) => {
+                    (acc[it.category] = acc[it.category] || []).push(it);
+                    return acc;
+                  }, {})
+                ).map(([cat, items], i) => (
+                  <div key={i} className="p-3" style={{ border: "1px solid var(--hairline)", borderRadius: "var(--radius)" }}>
+                    <div style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--brand)", letterSpacing: "0.04em", marginBottom: 6 }}>{cat}</div>
+                    <ul className="list-disc pl-4 flex flex-col gap-1.5">
+                      {items.map((it, j) => (
+                        <li key={j} className="text-sm" style={{ color: "var(--body)" }}>
+                          {it.recommendation}
+                          <span className="text-xs" style={{ color: "var(--mute)" }}> · {it.basis.join(" · ")}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>
