@@ -1,0 +1,56 @@
+{
+  "_meta": {
+    "desc": "T5 방법론·데이터 부록 레지스트리. 건축가가 코드 없이 이 JSON만 수정 (절대 원칙 7). sources=출처 카탈로그, formulas=산정식, domain_sources=도메인 존재→출처 매핑.",
+    "how": "methodology.py 가 BoardResult 에 실제로 흐른 source_tbl/source/presence 만 골라 이 레지스트리와 조인한다. 여기 없는 소스는 원시 키 그대로 노출 + '미등록' note (지어내지 않음, 절대 원칙 3).",
+    "match": "sources[key].match = source_tbl 접두 또는 source_type 별칭 목록. 동적 식별자(에어코리아-종로구 등) 흡수용.",
+    "updated": "2026-07-09"
+  },
+  "sources": {
+    "DT_1B04005N": {"name": "행정구역(읍면동)별/5세별 주민등록인구", "publisher": "통계청 KOSIS", "api": "KOSIS OpenAPI", "kind": "통계표"},
+    "DT_1JC1511": {"name": "가구원수별 가구 (인구총조사)", "publisher": "통계청 KOSIS", "api": "KOSIS OpenAPI", "kind": "통계표"},
+    "DT_1B26001_A01": {"name": "주민등록 인구이동 (순이동)", "publisher": "통계청 KOSIS", "api": "KOSIS OpenAPI", "kind": "통계표"},
+    "DT_1B040B3": {"name": "주민등록 세대수", "publisher": "통계청 KOSIS", "api": "KOSIS OpenAPI", "kind": "통계표"},
+    "에어코리아": {"name": "실시간 대기질 (측정소 일평균)", "publisher": "한국환경공단 에어코리아", "api": "data.go.kr", "kind": "실시간 API", "match": ["airkorea", "에어코리아"], "used_for": ["PM2.5", "PM10", "오존(O3)", "이산화질소(NO2)"]},
+    "SGIS 집계구": {"name": "집계구 인구 (반경 합산)", "publisher": "통계청 SGIS", "api": "SGIS OpenAPI", "kind": "API", "match": ["SGIS"], "used_for": ["반경 실인구", "연령비율"]},
+    "SGIS 재해위험지도": {"name": "재해위험지도 영향범위 (홍수·산사태·폭염특보)", "publisher": "통계청 SGIS (원자료 행정안전부·산림청·기상청)", "api": "SGIS OpenAPI", "kind": "위험지도", "used_for": ["홍수·산사태 영향범위 포함여부", "폭염특보 이력"]},
+    "VWorld 개별공시지가": {"name": "개별공시지가 (연속지적도 필지)", "publisher": "국토교통부 VWorld", "api": "VWorld", "kind": "지도", "used_for": ["개별공시지가"]},
+    "건축HUB 건축물대장": {"name": "건축물대장 (표제부·총괄표제부)", "publisher": "국토교통부 건축HUB", "api": "data.go.kr", "kind": "API", "used_for": ["건폐율·용적률·층수·연면적"]},
+    "국토부 실거래가(RTMS)": {"name": "부동산 실거래가 (토지·아파트·연립 매매/전월세)", "publisher": "국토교통부", "api": "data.go.kr", "kind": "API", "used_for": ["실거래 사례"]},
+    "카카오 로컬": {"name": "키워드 반경 검색 (시설)", "publisher": "카카오", "api": "Kakao Local", "kind": "API", "used_for": ["반경 시설 개수 (공급)"]},
+    "VWorld 검색": {"name": "공공시설 검색 (경로당·노인복지관 등)", "publisher": "국토교통부 VWorld", "api": "VWorld", "kind": "API", "used_for": ["비상업 공공시설 보강"]},
+    "상가(상권)정보": {"name": "상가(상권)정보 — 반경 점포·업종 분포", "publisher": "소상공인시장진흥공단", "api": "data.go.kr (B553077)", "kind": "API", "used_for": ["점포 수·업종 분포"]},
+    "NEIS 학교": {"name": "학교 기본정보", "publisher": "한국교육학술정보원 (NEIS)", "api": "NEIS Open API", "kind": "API", "used_for": ["학교 현황"]},
+    "R-ONE 부동산가격지수": {"name": "부동산 매매가격지수", "publisher": "한국부동산원 (R-ONE)", "api": "R-ONE OpenAPI", "kind": "API", "used_for": ["매매가격지수"]},
+    "기상청 단기예보": {"name": "동네예보 (기온·강수·하늘)", "publisher": "기상청", "api": "기상청 API허브", "kind": "API", "used_for": ["기온·강수확률·하늘상태"]},
+    "서울 생활인구": {"name": "행정동 시간대별 생활인구 (서울)", "publisher": "서울열린데이터광장", "api": "서울 열린데이터", "kind": "API", "used_for": ["생활인구 (서울전용)"]},
+    "KOPIS 공연시설": {"name": "공연시설 현황", "publisher": "예술경영지원센터 (KOPIS)", "api": "KOPIS Open API", "kind": "API", "used_for": ["공연시설"]},
+    "어린이집(정보공개포털)": {"name": "어린이집 개수·정원", "publisher": "보건복지부 어린이집정보공개포털", "api": "cpmsapi021", "kind": "API", "used_for": ["어린이집 개수·정원"]},
+    "문화기반시설총람": {"name": "문화기반시설총람 (박물관·미술관·도서관 등)", "publisher": "문화체육관광부", "api": "data.go.kr (B553457)", "kind": "API", "used_for": ["문화기반시설"]}
+  },
+  "formulas": {
+    "고령인구비율": {"formula": "(65세 이상 인구 ÷ 총인구) × 100", "note": "주민등록 5세별 인구 (DT_1B04005N)"},
+    "유소년인구비율": {"formula": "(0~14세 인구 ÷ 총인구) × 100", "note": "주민등록 5세별 인구"},
+    "생산가능인구비율": {"formula": "(15~64세 인구 ÷ 총인구) × 100", "note": "주민등록 5세별 인구"},
+    "노년부양비": {"formula": "(65세 이상 인구 ÷ 15~64세 인구) × 100", "note": "생산가능인구 100명당 고령인구"},
+    "1인가구비율": {"formula": "(1인가구 ÷ 일반가구) × 100", "note": "인구총조사 시군구 (DT_1JC1511, census 지역코드)"},
+    "전국=100 지수": {"formula": "값 ÷ 전국평균 × 100", "note": "비율(%) 지표만 — 100=전국 수준. 판정 아닌 신호 (T1)"},
+    "반경 인구": {"formula": "반경 내 SGIS 집계구 인구(tot_ppltn) 합산", "note": "구 평균 면적 배분(보간) 아님 — 집계구 실측 합산 (D2)"},
+    "반경 연령비율": {"formula": "부양비 역산 — 생산가능 W = 총인구 ÷ (1 + 유년부양비/100 + 노년부양비/100), 유소년 = W × 유년부양비/100, 고령 = W × 노년부양비/100", "note": "집계구는 연령대별 인구 미제공 → 부양비로 정확 역산 (보간 아님)"},
+    "공급 밀도(만명당)": {"formula": "반경 시설수 ÷ (반경 인구 ÷ 10,000)", "note": "전국 만명당 기준(supply_demand.json)과 비교 — 반경 모드 공급 판정"}
+  },
+  "domain_sources": {
+    "hazards": ["SGIS 재해위험지도"],
+    "land_price": ["VWorld 개별공시지가"],
+    "building": ["건축HUB 건축물대장"],
+    "real_estate": ["국토부 실거래가(RTMS)"],
+    "facilities": ["카카오 로컬", "VWorld 검색"],
+    "stores": ["상가(상권)정보"],
+    "schools": ["NEIS 학교"],
+    "real_estate_index": ["R-ONE 부동산가격지수"],
+    "weather": ["기상청 단기예보"],
+    "living_population": ["서울 생활인구"],
+    "venues": ["KOPIS 공연시설"],
+    "childcare": ["어린이집(정보공개포털)"],
+    "culture": ["문화기반시설총람"]
+  }
+}

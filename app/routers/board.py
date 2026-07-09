@@ -171,6 +171,10 @@ def board(req: BoardRequest):
         base_date=date.today().isoformat(),
         notes=notes,
     )
+    # 6) ★ T5 방법론·데이터 부록 — 실제로 흐른 출처·산정식·한계 각인 (LLM 0, 새 숫자 0)
+    from app.services.methodology import build_methodology
+    result.methodology = build_methodology(result)
+
     # 계약(2단계): 제안서·형제앱 주입용 압축 투영 (원시 seed context 제외)
     if req.brief:
         from app.services.board_contract import board_brief

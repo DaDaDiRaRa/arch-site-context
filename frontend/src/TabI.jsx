@@ -393,6 +393,71 @@ export default function TabI({ address }) {
             </section>
           )}
 
+          {/* ★ T5 방법론·데이터 부록 — 출처·산정식·한계 (공모·감사 대비) */}
+          {data.methodology && (
+            <section>
+              <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>
+                방법론·데이터 부록 <span style={{ color: "var(--mute)", fontWeight: 400 }}>· 사용 출처·산정식·한계 (공모·감사 대비)</span>
+              </h3>
+              <p className="text-xs mb-3" style={{ color: "var(--body)", lineHeight: 1.6 }}>{data.methodology.summary}</p>
+
+              {data.methodology.sources.length > 0 && (
+                <div className="overflow-x-auto mb-3" style={{ border: "1px solid var(--hairline)", borderRadius: "var(--radius)" }}>
+                  <table className="w-full text-xs" style={{ borderCollapse: "collapse", minWidth: 560 }}>
+                    <thead style={{ color: "var(--mute)" }}>
+                      <tr>
+                        {["출처", "기관", "유형", "기여 지표", "근접도", "연도"].map((h) => (
+                          <th key={h} className="text-left font-medium px-2.5 py-1.5" style={{ whiteSpace: "nowrap" }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.methodology.sources.map((s, i) => (
+                        <tr key={i} style={{ borderTop: "1px solid var(--hairline)" }}>
+                          <td className="px-2.5 py-1.5" style={{ color: "var(--ink)" }}>
+                            {s.name}
+                            {s.note && <span style={{ color: "var(--warn)" }}> ⚠</span>}
+                          </td>
+                          <td className="px-2.5 py-1.5" style={{ color: "var(--mute)" }}>{s.publisher}</td>
+                          <td className="px-2.5 py-1.5" style={{ color: "var(--mute)" }}>{s.kind}</td>
+                          <td className="px-2.5 py-1.5" style={{ color: "var(--mute)" }}>{s.used_for.join(" · ")}</td>
+                          <td className="px-2.5 py-1.5"><ProximityChip level={s.proximity} /></td>
+                          <td className="px-2.5 py-1.5" style={{ color: "var(--mute)", whiteSpace: "nowrap" }}>{s.years.join(", ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {data.methodology.formulas.length > 0 && (
+                <>
+                  <div className="text-xs font-semibold mb-1" style={{ color: "var(--body)" }}>산정식</div>
+                  <div className="flex flex-col gap-1.5 mb-3">
+                    {data.methodology.formulas.map((f, i) => (
+                      <div key={i} className="px-3 py-2" style={{ border: "1px solid var(--hairline)", borderRadius: "var(--radius-sm)" }}>
+                        <span className="text-xs font-semibold" style={{ color: "var(--ink)" }}>{f.item}</span>{" "}
+                        <span className="text-xs" style={{ fontFamily: "var(--font-mono)", color: "var(--brand)" }}>= {f.formula}</span>
+                        {f.note && <div className="text-xs mt-0.5" style={{ color: "var(--mute)" }}>{f.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {data.methodology.limitations.length > 0 && (
+                <>
+                  <div className="text-xs font-semibold mb-1" style={{ color: "var(--body)" }}>한계·주의</div>
+                  <ul className="list-disc pl-4 flex flex-col gap-1">
+                    {data.methodology.limitations.map((l, i) => (
+                      <li key={i} className="text-xs" style={{ color: "var(--body)" }}>{l}</li>
+                    ))}
+                  </ul>
+                </>
+              )}
+            </section>
+          )}
+
           <Notes notes={data.notes} />
         </div>
       )}

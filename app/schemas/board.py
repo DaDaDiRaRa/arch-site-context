@@ -15,6 +15,7 @@ from app.schemas.archetype import Archetype
 from app.schemas.cross_context import CrossImplication
 from app.schemas.design_drivers import DesignDriver
 from app.schemas.diagnose import Diagnosis
+from app.schemas.methodology import Methodology
 from app.schemas.program import ProgramItem
 from app.schemas.project_seed import Site
 from app.schemas.region import Fact, Implication, Region, Resolution
@@ -121,6 +122,9 @@ class BoardResult(BaseModel):
     )
     synthesis: Optional[Synthesis] = Field(
         None, description="★ S4 종합 산출 두 블록 (synthesize=true일 때만). ①사실 해석 + ②AI 판단"
+    )
+    methodology: Optional[Methodology] = Field(
+        None, description="★ T5 방법론·데이터 부록 — 사용 출처·산정식·한계 자동 각인 (공모·감사 대비, LLM 0)"
     )
     base_date: str = Field(..., description="기준일 YYYY-MM-DD", examples=["2026-07-09"])
     notes: List[str] = Field(

@@ -130,6 +130,15 @@ th.num{text-align:right}
 .dash{color:var(--hairline)}
 .chip{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--hairline);background:var(--elev);color:var(--mute)}
 .chip.green{color:var(--ok)} .chip.amber{color:var(--warn)} .chip.blue{color:var(--brand)} .chip.slate{color:var(--mute)}
+.appx-sum{font-size:12.5px;color:var(--body);margin:0 0 12px;line-height:1.6}
+.formulas{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.formula{border:1px solid var(--hairline);border-radius:var(--rs);padding:8px 11px;background:var(--elev)}
+.formula-i{font-size:12px;font-weight:600;color:var(--ink)}
+.formula-f{font-family:var(--mono);font-size:12px;color:var(--brand)}
+.formula-n{font-size:11px;color:var(--mute)}
+.lims{margin:8px 0 0;padding-left:16px;display:flex;flex-direction:column;gap:4px}
+.lims li{font-size:12px;color:var(--body)}
+.appx-h3{font-size:12px;font-weight:600;color:var(--body);margin:14px 0 4px}
 footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--hairline);font-family:var(--mono);font-size:11px;color:var(--mute);line-height:1.7}
 @media print{body{background:#fff}.page{max-width:none;padding:0}section{break-inside:avoid}}
 @media(max-width:560px){.wm{font-size:19px}}"""
@@ -251,6 +260,37 @@ def render_board_html(board: Any, satellite_data_uri: Optional[str] = None) -> s
         parts.append(f'''<section><h2>인구·통계 <span class="h2-sub">· 전국=100 지수 + 근접도</span></h2>
   <div class="twrap"><table><thead><tr><th>항목</th><th class="num">값</th><th class="num">전국 평균</th><th>전국 대비 (100)</th><th>근접도</th><th>출처·연도</th></tr></thead>
   <tbody>{rows}</tbody></table></div></section>''')
+
+    # ★ T5 방법론·데이터 부록 — 출처·산정식·한계 각인 (공모·감사 대비)
+    m = _g(board, "methodology")
+    if m:
+        srows = ""
+        for s in _g(m, "sources") or []:
+            used = " · ".join(_g(s, "used_for") or [])
+            yrs = ", ".join(str(y) for y in (_g(s, "years") or []))
+            srows += (f'<tr><td class="f-item">{_e(_g(s, "name"))}</td>'
+                      f'<td class="src">{_e(_g(s, "publisher"))}</td>'
+                      f'<td class="src">{_e(_g(s, "kind"))}</td>'
+                      f'<td class="src">{_e(used)}</td>'
+                      f'<td>{_prox_chip(_g(s, "proximity"))}</td>'
+                      f'<td class="src">{_e(yrs)}</td></tr>')
+        stbl = (f'<div class="twrap"><table><thead><tr><th>출처</th><th>기관</th><th>유형</th>'
+                f'<th>기여 지표</th><th>근접도</th><th>연도</th></tr></thead>'
+                f'<tbody>{srows}</tbody></table></div>') if srows else ""
+        fblocks = "".join(
+            f'<div class="formula"><span class="formula-i">{_e(_g(f, "item"))}</span> '
+            f'<span class="formula-f">= {_e(_g(f, "formula"))}</span>'
+            + (f'<div class="formula-n">{_e(_g(f, "note"))}</div>' if _g(f, "note") else "")
+            + '</div>'
+            for f in (_g(m, "formulas") or []))
+        fbox = f'<div class="appx-h3">산정식</div><div class="formulas">{fblocks}</div>' if fblocks else ""
+        lims = "".join(f'<li>{_e(x)}</li>' for x in (_g(m, "limitations") or []))
+        lbox = f'<div class="appx-h3">한계·주의</div><ul class="lims">{lims}</ul>' if lims else ""
+        parts.append(
+            f'<section><h2>방법론·데이터 부록 <span class="h2-sub">· 사용 출처·산정식·한계 (공모·감사 대비)</span></h2>'
+            f'<p class="appx-sum">{_e(_g(m, "summary"))}</p>'
+            f'<div class="appx-h3">데이터 출처 <span class="h2-sub">· 이 보드에 실제로 기여한 것만</span></div>{stbl}'
+            f'{fbox}{lbox}</section>')
 
     parts.append('<footer>통계: 시군구 평균(KOSIS·SGIS) · 시설: 카카오/VWorld · 대지: VWorld·건축HUB·국토부 · '
                  '수치는 코드·규칙, 표현만 AI · 실제 API 호출·출처 명시·판단은 사람</footer>')
