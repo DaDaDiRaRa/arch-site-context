@@ -112,6 +112,19 @@ def test_density_formula_when_radius_supply() -> None:
     assert "공급 밀도(만명당)" not in {f.item for f in m2.formulas}
 
 
+def test_demand_only_indicator_formula_included() -> None:
+    # 문화시설 수급의 수요 proxy(생산가능인구비율)는 facts 엔 없지만 산정식은 각인돼야 함
+    d = Diagnosis(
+        name="문화시설 수급",
+        demand=DemandSignal(item="생산가능인구비율", value=72.5, national_avg=70.1, unit="%",
+                            level="비슷", source_tbl="SGIS 집계구", year=2023, scope_level="반경"),
+        supply=SupplySignal(kinds=["도서관"], count=8, radius=1000, level="많음"),
+        signal="", note="", tag="참고")
+    m = build_methodology(_board(diagnoses=[d]))
+    assert "생산가능인구비율" in {f.item for f in m.formulas}
+    assert "전국=100 지수" in {f.item for f in m.formulas}  # demand.index 로도 발화
+
+
 # ── 한계 ────────────────────────────────────────────────────────────────────
 def test_limitations_caveat_coverage_heuristic() -> None:
     cov = [DomainCoverage(domain="재해", available=False, detail="확인 불가"),

@@ -184,7 +184,11 @@ def build_methodology(board: Any) -> Methodology:
 
     for f in facts:
         _add(_g(f, "item"))
-    if any(_g(f, "index") is not None for f in facts):
+    for d in diagnoses:  # 수급진단 수요 지표(문화 proxy=생산가능인구비율 등)의 산정식도 각인
+        _add(_g(_g(d, "demand"), "item"))
+    if any(_g(f, "index") is not None for f in facts) or any(
+        _g(_g(d, "demand"), "index") is not None for d in diagnoses
+    ):
         _add("전국=100 지수")
     if resolution == "반경":
         _add("반경 인구")
