@@ -28,7 +28,7 @@ class BoardRequest(BaseModel):
 
     address: str = Field(..., description="대지 주소", examples=["서울 영등포구 여의대로 24"])
     use_type: str = Field(..., description="건물 용도 — matrix.json 키", examples=["주거"])
-    radius: int = Field(1000, description="시설·상권 반경(m)", examples=[500, 1000, 2000])
+    radius: int = Field(1000, ge=100, le=5000, description="시설·상권 반경(m)", examples=[500, 1000, 2000])
     resolution: Resolution = Field(
         "시군구",
         description="인구/수요 해상도. '반경'=SGIS 집계구 실인구, '읍면동'=행정동, '시군구'=구 평균",

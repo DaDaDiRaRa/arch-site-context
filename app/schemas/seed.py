@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 class SeedRequest(BaseModel):
     address: str = Field(..., description="대지 주소", examples=["서울특별시 영등포구 여의대로 24"])
-    radius: int = Field(1000, description="상권 집계 반경(m)", examples=[500, 1000, 2000])
+    radius: int = Field(1000, ge=100, le=5000, description="상권 집계 반경(m)", examples=[500, 1000, 2000])
     adstrd_code: Optional[str] = Field(
         None, description="서울 생활인구용 행정동코드(8자리). 없으면 생활인구 생략", examples=["11560540"]
     )

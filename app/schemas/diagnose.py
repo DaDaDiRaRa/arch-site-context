@@ -21,7 +21,7 @@ class DiagnoseRequest(BaseModel):
 
     address: str = Field(..., description="대지 주소", examples=["서울 영등포구 여의대로 24"])
     radius: int = Field(
-        1000, description="진단 기준 반경(m). 보통 500/1000/2000.", examples=[1000]
+        1000, ge=100, le=5000, description="진단 기준 반경(m). 보통 500/1000/2000.", examples=[1000]
     )
     resolution: Resolution = Field(
         "시군구",

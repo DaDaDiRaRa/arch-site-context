@@ -173,10 +173,12 @@ def _eval_hazard_exposure(clause: dict, hazards: Any):
     unit = _get(match, "unit", "") or ""
     scope = _get(zone, "exposure_scope") or ""
     label = "홍수" if clause["hazard_exposure"] == "flood" else "산사태"
+    # 노출 지표는 exposure_scope 가 읍면동 또는 시군구 폴백(§8.10) — scope 불명 시 보수적으로 시군구
+    # (근접도 과대표기 방지, CLAUDE.md 함정: 근접도가 거짓이면 차별점 붕괴)
     return True, CrossBasis(
         key=f"{label} 영향 {metric}",
         detail=f"{affected}{unit}",
-        proximity=proximity_of(scope) or "읍면동",
+        proximity=proximity_of(scope) or "시군구",
     )
 
 

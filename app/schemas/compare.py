@@ -24,7 +24,7 @@ class CompareRequest(BaseModel):
         examples=[["서울 영등포구 여의대로 24", "서울 강남구 테헤란로 152"]],
     )
     use_type: str = Field("주거", description="건물 용도 (A 통계 + matrix)", examples=["주거"])
-    radius: int = Field(1000, description="B·P11 반경(m)", examples=[1000])
+    radius: int = Field(1000, ge=100, le=5000, description="B·P11 반경(m)", examples=[1000])
     kinds: List[str] = Field(
         default_factory=lambda: list(DEFAULT_KINDS),
         description="B 표시용 시설종류", examples=[["어린이집", "경로당"]],

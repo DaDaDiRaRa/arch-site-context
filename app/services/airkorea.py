@@ -130,7 +130,8 @@ def fetch_air_quality(
     except AirkoreError as e:
         return [], [str(e)]
 
-    cache_key = make_key("airkorea", sigungu, date.today().isoformat())
+    # 시군구명은 광역 간 중복(중구·남구 등) → sido 포함 필수 (타 지역 데이터 오염 방지, 절대 원칙 4)
+    cache_key = make_key("airkorea", sido, sigungu, date.today().isoformat())
     if cache:
         cached = cache.get(cache_key)
         if cached:

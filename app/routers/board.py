@@ -62,6 +62,10 @@ def board(req: BoardRequest):
         return _error("ADDR_UNRESOLVED", f"주소 해석 불가: {e}")
     if not site.sgg_code:
         return _error("NO_REGION_CODE", "시군구 코드를 확인할 수 없습니다.")
+    # 용도 유효성 — 알 수 없는 용도면 하드블록 (silent-empty 방지 + use_type 이 synthesis 프롬프트에 삽입되므로 화이트리스트, 절대 원칙 3)
+    from app.services.matrix import use_types
+    if req.use_type not in use_types():
+        return _error("NO_DATA", f"알 수 없는 용도: {req.use_type}")
 
     # 2) 도메인 브랜치 — 기존 서비스/라우터를 그대로 재사용, 병렬 (지연 import 로 순환참조 회피)
     def _analyze():
@@ -307,8 +311,13 @@ def board_view(req: BoardRequest):
 
     boards_dir = OUT_DIR / "boards"
     boards_dir.mkdir(parents=True, exist_ok=True)
+    # model(물리 3D) 유무·내용도 키에 반영 — 같은 주소·같은 날 모델만 다른 두 호출이 파일 충돌하지 않도록
+    model_sig = (
+        hashlib.md5(json.dumps(req.model, sort_keys=True, default=str).encode()).hexdigest()[:8]
+        if req.model else "nomodel"
+    )
     key = hashlib.md5(
-        f"{req.address}|{req.use_type}|{req.radius}|{req.resolution}|{req.synthesize}|{full.base_date}".encode()
+        f"{req.address}|{req.use_type}|{req.radius}|{req.resolution}|{req.synthesize}|{model_sig}|{full.base_date}".encode()
     ).hexdigest()[:12]
     fname = f"board_{key}.html"
     (boards_dir / fname).write_text(html_str, encoding="utf-8")

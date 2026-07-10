@@ -60,7 +60,7 @@ class AnalyzeRequest(BaseModel):
         examples=["시군구"],
     )
     radius: int = Field(
-        1000, description="resolution='반경'일 때 반경(m). 보통 500/1000/2000.", examples=[1000]
+        1000, ge=100, le=5000, description="resolution='반경'일 때 반경(m). 보통 500/1000/2000.", examples=[1000]
     )
 
 

@@ -22,7 +22,7 @@ class AskRequest(BaseModel):
     address: str = Field(..., examples=["서울 영등포구 여의대로 24"])
     question: str = Field(..., examples=["고령인구 비율이 전국보다 높아?"])
     use_type: str = Field("주거", examples=["주거"])
-    radius: int = Field(1000, examples=[1000])
+    radius: int = Field(1000, ge=100, le=5000, examples=[1000])
     kinds: List[str] = Field(default_factory=lambda: list(DEFAULT_KINDS))
     web: bool = Field(False, description="opt-in 웹검색 폴백 (기본 꺼짐 — 데이터 위에서만)")
 

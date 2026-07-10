@@ -24,6 +24,9 @@ def _error(code: str, message: str) -> JSONResponse:
 @router.post("/readout", response_model=None)
 def site_readout(req: ReadoutRequest):
     """대지 주소 + 프로젝트 유형 → 공동주택 대지 종합 readout."""
+    from app.services.matrix import use_types
+    if req.use_type not in use_types():
+        return _error("NO_DATA", f"알 수 없는 용도: {req.use_type}")
     project_type = req.project_type if req.project_type in PROJECT_TYPES else "재건축"
     try:
         return readout.build_readout(req.address, req.use_type, project_type)

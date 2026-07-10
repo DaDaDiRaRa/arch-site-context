@@ -31,7 +31,9 @@ def _facts_block(facts: List[dict]) -> str:
     lines = []
     for f in facts:
         na = f.get("national_avg")
-        na_txt = f"전국 {na}{f.get('unit','')}" if na is not None else "전국값 없음"
+        unit = f.get("unit", "")
+        # 비율(%) 지표만 전국 비교 의미 있음 — 절대수는 전국 총량과 비교 무의미 (AI 가 "전국보다 낮다" 쓰지 않도록)
+        na_txt = f"전국 {na}{unit}" if (na is not None and unit == "%") else "전국 비교 해당없음"
         scope = f.get("scope")
         scope_txt = f" [기준:{scope}]" if scope else ""
         lines.append(
@@ -74,7 +76,9 @@ def _rule_based(region_name: str, year: int, use_type: str, facts: List[dict], i
     for f in facts:
         unit = f.get("unit", "")
         na = f.get("national_avg")
-        if na is None:
+        # 절대수(총인구·세대수 등, 단위 명·세대)를 전국 총량과 비교하면 늘 "낮다"가 되어 무의미 —
+        # 비율(%) 지표만 전국 대비 (compute_index 와 동일 게이트, 절대 원칙 4)
+        if na is None or unit != "%":
             clauses.append(f"{f['item']}은 {f['value']}{unit}")
         else:
             rel = "높다" if f["value"] > na else ("낮다" if f["value"] < na else "비슷하다")
