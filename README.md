@@ -10,7 +10,7 @@
 
 | 탭 | 기능 | 설명 |
 | --- | --- | --- |
-| **I** | **종합 읽기** ★ | 주소 → 인구·수급·재해·대지·생활맥락을 한 번에 + **동네 유형·설계 드라이버·프로그램 함의·AI 종합해석**. 공유·인쇄용 보드 내보내기 (S/T 시리즈) |
+| **I** | **종합 읽기** ★ | 주소 → 인구·수급·재해·대지·생활맥락을 한 번에 + **동네 유형·설계 드라이버·프로그램 함의·방법론 부록·AI 종합해석** (arch-site-model 물리 3D 주입 시 축측 매싱 미리보기). 공유·인쇄용 보드 내보내기 (S/T 시리즈) |
 | A | **지역 통계** | 주소 + 건물 용도 → 용도에 맞는 인구·세대·경제 통계 + 시사점 + 한 문단 초안. 각 수치에 **전국=100 지수·근접도** + 클릭 시 근거 |
 | B | **주변 시설** | 주소 + 시설종류 + 반경(500/1000/2000m) → 시설 목록·개수 + 위성사진 PNG(핀·TMAP 실도보 등시선) |
 | C | **수급 진단** ★ | A(인구 수요) × B(시설 공급) 교차 → "무엇이 부족/과잉인가" 근거·반경비례·전국밀도 제시 |
@@ -46,9 +46,10 @@
 - **T2 설계 드라이버** — 통합 풀을 증거강도로 랭킹 → 지배 설계 드라이버 2~3개(검토 신호).
 - **T3 프로그램 함의(POR)** — 맥락 → 건축 카테고리별(평면·코어·공용부·저층부·방재…) 공간·프로그램 권고.
 - **T4 보드 내보내기** — 지도 앵커 + 위 전부를 **자체완결 한 장 HTML**로. 공유 링크·인쇄(PDF). `POST /board/view`.
+- **T5 방법론·데이터 부록** — 이 보드의 수치가 **어디서·어떻게** 나왔는지 자동 부록(사용 출처·산정식·한계). 공모·감사 대비. 규칙·조인만, LLM 0.
 
 **딜리버리 3종:** ① 탐색 대시보드(I탭) · ② API/**MCP 서버**(`mcp_server/`, Claude·에이전트가 `read_site_context`로 호출) · ③ 공유 보드(링크·PDF).
-**형제앱 연동:** 설계공모 제안서 앱 **competition_comparison** 이 `/board {brief:true}` 를 pull → 수주 제안서 대지분석을 실측화 (상세 [INTEGRATION.md](INTEGRATION.md)).
+**형제앱 연동:** 설계공모 제안서 앱 **competition_comparison** 이 `/board {brief:true}` 를 pull → 수주 제안서 대지분석을 실측화. **arch-site-model**(물리 3D)을 `POST /board {model:...}` 로 주입하면 물리+인문 = **완전한 보드**(축측 매싱 미리보기). 터읽기는 provider — 형제를 호출하지 않고 넘겨받은 모델을 렌더만 (상세 [INTEGRATION.md](INTEGRATION.md)).
 
 ---
 
@@ -92,8 +93,8 @@
 | `POST` | `/site` | 대지 기본정보 (공시지가·실거래·건축물대장) |
 | `POST` | `/seed` | 보드 합본 — site + 상권·학교·부동산지수·날씨·생활인구·공연 |
 | `POST` | `/readout` | 공동주택 대지 readout — 인구·산업·주거·복지 종합 + 유형 프리셋 (KOSIS 다차원) |
-| `POST` | `/board` | **종합 읽기** ★ — 병렬 오케스트레이션 + 근접도·교차규칙·설계 드라이버·프로그램 함의·동네 유형·(opt-in) AI 종합. `brief:true` 압축 투영(형제앱·MCP용) |
-| `POST` | `/board/view` | **보드 내보내기** — /board → 지도·드라이버·POR·종합 담긴 자체완결 한 장 HTML → `/files` 공유 URL (인쇄→PDF) |
+| `POST` | `/board` | **종합 읽기** ★ — 병렬 오케스트레이션 + 근접도·교차규칙·설계 드라이버·프로그램 함의·동네 유형·방법론 부록·(opt-in) AI 종합. `brief:true` 압축 투영(형제앱·MCP용), `model:` arch-site-model 물리 3D 주입 |
+| `POST` | `/board/view` | **보드 내보내기** — /board → 지도·물리모델 축측 매싱·드라이버·POR·종합·방법론 담긴 자체완결 한 장 HTML → `/files` 공유 URL (인쇄→PDF) |
 
 MCP 서버: `claude mcp add teoilgi python mcp_server/server.py` (도구: `read_site_context`·`diagnose_supply`)
 
@@ -211,6 +212,7 @@ POST /diagnose
   - `app/data/driver_rules.json` — T2 설계 드라이버 규칙·가중치
   - `app/data/archetype_rules.json` — T1.5 대지 아키타입(동네 유형) 규칙
   - `app/data/program_rules.json` — T3 프로그램 함의(POR) 카테고리별 규칙
+  - `app/data/methodology.json` — T5 방법론 부록 출처 카탈로그·산정식·도메인 매핑
 
 ---
 
@@ -296,15 +298,18 @@ arch-site-context/
 │   │   ├── archetype.py     #   T1.5 대지 아키타입 분류
 │   │   ├── program.py       #   T3 프로그램 함의(POR) 엔진
 │   │   ├── synthesis.py     #   S4 종합 산출 (①사실=Sonnet ②AI판단=Opus)
+│   │   ├── methodology.py   #   T5 방법론·데이터 부록 (출처·산정식·한계 각인)
+│   │   ├── site_model.py    #   arch-site-model 물리 3D 결합 (넘겨받은 모델 요약·렌더)
 │   │   ├── board_contract.py#   /board 공유 계약 (board_brief·project_seed)
-│   │   ├── board_view.py    #   T4 대지분석 보드 HTML 렌더
+│   │   ├── board_view.py    #   T4 대지분석 보드 HTML 렌더 (+물리모델 축측 매싱)
 │   │   ├── site_seed.py     #   보드 합본 진입점
 │   │   ├── census_multidim.py #  KOSIS 다차원 census 지표 (getMeta 차원해부, 사업체·빈집 등)
 │   │   └── readout.py       #   공동주택 대지 readout 오케스트레이션
 │   ├── schemas/             #   Pydantic v2 데이터 계약 (proximity·board·design_drivers·archetype·program 등)
 │   └── data/                #   외부 JSON 설정 (건축가 편집 — 원칙 7)
 │       ├── matrix.json · implications.json · supply_demand.json
-│       └── cross_context.json · driver_rules.json · archetype_rules.json · program_rules.json
+│       ├── cross_context.json · driver_rules.json · archetype_rules.json · program_rules.json
+│       └── methodology.json  (T5 방법론 부록)
 ├── mcp_server/              # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
 ├── frontend/                # React + Vite + Tailwind (TabA~I, I=종합 읽기)
 ├── tests/                   # pytest (단위 + 라이브 테스트)

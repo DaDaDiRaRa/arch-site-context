@@ -36,8 +36,10 @@
 
 > **S/T 시리즈 (종합 읽기·2026-07-09):** 위 원칙 위에서 흩어진 출력을 `/board` 로 합성 + 해석 레이어를 얹었다.
 > **S1** 데이터 근접도 등급 · **S2** 교차규칙 엔진 · **S3** `/board` 통합 진입점 · **S4** 종합 산출(사실/AI의견 벽 분리) ·
-> **T1** 정규화 지수(전국=100)+근거 드릴다운 · **T1.5** 대지 아키타입 · **T2** 설계 드라이버 · **T3** 프로그램 함의(POR) · **T4** 보드 내보내기.
+> **T1** 정규화 지수(전국=100)+근거 드릴다운 · **T1.5** 대지 아키타입 · **T2** 설계 드라이버 · **T3** 프로그램 함의(POR) · **T4** 보드 내보내기 · **T5** 방법론·데이터 부록(출처·산정식·한계 자동 각인, 공모·감사 대비).
 > 전부 LLM 0(S4 표현만)·새 숫자 0. 상세: CLAUDE.md §8.11·§8.12.
+>
+> **arch-site-model 결합 (2026-07-09):** 형제앱(주소→물리 3D 지형/건물)의 출력을 `POST /board {model:...}` 로 주입하면 물리+인문 = 완전한 보드. **터읽기는 provider — 형제를 호출하지 않고**(competition과 동일 경계) 넘겨받은 모델을 `summarize_model`로 요약 + `board_view` 축측 매싱으로 렌더만. `ProjectSeed.model` 슬롯(law·knowledge 대칭). 상세: CLAUDE.md §8.12·INTEGRATION.md §4.
 
 ---
 
@@ -80,8 +82,10 @@ arch-site-context/
 │   │   ├── archetype.py         # T1.5 대지 아키타입 분류 (규칙 룩업)
 │   │   ├── program.py           # T3 프로그램 함의(POR) — 카테고리별 (cross_context 절 재사용)
 │   │   ├── synthesis.py         # S4 종합 산출 ①사실(Sonnet) ②AI판단(Opus)
+│   │   ├── methodology.py       # T5 방법론·데이터 부록 (출처·산정식·한계, LLM 0)
+│   │   ├── site_model.py        # arch-site-model 물리 3D 결합 (넘겨받은 모델 요약·렌더)
 │   │   ├── board_contract.py    # /board 공유 계약 (board_brief·board_to_project_seed)
-│   │   ├── board_view.py        # T4 대지분석 보드 자체완결 HTML 렌더
+│   │   ├── board_view.py        # T4 대지분석 보드 자체완결 HTML 렌더 (+물리모델 축측 매싱)
 │   │   ├── map_compose.py       # PIL 위성 PNG 합성
 │   │   ├── tmap.py              # TMAP 보행자 경로 → 등시선 폴리곤
 │   │   ├── tiles.py             # VWorld 타일 조합 + 좌표↔픽셀 변환
@@ -106,7 +110,8 @@ arch-site-context/
 │       ├── cross_context.json   # S2 교차 시사점 규칙
 │       ├── driver_rules.json    # T2 설계 드라이버 규칙·가중치
 │       ├── archetype_rules.json # T1.5 대지 아키타입 규칙
-│       └── program_rules.json   # T3 프로그램 함의(POR) 규칙
+│       ├── program_rules.json   # T3 프로그램 함의(POR) 규칙
+│       └── methodology.json     # T5 방법론 부록 출처 카탈로그·산정식
 ├── mcp_server/                  # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
 ├── frontend/                    # React + Vite + Tailwind
 │   └── src/
@@ -404,7 +409,8 @@ resolve_address(address)
 
 ### 4.10 POST /board — 종합 읽기 (S/T 시리즈) ★
 
-**입력:** `{ address, use_type, radius=1000, resolution="시군구", synthesize=false, brief=false }`
+**입력:** `{ address, use_type, radius=1000, resolution="시군구", synthesize=false, brief=false, model=null }`
+- `model`: arch-site-model 물리 3D 출력(assembler 가 넘김 — 터읽기는 호출 안 함). 있으면 요약 + 매싱 미리보기.
 
 **처리 흐름 (오케스트레이션만·재계산 0):**
 ```
@@ -418,18 +424,20 @@ build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
   → derive_design_drivers()  // T2 지배 드라이버 2~3개
   → classify_archetype()     // T1.5 동네 유형
   → derive_program()         // T3 프로그램 함의(POR)
+  → build_methodology()      // T5 출처·산정식·한계 부록 (조인만, LLM 0)
+  → (model 넘어오면) summarize_model()  // arch-site-model 물리 3D 압축 요약
   → (synthesize=true) synthesize()  // S4 ①사실(Sonnet) ②AI판단(Opus)
   → coverage(도메인 확보 여부, no silent skip)
 ```
 
-**출력 (BoardResult, `schema_version:"board/1.0"`):** `site` · `region` · `archetype` · `facts[]`(index·proximity) · `implications[]` · `diagnoses[]` · `design_drivers[]` · `program_implications[]` · `hazards` · `land_price`·`building`·`real_estate` · `context` · `cross_implications[]` · `coverage[]` · `synthesis`(opt-in) · `notes[]`.
+**출력 (BoardResult, `schema_version:"board/1.0"`):** `site` · `region` · `archetype` · `facts[]`(index·proximity) · `implications[]` · `diagnoses[]` · `design_drivers[]` · `program_implications[]` · `hazards` · `land_price`·`building`·`real_estate` · `context` · `cross_implications[]` · `coverage[]` · `methodology`(T5 출처·산정식·한계) · `model`(arch-site-model 물리 3D 요약, `model` 입력 시) · `synthesis`(opt-in) · `notes[]`.
 
 - **`brief=true`** → `board_brief`(압축 투영, ~66KB→~7KB, 원시 seed context 제외·해석층만). 제안서·MCP·형제앱 주입용.
 - 종합점수·순위 없음 (원칙 5). 각 브랜치 graceful — 실패 격리.
 
 ### 4.11 POST /board/view — 대지분석 보드 렌더 (T4)
 
-/board 빌드 → `board_view.render_board_html`(자체완결 HTML: 지도 앵커·아키타입·드라이버·POR·종합·지수) → `out/boards/*.html` 저장 → `{ url: "/files/boards/…", has_map }` 반환. 인쇄 시 PDF. `_satellite_anchor`가 VWorld 위성+반경링 data URI 임베드(graceful).
+/board 빌드 → `board_view.render_board_html`(자체완결 HTML: 지도 앵커·물리모델 축측 매싱·아키타입·드라이버·POR·종합·지수·방법론 부록) → `out/boards/*.html` 저장 → `{ url: "/files/boards/…", has_map }` 반환. 인쇄 시 PDF. `_satellite_anchor`가 VWorld 위성+반경링 data URI 임베드, `model` 넘어오면 `_massing_anchor`가 건물 footprint를 축측(2:1 이소) 투영해 매싱 미리보기 임베드 — **three.js 없이 서버사이드 PIL**로 자체완결·오프라인 유지 (둘 다 graceful).
 
 **MCP (`mcp_server/server.py`, FastMCP):** `read_site_context`(→board_brief) · `diagnose_supply`(→수급진단). 기존 서비스 얇게 래핑 — 개별·에이전트 파이프라인 둘 다.
 
@@ -452,7 +460,9 @@ build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
 - **`Archetype`**(T1.5): `{ name, group, description, match_score, evidence[], alternatives[], tag }` — 동네 유형.
 - **`ProgramItem`**(T3): `{ category, recommendation, basis[], tag }` — 카테고리별 POR 권고.
 - **`Synthesis`**(S4): `{ interpretation, interpretation_source/model, judgment, judgment_source/model, judgment_label }` — 사실/AI의견 벽 분리.
-- **`BoardResult`**(S3, `board/1.0`) / **`board_brief`**(`board_brief/1.0`) / **`Site`·`ProjectSeed`**(`project_seed/1.0`, 형제앱 공유 계약).
+- **`Methodology`**(T5): `{ summary, resolution, sources[{key,name,publisher,api,kind,used_for,years,proximity}], formulas[{item,formula,note}], limitations[] }` — 이 보드에 실제로 기여한 출처·산정식·한계 자동 각인(기여한 것만·미등록은 원시 키+note, LLM 0).
+- **`SiteModelSummary`**(arch-site-model 결합): `{ source, building_count, solids, cadastral_parcels, elev_range_m, origin_offset, radius_m, footprints[], heights_m[], files, provenance }` — 넘겨받은 물리 3D의 압축 요약(원시 terrain 미보관, footprints≤400).
+- **`BoardResult`**(S3, `board/1.0`) / **`board_brief`**(`board_brief/1.0`) / **`Site`·`ProjectSeed`**(`project_seed/1.0`, 형제앱 공유 계약 — `law`·`knowledge`·`model` 슬롯, 각 앱이 스키마 주인).
 
 ### 5.2 SupplySignal 필드 (P11 확장 후)
 
@@ -489,7 +499,7 @@ class ResolvedAddress:
 
 ## 6. 설정 파일 (건축가 편집 가능, 코드 수정 불필요)
 
-> 아래 6.1~6.3 외에, S/T 시리즈 규칙도 전부 외부 JSON이다(원칙 7): `cross_context.json`(S2 교차 시사점)·`driver_rules.json`(T2 드라이버·가중치)·`archetype_rules.json`(T1.5 동네 유형)·`program_rules.json`(T3 POR 카테고리). 스키마·동작은 각 파일 `_meta` 및 CLAUDE.md §8.12 참조.
+> 아래 6.1~6.3 외에, S/T 시리즈 규칙도 전부 외부 JSON이다(원칙 7): `cross_context.json`(S2 교차 시사점)·`driver_rules.json`(T2 드라이버·가중치)·`archetype_rules.json`(T1.5 동네 유형)·`program_rules.json`(T3 POR 카테고리)·`methodology.json`(T5 방법론 부록 출처 카탈로그·산정식·도메인 매핑). 스키마·동작은 각 파일 `_meta` 및 CLAUDE.md §8.12 참조.
 
 ### 6.1 matrix.json — 용도별 지표
 
@@ -582,7 +592,7 @@ class ResolvedAddress:
 | JUSO (행안부) | 주소 정규화·법정동코드 폴백 | `JUSO_API_KEY` | 현재 dev키 → 배포 전 운영키 필요 |
 | VWorld | 위성 타일, 시설 검색, 공시지가(PNU) | `VWORLD_KEY` | 개발키 2026-12-26 만료 |
 | KOSIS OpenAPI | 시군구 인구·가구 통계 | `KOSIS_KEY` | 분당 호출 제한 → 캐시 우선 |
-| Claude API | 문단 서술(모드A) + 물어보기(P10) | `ANTHROPIC_API_KEY` | 모델 1개(claude-opus-4-8) |
+| Claude API | 문단 서술(모드A) · 물어보기(P10) · 종합 산출(S4) | `ANTHROPIC_API_KEY` | Claude 하나(원칙6): narrative·ask=Opus, S4 ①=Sonnet ②=Opus |
 | TMAP (SK) | 보행자 경로 → 등시선 | `TMAP_KEY` | 48 병렬 호출 (~0.8s) |
 | 에어코리아 | PM2.5·PM10·O3·NO2 | `DATA_GO_KR_API_KEY` | 측정소검색 미승인 → 시도 전체 매칭 |
 | 국토부 RTMS | 실거래가 4종 | `DATA_GO_KR_API_KEY` | 데이터셋별 승인 별도 |
@@ -625,7 +635,7 @@ collect_facts()                                  build_facility_result()
     ▼
 [P11: 수급진단]
 cross_rules(facts, band, radius)
-    ├─ supply_demand.json 규칙 5개
+    ├─ supply_demand.json 규칙 6개
     ├─ _supply_level_count() — 반경² 스케일
     ├─ _supply_level_density() — 전국 만명당 비교 (참고)
     └─ → diagnoses[]
@@ -659,7 +669,7 @@ GCSCache(bucket)        # Cloud Run 멀티 인스턴스 (선택)
 
 **캐시 키 패턴:**
 - KOSIS: `(orgId, tblId, region_code, year, itmId, objL2)`
-- 에어코리아: `airkorea:{sigungu}:{today}` (하루 TTL)
+- 에어코리아: `airkorea:{sido}:{sigungu}:{today}` (하루 TTL — sido 포함으로 동명 시군구(중구 등) 오염 방지)
 - 타일: 좌표+줌 (영구)
 
 **KOSIS 동일 테이블 한 번만 호출:**
@@ -697,7 +707,7 @@ GCSCache(bucket)        # Cloud Run 멀티 인스턴스 (선택)
 
 - `supply_low_max`, `supply_high_min`은 휴리스틱 (JSON에 근거 출처 없음, 반경 1km 기준)
 - 전국 밀도(`national_density_per_10k`)의 분모·분자가 다른 공간 단위 → 절대 숫자 비교는 의미 제한
-- 상업·문화 시설(수요 proxy 없음)은 수급진단 미편입 [추정: 단일 수요 지표가 없어 설계에서 제외]
+- 문화시설 수급은 생산가능인구비율을 수요 proxy로 편입(6번째 규칙) — 단일 proxy라 약함·도심 동반상승 한계(note 명시). 상업 시설은 단일 수요 지표가 없어 여전히 수급진단 미편입
 
 ### 11.3 시설 검색 한계
 
