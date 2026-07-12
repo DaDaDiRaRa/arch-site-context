@@ -69,6 +69,7 @@ arch-site-context/
 │   │   ├── vworld.py            # VWorld: 위성타일·시설검색·공시지가
 │   │   ├── molit.py             # 실거래(RTMS)·건축물대장(건축HUB)
 │   │   ├── facilities.py        # 모드 B 오케스트레이션 (카카오+OSM+VWorld 병합)
+│   │   ├── osm.py                # OSM Overpass 공공시설 보충 (무료)
 │   │   ├── stats.py             # 통계 조립 (KOSIS + 에어코리아 → facts[])
 │   │   ├── matrix.py            # matrix.json 로더
 │   │   ├── implications.py      # implications.json 룩업
@@ -77,6 +78,7 @@ arch-site-context/
 │   │   ├── compare.py           # P9 후보지 비교 번들
 │   │   ├── ask.py               # P10 그라운디드 답변 + 웹검색 폴백
 │   │   ├── sgis.py              # SGIS 반경 집계구 실인구 · 재해위험(홍수·산사태·폭염)
+│   │   ├── jumin.py             # 행안부 rdoa 행정동별 인구+세대 (무키·전국, 심의 현황팩 C1)
 │   │   ├── cross_context.py     # S2 도메인 횡단 교차 시사점 엔진 (규칙, LLM 0)
 │   │   ├── design_drivers.py    # T2 설계 드라이버 랭킹 (증거강도)
 │   │   ├── archetype.py         # T1.5 대지 아키타입 분류 (규칙 룩업)
@@ -272,7 +274,8 @@ resolve_address(address)
 공급 밀도 (보조 참고):
   density_per_10k = count / (시군구총인구 / 10_000)
   vs_national_pct = density_per_10k / national_density_per_10k × 100
-  → SupplySignal 필드로 제공, 판정에는 미사용
+  → SupplySignal 필드로 제공. 구/동 모드는 판정 미사용(참고),
+    반경 모드(SGIS 반경 실인구)에선 반경 실인구 만명당 밀도가 primary 판정 (CLAUDE.md §8)
 ```
 
 **출력 (DiagnoseResult):**
@@ -592,6 +595,7 @@ class ResolvedAddress:
 | JUSO (행안부) | 주소 정규화·법정동코드 폴백 | `JUSO_API_KEY` | 현재 dev키 → 배포 전 운영키 필요 |
 | VWorld | 위성 타일, 시설 검색, 공시지가(PNU) | `VWORLD_KEY` | 개발키 2026-12-26 만료 |
 | KOSIS OpenAPI | 시군구 인구·가구 통계 | `KOSIS_KEY` | 분당 호출 제한 → 캐시 우선 |
+| 행안부 rdoa | 행정동별 인구+세대 (KOSIS 미제공) | 없음(무키) | HTML 파싱·전국·월별 (심의 현황팩) |
 | Claude API | 문단 서술(모드A) · 물어보기(P10) · 종합 산출(S4) | `ANTHROPIC_API_KEY` | Claude 하나(원칙6): narrative·ask=Opus, S4 ①=Sonnet ②=Opus |
 | TMAP (SK) | 보행자 경로 → 등시선 | `TMAP_KEY` | 48 병렬 호출 (~0.8s) |
 | 에어코리아 | PM2.5·PM10·O3·NO2 | `DATA_GO_KR_API_KEY` | 측정소검색 미승인 → 시도 전체 매칭 |
@@ -700,8 +704,8 @@ GCSCache(bucket)        # Cloud Run 멀티 인스턴스 (선택)
 ### 11.1 데이터 공간 해상도
 
 - **KOSIS 통계는 시군구 평균** — 대지 고유값이 아님. "영등포구 기준"이지 여의도동 기준이 아님
-- 읍면동 단위 통계는 대부분 KOSIS에 존재하지 않거나 별도 지역코드 체계가 필요
-- 반경 내 인구는 계산 불가 → 공급 판정의 분모를 시군구 전체 인구로 사용 (공간 불일치)
+- 읍면동 인구·연령은 `DT_1B04005N`(D1)로, **행정동 세대수는 행안부 rdoa**(§8.13 `jumin.py`)로 가능. 1인가구비율 등 census 다차원은 여전히 시군구
+- 반경 내 인구는 SGIS 집계구 실인구 합산(D2)으로 계산 → 수급진단 반경 모드 분모로 사용. 구/동 모드는 여전히 시군구 인구 (공간 불일치)
 
 ### 11.2 수급진단 임계값 한계
 

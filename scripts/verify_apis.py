@@ -627,6 +627,24 @@ def probe_sgis():
                    note=f"{type(e).__name__}: {e}")
 
 
+def probe_jumin():
+    """행안부 rdoa 행정동별 인구+세대 (무키·전국·읍면동 세대) — C1 세대 소스."""
+    try:
+        from app.services import jumin
+        from app.services.cache import MemoryCache
+        d, notes = jumin.fetch_dong_stats("11590", cache=MemoryCache())  # 동작구
+        if not d:
+            return rec("신규포털", "행안부 rdoa 인구+세대(무키)", "-", "NO_DATA", note=str(notes)[:150])
+        n = len(d["dongs"])
+        nlj = d["dongs"].get("1159051000")
+        sig = (f"동작구 {n}개 행정동 · 노량진1동 세대 {nlj['households']:,}"
+               if nlj else f"{n}개 행정동")
+        return rec("신규포털", "행안부 rdoa 인구+세대(무키)", "-", "WORKS", 200, sig)
+    except Exception as e:
+        return rec("신규포털", "행안부 rdoa 인구+세대(무키)", "-", "NETWORK_ERR",
+                   note=f"{type(e).__name__}: {e}")
+
+
 def probe_eum():
     env = "EUM_KEY"
     if not has(env):
@@ -642,7 +660,7 @@ PROBES = [
     probe_kakao, probe_vworld, probe_vworld_data, probe_kosis, probe_juso, probe_anthropic,
     probe_datago_all,
     probe_kma, probe_rone, probe_seoul, probe_tmap, probe_neis,
-    probe_kopis, probe_library, probe_culture, probe_sbiz365, probe_sgis, probe_eum,
+    probe_kopis, probe_library, probe_culture, probe_sbiz365, probe_sgis, probe_jumin, probe_eum,
 ]
 
 
