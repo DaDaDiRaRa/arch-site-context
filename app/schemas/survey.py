@@ -27,6 +27,26 @@ class SurveyDong(BaseModel):
     matched: bool = Field(True, description="행안부 인구·세대 매칭 성공 여부")
 
 
+class SurveyFacility(BaseModel):
+    """조사범위 내 시설 1건 (현황 목록용)."""
+
+    name: str = Field(..., examples=["노량진1동 작은도서관"])
+    addr: str = Field("", description="도로명주소 (카카오; VWorld 출처는 빈값)")
+    dist_m: int = Field(..., description="대지 중심으로부터 거리(m)")
+    src: str = Field("kakao", examples=["kakao", "vworld"])
+
+
+class FacilityCategory(BaseModel):
+    """조사범위 내 한 시설종류(도서관·경로당·어린이집) 현황."""
+
+    category: str = Field(..., examples=["작은도서관"])
+    count: int = Field(..., description="조사범위 내 개수")
+    items: List[SurveyFacility] = Field(default_factory=list, description="시설 목록(거리순)")
+    capacity: Optional[int] = Field(None, description="정원(어린이집만, 시군구 기준) — 참고")
+    capacity_scope: Optional[str] = Field(None, description="정원 기준 지역 (시군구)")
+    notes: List[str] = Field(default_factory=list, description="면적 미제공 등 정직한 메모")
+
+
 class SurveyResult(BaseModel):
     """조사범위 걸침 합산 결과 (심의 인구·세대 통계표)."""
 

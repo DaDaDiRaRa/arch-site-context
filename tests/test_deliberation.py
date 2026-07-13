@@ -6,8 +6,15 @@ survey(걸침)·구통계 조회를 monkeypatch 하고, 걸침 적용세대가 �
 
 import httpx
 
-from app.services import deliberation, survey
-from app.schemas.survey import SurveyResult, SurveyDong
+from app.services import deliberation, survey, kakao
+from app.schemas.survey import SurveyResult, SurveyDong, FacilityCategory
+
+
+def _stub_facilities(monkeypatch):
+    """assess_quota 안의 시설 조사·좌표해석을 네트워크 없이 대체."""
+    monkeypatch.setattr(kakao, "resolve_coord", lambda a, client=None: {"lat": 37.5, "lon": 127.0})
+    monkeypatch.setattr(deliberation, "collect_survey_facilities",
+                        lambda *a, **k: [FacilityCategory(category="작은도서관", count=7)])
 
 
 def _fake_survey(sgg="11590", applied_hh=28829, applied_pop=53751):
@@ -23,11 +30,13 @@ def test_assess_flows_applied_hh_into_quota(monkeypatch):
                         lambda a, radius=1000, ym=None, client=None: _fake_survey())
     monkeypatch.setattr(deliberation, "_gu_infant", lambda sgg: 9652)
     monkeypatch.setattr(deliberation, "_gu_households", lambda sgg: 188042)
+    _stub_facilities(monkeypatch)
 
     a = deliberation.assess_quota("서울 동작구 본동 441", 981,
                                   existing_area={"작은도서관": 1000.16, "어린이집": 5728.0},
                                   planned_area={"작은도서관": 515.92}, client=httpx.Client())
     assert a.site_sgg == "11590" and a.gu_infant == 9652 and a.gu_households == 188042
+    assert a.facilities and a.facilities[0].category == "작은도서관"
     assert len(a.results) == 1
     q = a.results[0]
     assert q.applied_households == 28829
@@ -44,6 +53,7 @@ def test_multi_parcel(monkeypatch):
                         lambda a, radius=1000, ym=None, client=None: _fake_survey(applied_hh=45375))
     monkeypatch.setattr(deliberation, "_gu_infant", lambda sgg: 17099)
     monkeypatch.setattr(deliberation, "_gu_households", lambda sgg: 222940)
+    _stub_facilities(monkeypatch)
     a = deliberation.assess_quota("강동 삼익", [409, 581], client=httpx.Client())
     assert len(a.results) == 2
     assert a.results[0].label == "획지1" and a.results[0].new_households == 409
@@ -57,6 +67,7 @@ def test_graceful_without_gu_stats(monkeypatch):
                         lambda a, radius=1000, ym=None, client=None: _fake_survey())
     monkeypatch.setattr(deliberation, "_gu_infant", lambda sgg: None)
     monkeypatch.setattr(deliberation, "_gu_households", lambda sgg: None)
+    _stub_facilities(monkeypatch)
     a = deliberation.assess_quota("서울 동작구 본동 441", 981, client=httpx.Client())
     assert any("확인필요" in n for n in a.notes)
     cc = next(f for f in a.results[0].facilities if f.name == "어린이집")

@@ -14,7 +14,7 @@ from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
-from app.schemas.survey import SurveyResult
+from app.schemas.survey import FacilityCategory, SurveyResult
 
 Confidence = Literal["high", "med", "low"]
 
@@ -86,5 +86,7 @@ class QuotaAssessment(BaseModel):
     gu_infant: Optional[int] = Field(None, description="구 영유아(0-4세) 인구 — KOSIS")
     gu_households: Optional[int] = Field(None, description="구 세대 — 행안부 rdoa 동 합산")
     survey: SurveyResult = Field(..., description="조사범위 걸침 합산 (C1)")
+    facilities: List[FacilityCategory] = Field(
+        default_factory=list, description="조사범위 내 시설 현황 (도서관·경로당·어린이집 목록·개수)")
     results: List[QuotaResult] = Field(..., description="획지별 총량제 판정 (C2)")
     notes: List[str] = Field(default_factory=list)

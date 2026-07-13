@@ -15,7 +15,8 @@ from typing import Dict, List, Optional, Union
 import httpx
 
 from app.schemas.quota import QuotaAssessment, QuotaResult
-from app.services import jumin, kosis, quota, stats, survey
+from app.services import jumin, kakao, kosis, quota, stats, survey
+from app.services.survey_facilities import collect_survey_facilities
 
 
 def _gu_infant(sgg_code: str) -> Optional[int]:
@@ -51,9 +52,17 @@ def assess_quota(address: str,
         sv = survey.survey_area(address, radius=radius, ym=ym, client=client)
         applied_hh = sv.applied_hh_total
         infant = gu_hh = None
+        facilities = []
         if sv.site_sgg:
             infant = _gu_infant(sv.site_sgg)
             gu_hh = _gu_households(sv.site_sgg)
+            try:
+                loc = kakao.resolve_coord(address, client=client)
+                facilities = collect_survey_facilities(
+                    loc["lat"], loc["lon"], radius, sv.site_sgg,
+                    region_name=sv.site_dong, client=client)
+            except Exception as e:
+                notes.append(f"시설 현황 조사 실패 ({type(e).__name__}) — 목록 생략.")
         if infant is None or gu_hh is None:
             notes.append("구 영유아/세대 조회 실패 — 어린이집 산정은 '확인필요'로 표기.")
 
@@ -68,8 +77,8 @@ def assess_quota(address: str,
         ]
         return QuotaAssessment(
             address=address, site_sgg=sv.site_sgg, radius=radius, ym=sv.ym,
-            gu_infant=infant, gu_households=gu_hh, survey=sv, results=results,
-            notes=notes + sv.notes)
+            gu_infant=infant, gu_households=gu_hh, survey=sv, facilities=facilities,
+            results=results, notes=notes + sv.notes)
     finally:
         if own:
             client.close()

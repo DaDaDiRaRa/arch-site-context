@@ -169,6 +169,7 @@ def search_keyword(
                         "name": d.get("place_name", ""),
                         "lat": float(d["y"]),
                         "lon": float(d["x"]),
+                        "addr": d.get("road_address_name") or d.get("address_name") or "",
                     }
                 )
             if body.get("meta", {}).get("is_end", True):
