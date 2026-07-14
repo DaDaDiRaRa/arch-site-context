@@ -42,3 +42,46 @@ def context_pack(req: ContextPackRequest):
             ).model_dump(),
         )
     return result
+
+
+@router.post("/context-pack/pptx", response_model=None)
+def context_pack_pptx(req: ContextPackRequest):
+    """심의 현황팩 A3 편집가능 PPTX 생성 → /files 저장 후 공유 URL 반환 (C4·C5)."""
+    import hashlib
+
+    from app.config import OUT_DIR
+    from app.services.deliberation_pptx import build_pptx
+
+    try:
+        assessment = assess_quota(
+            req.address, req.new_households, radius=req.radius, ym=req.ym,
+            existing_area=req.existing_area, planned_area=req.planned_area, labels=req.labels,
+        )
+    except KakaoError as e:
+        return JSONResponse(
+            status_code=422,
+            content=ErrorBlock(code="ADDR_UNRESOLVED", message=f"주소 해석 불가: {e}").model_dump(),
+        )
+    if not assessment.survey.dongs:
+        return JSONResponse(
+            status_code=422,
+            content=ErrorBlock(code="NO_DATA",
+                               message=f"조사범위 걸침 행정동을 찾지 못함 ({req.address}).").model_dump(),
+        )
+
+    data = build_pptx(assessment)
+    packs_dir = OUT_DIR / "packs"
+    packs_dir.mkdir(parents=True, exist_ok=True)
+    hh_sig = "-".join(map(str, req.new_households if isinstance(req.new_households, list)
+                          else [req.new_households]))
+    key = hashlib.md5(
+        f"{req.address}|{hh_sig}|{req.radius}|{assessment.ym}".encode()).hexdigest()[:12]
+    fname = f"pack_{key}.pptx"
+    (packs_dir / fname).write_bytes(data)
+    return {
+        "url": f"/files/packs/{fname}",
+        "site_sgg": assessment.site_sgg,
+        "applied_households": assessment.survey.applied_hh_total,
+        "facilities": {c.category: c.count for c in assessment.facilities},
+        "size_bytes": len(data),
+    }

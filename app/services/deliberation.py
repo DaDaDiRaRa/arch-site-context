@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Union
 import httpx
 
 from app.schemas.quota import QuotaAssessment, QuotaResult
-from app.services import jumin, kakao, kosis, quota, stats, survey
+from app.services import jumin, kosis, quota, stats, survey
 from app.services.survey_facilities import collect_survey_facilities
 
 
@@ -57,9 +57,8 @@ def assess_quota(address: str,
             infant = _gu_infant(sv.site_sgg)
             gu_hh = _gu_households(sv.site_sgg)
             try:
-                loc = kakao.resolve_coord(address, client=client)
                 facilities = collect_survey_facilities(
-                    loc["lat"], loc["lon"], radius, sv.site_sgg,
+                    sv.site_lat, sv.site_lon, radius, sv.site_sgg,
                     region_name=sv.site_dong, client=client)
             except Exception as e:
                 notes.append(f"시설 현황 조사 실패 ({type(e).__name__}) — 목록 생략.")
@@ -76,9 +75,9 @@ def assess_quota(address: str,
             for i, hh in enumerate(hh_list)
         ]
         return QuotaAssessment(
-            address=address, site_sgg=sv.site_sgg, radius=radius, ym=sv.ym,
-            gu_infant=infant, gu_households=gu_hh, survey=sv, facilities=facilities,
-            results=results, notes=notes + sv.notes)
+            address=address, site_sgg=sv.site_sgg, site_lat=sv.site_lat, site_lon=sv.site_lon,
+            radius=radius, ym=sv.ym, gu_infant=infant, gu_households=gu_hh,
+            survey=sv, facilities=facilities, results=results, notes=notes + sv.notes)
     finally:
         if own:
             client.close()

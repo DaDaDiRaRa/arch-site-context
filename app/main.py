@@ -43,7 +43,7 @@ def api_info() -> dict:
         "service": "arch-site-context",
         "team": "터읽기",
         "docs": "/docs",
-        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/context-pack"],
+        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/context-pack", "/context-pack/pptx"],
     }
 
 

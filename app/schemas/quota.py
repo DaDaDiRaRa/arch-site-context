@@ -81,6 +81,8 @@ class QuotaAssessment(BaseModel):
 
     address: str
     site_sgg: str = Field("", description="대지 시군구코드")
+    site_lat: float = Field(0.0, description="대지 위도 (위치도용)")
+    site_lon: float = Field(0.0, description="대지 경도")
     radius: int = Field(1000)
     ym: str = Field("", description="인구·세대 기준 년월")
     gu_infant: Optional[int] = Field(None, description="구 영유아(0-4세) 인구 — KOSIS")

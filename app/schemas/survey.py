@@ -33,6 +33,8 @@ class SurveyFacility(BaseModel):
     name: str = Field(..., examples=["노량진1동 작은도서관"])
     addr: str = Field("", description="도로명주소 (카카오; VWorld 출처는 빈값)")
     dist_m: int = Field(..., description="대지 중심으로부터 거리(m)")
+    lat: float = Field(0.0, description="위도 (위치도 핀용)")
+    lon: float = Field(0.0, description="경도")
     src: str = Field("kakao", examples=["kakao", "vworld"])
 
 
@@ -53,6 +55,8 @@ class SurveyResult(BaseModel):
     address: str
     site_dong: str = Field("", description="대지 행정동명")
     site_sgg: str = Field("", description="대지 시군구코드 5자리")
+    site_lat: float = Field(0.0, description="대지 위도")
+    site_lon: float = Field(0.0, description="대지 경도")
     radius: int = Field(1000, description="조사범위 반경(m)")
     ym: str = Field("", description="인구·세대 기준 년월 YYYYMM")
     dongs: List[SurveyDong] = Field(default_factory=list, description="걸침 행정동 (걸침율 내림차순)")

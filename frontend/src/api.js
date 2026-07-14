@@ -62,3 +62,11 @@ export const board = (address, use_type, radius = 1000, resolution = "시군구"
 
 export const boardView = (address, use_type, radius = 1000, resolution = "시군구", synthesize = false) =>
   post("/board/view", { address, use_type, radius, resolution, synthesize });
+
+// 심의 현황팩 (C6) — 걸침 인구세대(C1) + 총량제 판정(C2) + 시설 현황
+export const contextPack = (address, new_households, radius = 1000, existing_area = null, planned_area = null) =>
+  post("/context-pack", { address, new_households, radius, existing_area, planned_area });
+
+// 심의 현황팩 A3 편집가능 PPTX 생성 → { url, ... }
+export const contextPackPptx = (address, new_households, radius = 1000, existing_area = null, planned_area = null) =>
+  post("/context-pack/pptx", { address, new_households, radius, existing_area, planned_area });

@@ -123,6 +123,7 @@ def survey_area(address: str, radius: int = 1000, ym: Optional[str] = None,
 
         return SurveyResult(
             address=address, site_dong=site_h.get("name", ""), site_sgg=site_sgg,
+            site_lat=site["lat"], site_lon=site["lon"],
             radius=radius, ym=used_ym, dongs=dongs,
             applied_pop_total=ap_total, applied_hh_total=ah_total, notes=notes)
     finally:

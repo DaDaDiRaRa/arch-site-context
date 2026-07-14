@@ -73,8 +73,8 @@ def collect_survey_facilities(lat: float, lon: float, radius: int, sgg_code: str
                 cats.append(FacilityCategory(category=category, count=0,
                                              notes=[f"{category} 검색 실패 ({type(e).__name__})."]))
                 continue
-            items = [SurveyFacility(name=r["name"], addr=r["addr"],
-                                    dist_m=r["dist_m"], src=r["src"]) for r in rows]
+            items = [SurveyFacility(name=r["name"], addr=r["addr"], dist_m=r["dist_m"],
+                                    lat=r["lat"], lon=r["lon"], src=r["src"]) for r in rows]
             notes = ["면적(㎡)은 개별 출처 미제공 — 목록·개수만 (사람 확인)."]
             cap = cap_scope = None
             if category == "어린이집":
