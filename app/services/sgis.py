@@ -338,7 +338,13 @@ def fetch_site_hazards(
                 rows = j.get("result") if isinstance(j.get("result"), list) else []
                 if cache:
                     cache.set(ck, {"rows": rows})
-            affected = {r.get("adm_cd") for r in rows}
+            affected_raw = {r.get("adm_cd") for r in rows if r.get("adm_cd")}
+            # 위험목록 코드 길이가 census 8자리와 다를 수 있음 → 8자리 접두로 정규화해 비교
+            # (그냥 emd_cd in affected 로 두면 포맷 불일치 시 '영향구역 아님'이라는 틀린 값을
+            #  사실처럼 내보냄 = 절대 원칙 4 위반, 안전 데이터 false-negative).
+            affected8 = {c[:8] for c in affected_raw}
+            if affected_raw and any(len(c) != 8 for c in affected_raw):
+                notes.append(f"{_title}: 위험목록 코드 길이가 8자리와 달라 앞 8자리로 매칭(참고).")
             if rows and rows[0].get("base_year"):
                 base_year = rows[0]["base_year"]
             # ② 영향범위 내 지표(인구·가구·주택·사업체) (읍면동 우선·시군구 폴백)
@@ -346,8 +352,8 @@ def fetch_site_hazards(
                 board_path, emd_cd, sgg_cd, token, client, cache
             )
             out[key] = {
-                "in_zone": emd_cd in affected,
-                "affected_dong_count": len(affected),
+                "in_zone": emd_cd[:8] in affected8,
+                "affected_dong_count": len(affected8),
                 "exposures": exposures,
                 "exposure_scope": exp_scope,
             }

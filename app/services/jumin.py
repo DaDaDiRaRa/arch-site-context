@@ -58,18 +58,46 @@ def _default_ym() -> str:
     return _shift_ym(f"{t.year}{t.month:02d}", -1)
 
 
+def _col_idx(heads: list, *labels: str) -> Optional[int]:
+    """헤더 목록에서 label 포함 컬럼의 인덱스 (첫 매치). 없으면 None."""
+    for i, h in enumerate(heads):
+        if any(lab in h for lab in labels):
+            return i
+    return None
+
+
 def _parse_table(html_text: str) -> Dict[str, dict]:
-    """결과표 HTML → {행정기관코드(H10): {name, population, households, per_household}}."""
+    """결과표 HTML → {행정기관코드(H10): {name, population, households, per_household}}.
+
+    ⚠ rdoa 는 REST 아닌 HTML 스크래핑 → 컬럼 순서가 바뀌면 오파싱 위험(§2 bus-factor).
+    고정 인덱스 대신 **헤더 라벨에서 컬럼 인덱스를 유도**(재배치에 자동 대응),
+    헤더 유도 실패 시에만 기존 고정 위치(7/8)로 폴백한다.
+    """
     doc = _LH.fromstring(html_text)
     out: Dict[str, dict] = {}
     for tbl in doc.xpath("//table"):
         heads = [(x.text_content() or "").strip() for x in tbl.xpath(".//th")]
-        if "세대수" not in heads:
+        if not any("세대수" in h for h in heads):
             continue
-        # 컬럼: 통계년월·행정기관코드·시도명·시군구명·행정동명·통·반·총인구수·세대수·세대당인구·…
+        # 헤더에서 컬럼 위치 유도 (통계년월·행정기관코드·시도·시군구·행정동·통·반·총인구수·세대수·…)
+        i_code = _col_idx(heads, "행정기관코드", "기관코드")
+        i_name = _col_idx(heads, "행정동", "읍면동", "동명")
+        i_pop = _col_idx(heads, "총인구", "인구수")
+        i_hh = _col_idx(heads, "세대수")
+        header_ok = None not in (i_code, i_pop, i_hh)
         for tr in tbl.xpath(".//tr"):
             c = [(x.text_content() or "").strip() for x in tr.xpath("./td")]
-            if len(c) >= 9 and c[1].isdigit() and len(c[1]) == 10:
+            if header_ok and max(i_code, i_pop, i_hh) < len(c):
+                code = c[i_code]
+                if code.isdigit() and len(code) == 10:
+                    out[code] = {
+                        "name": c[i_name] if (i_name is not None and i_name < len(c)) else "",
+                        "population": _int(c[i_pop]),
+                        "households": _int(c[i_hh]),
+                        "per_household": None,
+                    }
+            elif len(c) >= 9 and c[1].isdigit() and len(c[1]) == 10:
+                # 헤더 유도 실패 → 고정 위치 폴백 (검증된 현행 구조)
                 out[c[1]] = {
                     "name": c[4],
                     "population": _int(c[7]),

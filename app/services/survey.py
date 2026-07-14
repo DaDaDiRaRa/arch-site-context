@@ -109,17 +109,21 @@ def survey_area(address: str, radius: int = 1000, ym: Optional[str] = None,
             pop, hh = rec.get("population"), rec.get("households")
             ap = round(pop * d["ratio"]) if pop is not None else None
             ah = round(hh * d["ratio"]) if hh is not None else None
-            flagged = same is False
+            # same is True(대지 시군구)만 계에 합산. False(타시군구)·None(시군구 미해석) 은
+            # 모두 ⚠플래그·계 제외 — 미해석 동을 조용히 누락하지 않는다(정직성).
+            flagged = same is not True
             dongs.append(SurveyDong(
                 name=rec.get("name") or d["name"], hcode=d.get("hcode"),
                 ratio=round(d["ratio"], 4), total_pop=pop, total_hh=hh,
                 applied_pop=ap, applied_hh=ah, same_sgg=same, flagged=flagged, matched=True))
-            if same and ap is not None and ah is not None:
+            if same is True and ap is not None and ah is not None:
                 ap_total += ap
                 ah_total += ah
 
-        if any(dg.flagged for dg in dongs):
+        if any(dg.flagged and dg.same_sgg is False for dg in dongs):
             notes.append("타 시군구 걸침 행정동은 ⚠표시(생활권 검토 필요) — 계에서 제외했습니다.")
+        if any(dg.same_sgg is None and dg.matched for dg in dongs):
+            notes.append("시군구 미해석 행정동은 ⚠표시 — 계에서 제외했습니다(확인 필요).")
 
         return SurveyResult(
             address=address, site_dong=site_h.get("name", ""), site_sgg=site_sgg,

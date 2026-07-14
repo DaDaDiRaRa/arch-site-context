@@ -47,10 +47,21 @@ class FileCache:
             return None
 
     def set(self, key: str, value: dict) -> None:
+        # 원자적 쓰기: temp 파일에 쓰고 os.replace 로 교체.
+        # /board 등 병렬 브랜치가 같은 캐시 키를 동시에 write 해도 손상/절단 파일이 남지 않도록
+        # (write_text 는 truncate 후 기록이라 concurrent reader 가 반쪽 파일을 읽을 수 있음).
         self.dir.mkdir(parents=True, exist_ok=True)
-        self._path(key).write_text(
-            json.dumps(value, ensure_ascii=False), encoding="utf-8"
-        )
+        p = self._path(key)
+        tmp = p.with_suffix(f".{os.getpid()}.{id(value)}.tmp")
+        try:
+            tmp.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, p)  # 원자적 교체 (POSIX·Windows 모두)
+        finally:
+            if tmp.exists():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
 
 
 class MemoryCache:

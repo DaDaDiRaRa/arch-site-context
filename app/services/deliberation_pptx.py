@@ -193,9 +193,9 @@ def _quota_slide(prs, res: QuotaResult, ctx: QuotaAssessment) -> None:
     _title(slide, f"커뮤니티 설치계획 (총량제) 검토 — 부족/충족 판정{label}")
     sub = slide.shapes.add_textbox(Cm(1.2), Cm(1.9), Cm(39), Cm(0.8)).text_frame
     inf = f"{ctx.gu_infant:,}" if ctx.gu_infant else "확인필요"
+    gu = f"{ctx.gu_households:,}" if ctx.gu_households else "확인필요"
     sub.text = (f"신축 {res.new_households:,}세대(설계) + 조사범위 적용 {res.applied_households:,}"
-                f"세대(걸침) | 구 영유아 {inf} / 구 세대 "
-                f"{ctx.gu_households:,}" if ctx.gu_households else "확인필요")
+                f"세대(걸침) | 구 영유아 {inf} / 구 세대 {gu}")
     if sub.paragraphs[0].runs:
         sub.paragraphs[0].runs[0].font.size, sub.paragraphs[0].runs[0].font.name = Pt(10), _F
 

@@ -173,8 +173,12 @@ def build_answer(req: AskRequest) -> AskResult:
 
     if req.web:
         answer, sources, source, wnotes = answer_web(req.question, region.name)
+        # 웹(외부) 답변은 출처가 있어야 answerable — 출처 0개면 '출처 없음'으로 표시(절대 원칙 4).
+        wnotes = list(wnotes)
+        if source == "ai_web" and not wnotes and not sources:
+            wnotes.append("웹 답변에 인용 출처가 없어 참고 불가로 표시합니다(출처 명시 원칙).")
         return AskResult(
-            answer=answer, answerable=(source == "ai_web" and not wnotes),
+            answer=answer, answerable=(source == "ai_web" and not wnotes and len(sources) > 0),
             source=source, web_sources=sources, **{**base, "notes": base["notes"] + wnotes}
         )
 

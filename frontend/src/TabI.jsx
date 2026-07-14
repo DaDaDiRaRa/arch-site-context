@@ -279,7 +279,7 @@ export default function TabI({ address }) {
           <section>
             <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>도메인 확보 현황</h3>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {data.coverage.map((c, i) => (
+              {(data.coverage || []).map((c, i) => (
                 <div
                   key={i}
                   className="px-3 py-2"
@@ -306,13 +306,13 @@ export default function TabI({ address }) {
             <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>
               교차 시사점 <span style={{ color: "var(--mute)", fontWeight: 400 }}>· 도메인 횡단 (참고)</span>
             </h3>
-            {data.cross_implications.length === 0 ? (
+            {(data.cross_implications || []).length === 0 ? (
               <p className="text-sm px-3 py-2" style={{ color: "var(--mute)", border: "1px dashed var(--hairline)", borderRadius: "var(--radius-sm)" }}>
                 이 필지에서 발화한 교차 규칙이 없습니다 (조건 미충족 또는 확인 불가).
               </p>
             ) : (
               <div className="space-y-2">
-                {data.cross_implications.map((c, i) => (
+                {(data.cross_implications || []).map((c, i) => (
                   <div
                     key={i}
                     className="p-3"
@@ -341,7 +341,7 @@ export default function TabI({ address }) {
           </section>
 
           {/* 단일 지표 함의 (implications.json) */}
-          {data.implications.length > 0 && (
+          {(data.implications || []).length > 0 && (
             <section>
               <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>단일 지표 함의</h3>
               <ul className="space-y-1">
@@ -356,7 +356,7 @@ export default function TabI({ address }) {
           )}
 
           {/* 수급진단 요약 */}
-          {data.diagnoses.length > 0 && (
+          {(data.diagnoses || []).length > 0 && (
             <section>
               <h3 className="text-sm font-semibold mb-2" style={{ color: "var(--body)" }}>수급진단</h3>
               <div className="flex flex-wrap gap-2">

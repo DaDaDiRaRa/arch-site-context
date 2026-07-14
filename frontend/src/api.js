@@ -20,13 +20,16 @@ async function post(path, body) {
   } catch (e) {
     throw new ApiError("서버에 연결할 수 없습니다. 백엔드(8000)가 떠 있는지 확인하세요.");
   }
-  const data = await res.json().catch(() => ({}));
+  let parseFailed = false;
+  const data = await res.json().catch(() => { parseFailed = true; return {}; });
   if (!res.ok) {
     // 하드블록: {code, message}  또는 FastAPI {detail}
     if (data && data.code) throw new ApiError(data.message || "확인 불가", { code: data.code, status: res.status });
     const detail = typeof data.detail === "string" ? data.detail : "요청을 처리하지 못했습니다.";
     throw new ApiError(detail, { status: res.status });
   }
+  // 성공(2xx)인데 본문 파싱 실패(잘린 응답·게이트웨이 HTML 등) → {} 로 내려보내면 하위 .map 크래시.
+  if (parseFailed) throw new ApiError("서버 응답을 해석할 수 없습니다. 잠시 후 다시 시도하세요.", { status: res.status });
   return data;
 }
 
