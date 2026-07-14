@@ -132,10 +132,12 @@ def search_keyword(
     lon: float,
     radius: int,
     client: Optional[httpx.Client] = None,
+    category_group_code: Optional[str] = None,
 ) -> List[Dict]:
     """중심좌표 + 반경 내 키워드 검색. 페이지네이션 끝까지 모아 원본 document 리스트 반환.
 
-    반환 각 항목: {name, lat, lon} (카카오 x=경도→lon, y=위도→lat, WGS84).
+    category_group_code: 지정 시 그 그룹만(예: SC4 학교·SW8 지하철역·PO3 공공기관) → 오탐 제거.
+    반환 각 항목: {name, lat, lon, addr, cat} (카카오 x=경도→lon, y=위도→lat, WGS84).
     """
     own = client is None
     client = client or httpx.Client(timeout=10.0)
@@ -143,21 +145,13 @@ def search_keyword(
     out: List[Dict] = []
     try:
         for page in range(1, _MAX_PAGE + 1):
-            r = request_with_retry(
-                client,
-                "GET",
-                _KEYWORD_URL,
-                params={
-                    "query": keyword,
-                    "x": lon,  # 경도
-                    "y": lat,  # 위도
-                    "radius": radius,
-                    "page": page,
-                    "size": _PAGE_SIZE,
-                    "sort": "distance",
-                },
-                headers=_headers(),
-            )
+            params = {
+                "query": keyword, "x": lon, "y": lat, "radius": radius,
+                "page": page, "size": _PAGE_SIZE, "sort": "distance",
+            }
+            if category_group_code:
+                params["category_group_code"] = category_group_code
+            r = request_with_retry(client, "GET", _KEYWORD_URL, params=params, headers=_headers())
             if r.status_code != 200:
                 raise KakaoError(
                     f"키워드 검색 실패 HTTP {r.status_code}: {r.text[:200]}"
@@ -170,6 +164,7 @@ def search_keyword(
                         "lat": float(d["y"]),
                         "lon": float(d["x"]),
                         "addr": d.get("road_address_name") or d.get("address_name") or "",
+                        "cat": d.get("category_group_code", ""),
                     }
                 )
             if body.get("meta", {}).get("is_end", True):

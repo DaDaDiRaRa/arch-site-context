@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import FRONTEND_DIST, OUT_DIR
 from app.routers import (
     analyze, ask, board, compare, context_pack, diagnose, facilities, health, matrix,
-    readout, seed, site,
+    readout, seed, site, surroundings,
 )
 
 load_dotenv()  # 로컬 .env 로드 (배포는 Secret Manager → env 주입)
@@ -43,7 +43,7 @@ def api_info() -> dict:
         "service": "arch-site-context",
         "team": "터읽기",
         "docs": "/docs",
-        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/context-pack", "/context-pack/pptx"],
+        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/context-pack", "/context-pack/pptx", "/surroundings", "/surroundings/pptx"],
     }
 
 
@@ -59,6 +59,7 @@ app.include_router(seed.router)
 app.include_router(readout.router)
 app.include_router(board.router)
 app.include_router(context_pack.router)
+app.include_router(surroundings.router)
 
 # 합성된 위성 PNG 다운로드/표시용 정적 서빙 (예: /files/maps/map_xxx.png)
 app.mount("/files", StaticFiles(directory=str(OUT_DIR)), name="files")

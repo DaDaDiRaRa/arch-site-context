@@ -97,6 +97,18 @@ def test_low_confidence_tier_flags_ordinance():
     assert any("조례" in n for n in f.notes)
 
 
+def test_library_not_required_under_500_real_config():
+    """법령검증(#5): 작은도서관은 500세대 이상부터 의무 → 300~500세대 법정 None(필수 아님)."""
+    cfg = quota.load_config()
+    r = quota.compute_quota(new_hh=409, applied_hh=45375, cfg=cfg)  # 삼익 획지1 규모
+    lib = next(f for f in r.facilities if f.name == "작은도서관")
+    assert lib.legal_min is None                    # 필수 아님
+    assert any("의무" in n or "필수 아님" in n for n in lib.notes)
+    # 경로당은 300~500 에서도 의무(150세대~) → 법정 있음
+    gr = next(f for f in r.facilities if f.name == "경로당")
+    assert gr.legal_min == 198
+
+
 def test_compute_quota_with_real_config():
     """실제 community_quota.json 로 여의도(2493세대, 2000+ tier) 전체 산정."""
     r = quota.compute_quota(

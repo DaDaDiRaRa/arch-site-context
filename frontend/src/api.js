@@ -70,3 +70,10 @@ export const contextPack = (address, new_households, radius = 1000, existing_are
 // 심의 현황팩 A3 편집가능 PPTX 생성 → { url, ... }
 export const contextPackPptx = (address, new_households, radius = 1000, existing_area = null, planned_area = null) =>
   post("/context-pack/pptx", { address, new_households, radius, existing_area, planned_area });
+
+// C7 주변현황도 — 반경 내 여가·교육·주거·관공서·교통 + 서술문
+export const surroundings = (address, radius = 1000) =>
+  post("/surroundings", { address, radius });
+
+export const surroundingsPptx = (address, radius = 1000) =>
+  post("/surroundings/pptx", { address, radius });
