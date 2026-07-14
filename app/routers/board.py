@@ -372,7 +372,8 @@ def _coverage(facts, diagnoses, hazards, land_price, building, context) -> List[
         ),
     ))
 
-    ctx_keys = [k for k, v in (context or {}).items() if k != "notes" and v]
+    # v is not None: 조회 성공(빈 리스트/0건 포함)은 '확보'로 — 결측(None/실패)과 구분 (정직).
+    ctx_keys = [k for k, v in (context or {}).items() if k != "notes" and v is not None]
     cov.append(DomainCoverage(
         domain="생활맥락", available=bool(ctx_keys),
         detail=(f"{len(ctx_keys)}개 소스: " + ", ".join(ctx_keys)) if ctx_keys else "확인 불가",

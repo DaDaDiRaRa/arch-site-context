@@ -206,11 +206,19 @@ def fetch_census_indicator(
                 db = json.loads(rb.text)
                 if isinstance(db, list):
                     ccol = f"C{breakdown_pos}"
-                    tops = sorted(
-                        [x for x in db if x.get(ccol) not in ("0", None) and x.get("DT")],
-                        key=lambda x: -float(x["DT"]),
-                    )[:5]
-                    bd = [[x.get(f"{ccol}_NM"), int(float(x["DT"]))] for x in tops]
+                    # 마스킹('-')·비수치 DT 는 행 단위로 skip — 한 셀 때문에 breakdown 전체가
+                    # 외곽 except 로 폐기되지 않도록 (절대 원칙: graceful).
+                    rows = []
+                    for x in db:
+                        if x.get(ccol) in ("0", None):
+                            continue
+                        try:
+                            n = float(str(x.get("DT")).replace(",", ""))
+                        except (ValueError, TypeError):
+                            continue
+                        rows.append((x.get(f"{ccol}_NM"), n))
+                    tops = sorted(rows, key=lambda r: -r[1])[:5]
+                    bd = [[nm, int(n)] for nm, n in tops]
                     data = {**data, "breakdown": bd}
                     if cache:
                         cache.set(bkey, {"breakdown": bd})

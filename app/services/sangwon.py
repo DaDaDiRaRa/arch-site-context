@@ -74,7 +74,11 @@ def fetch_store_district(
             total = int(body.get("totalCount") or total or 0)
             batch = body.get("items", []) or []
             items.extend(batch)
-            if not batch or len(items) >= total:
+            # totalCount 가 0/누락(data.go.kr 1페이지 종종)이어도 조기중단 않도록:
+            # 빈/짧은 페이지(꽉 안 참)로 종료하고, total 은 유효할 때만 사용.
+            if not batch or len(batch) < 1000:
+                break
+            if total and len(items) >= total:
                 break
             page += 1
 

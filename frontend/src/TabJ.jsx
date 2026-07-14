@@ -18,9 +18,12 @@ const lbl = {
   letterSpacing: "0.06em", textTransform: "uppercase",
 };
 
-// "409, 581" → [409, 581] / "981" → 981
+// "409, 581" → [409, 581] / "981" → 981 / 숫자 아닌 토큰 있으면 "invalid"
 function parseHouseholds(s) {
-  const nums = s.split(",").map((x) => parseInt(x.trim(), 10)).filter((n) => n > 0);
+  const toks = s.split(",").map((x) => x.trim()).filter((x) => x.length > 0);
+  if (toks.length === 0) return null;
+  if (!toks.every((t) => /^\d+$/.test(t))) return "invalid";  // "409x"·"foo" 조용히 삼키지 않음
+  const nums = toks.map((t) => parseInt(t, 10)).filter((n) => n > 0);
   if (nums.length === 0) return null;
   return nums.length === 1 ? nums[0] : nums;
 }
@@ -52,7 +55,15 @@ export default function TabJ({ address }) {
   function validate() {
     if (!address.trim()) { setError({ message: "주소를 먼저 입력하세요." }); return null; }
     const hh = parseHouseholds(households);
+    if (hh === "invalid") { setError({ message: "세대수는 숫자만 입력하세요 (다획지는 예: 409, 581)." }); return null; }
     if (!hh) { setError({ message: "신축 세대수를 입력하세요 (다획지는 예: 409, 581)." }); return null; }
+    // 고급 면적은 입력했는데 형식이 틀려 하나도 못 읽으면 알려줌 (조용히 무시하지 않음)
+    if (advanced && existing.trim() && !parseAreas(existing)) {
+      setError({ message: "기존시설 면적 형식: 시설명:숫자, … (예: 작은도서관:1000)" }); return null;
+    }
+    if (advanced && planned.trim() && !parseAreas(planned)) {
+      setError({ message: "계획 면적 형식: 시설명:숫자, … (예: 작은도서관:515)" }); return null;
+    }
     return hh;
   }
 
@@ -70,7 +81,7 @@ export default function TabJ({ address }) {
     try {
       const r = await contextPackPptx(address, hh, radius, parseAreas(existing), parseAreas(planned));
       setPptxUrl(r.url);
-      window.open(r.url, "_blank");
+      window.open(r.url, "_blank", "noopener");
     } catch (e) { setError(e); } finally { setPptxLoading(false); }
   }
 

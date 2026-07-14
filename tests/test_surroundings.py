@@ -35,9 +35,9 @@ def test_collect_and_narrative(monkeypatch):
     assert by["여가"].count == 2
     assert by["주거"].count == 3
     assert by["관공서"].count == 1
-    # 색·반경밴드
+    # 색·반경밴드 (최외곽 링 = 실제 반경)
     assert by["교통"].color == (233, 30, 99)
-    assert r.ring_radii == [250, 500, 750]
+    assert r.ring_radii == [250, 500, 750, 1000]
     # 서술문: 룰 조립 — 역·공원·학교·관공서 언급
     assert "노들역" in r.narrative and "공원" in r.narrative
     assert "1000m 내" in r.narrative

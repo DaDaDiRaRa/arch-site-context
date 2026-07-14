@@ -72,8 +72,8 @@ def _demand_area(demand: dict, new_hh: int, applied_hh: int,
     if typ == "linear_household":
         return None, round(p["base"] + p["per_household"] * hh - existing_area, 2)
     if typ == "infant_rate":
-        if not infant_pop or not gu_hh:
-            return None, None  # 영유아/구세대 없으면 산정 불가 (추정 안 함, 절대 원칙 3)
+        if infant_pop is None or not gu_hh:  # 0은 유효값, None(미조회)만 산정 불가 (절대 원칙 3)
+            return None, None
         exp = (infant_pop / gu_hh) * hh * p["attendance_rate"]
         return round(exp, 2), round(exp * p["area_per_person"] - existing_area, 2)
     return None, None

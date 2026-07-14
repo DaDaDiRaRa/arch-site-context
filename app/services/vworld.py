@@ -193,6 +193,8 @@ def search_vworld(
                         notes.append(f"VWorld 검색 '{kind}' 오류 (건너뜀).")
                     break
                 items = (resp.get("result", {}) or {}).get("items", []) or []
+                if not items:  # 빈 페이지 = 더 이상 결과 없음 (record.total 신뢰 못해도 안전)
+                    break
                 for it in items:
                     if filt not in (it.get("category") or ""):
                         continue
@@ -208,10 +210,12 @@ def search_vworld(
                     total = int(rec.get("total", 0))
                 except (ValueError, TypeError):
                     total = 0
-                if page * _SEARCH_SIZE >= total:
+                if total and page * _SEARCH_SIZE >= total:  # total 유효할 때만 종료 판단
                     break
-                if page >= _SEARCH_MAX_PAGES and total > page * _SEARCH_SIZE:
-                    notes.append(f"VWorld 검색 '{kind}': {total}건 중 {page * _SEARCH_SIZE}건만 (상한).")
+                if page >= _SEARCH_MAX_PAGES:
+                    if total and total > page * _SEARCH_SIZE:
+                        notes.append(f"VWorld 검색 '{kind}': {total}건 중 {page * _SEARCH_SIZE}건만 (상한).")
+                    break
                 page += 1
     finally:
         if own:

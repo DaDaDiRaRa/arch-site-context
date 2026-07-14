@@ -48,6 +48,7 @@ def context_pack(req: ContextPackRequest):
 def context_pack_pptx(req: ContextPackRequest):
     """심의 현황팩 A3 편집가능 PPTX 생성 → /files 저장 후 공유 URL 반환 (C4·C5)."""
     import hashlib
+    import json
 
     from app.config import OUT_DIR
     from app.services.deliberation_pptx import build_pptx
@@ -74,8 +75,11 @@ def context_pack_pptx(req: ContextPackRequest):
     packs_dir.mkdir(parents=True, exist_ok=True)
     hh_sig = "-".join(map(str, req.new_households if isinstance(req.new_households, list)
                           else [req.new_households]))
+    # 캐시키에 면적·라벨도 포함 — 같은 주소·세대·반경이라도 면적 입력이 다르면 다른 파일(stale 방지)
+    extra = json.dumps([req.existing_area, req.planned_area, req.labels], sort_keys=True,
+                       ensure_ascii=False, default=str)
     key = hashlib.md5(
-        f"{req.address}|{hh_sig}|{req.radius}|{assessment.ym}".encode()).hexdigest()[:12]
+        f"{req.address}|{hh_sig}|{req.radius}|{assessment.ym}|{extra}".encode()).hexdigest()[:12]
     fname = f"pack_{key}.pptx"
     (packs_dir / fname).write_bytes(data)
     return {

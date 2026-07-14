@@ -87,6 +87,8 @@ def fetch_schools(
                     break
                 return None, [f"학교: NEIS 응답 오류 ({code or '형식'})."]
             page_rows = j["schoolInfo"][1].get("row", []) or []
+            if not page_rows:  # 빈 페이지 → 종료 (방어)
+                break
             rows.extend(page_rows)
             total = j["schoolInfo"][0]["head"][0]["list_total_count"]
             if page * _PSIZE >= total:

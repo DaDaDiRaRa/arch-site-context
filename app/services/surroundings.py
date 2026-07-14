@@ -27,11 +27,12 @@ def load_config() -> dict:
 
 
 def _default_rings(radius: int) -> List[int]:
-    """현황도 반경밴드. 심의 관행(250/500/750) 또는 반경 3등분."""
-    if radius >= 900:
-        return [250, 500, 750] if radius <= 1100 else [radius // 3, 2 * radius // 3, radius]
-    step = radius // 3 or 1
-    return [step, 2 * step, radius]
+    """현황도 반경밴드. 심의 관행 밴드(250/500/750/1000…) 중 반경 이하 + 최외곽=반경.
+    최외곽 링이 항상 실제 조사반경과 같아, 반경 내 수집 핀이 모든 링 밖에 놓이지 않는다.
+    """
+    band = [r for r in (250, 500, 750, 1000, 1500, 2000) if r < radius]
+    band.append(radius)
+    return sorted(set(band))[-4:]  # 너무 많으면 바깥쪽 4개만
 
 
 def _clean_name(name: str, suffix) -> str:

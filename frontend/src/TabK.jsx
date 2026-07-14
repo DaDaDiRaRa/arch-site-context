@@ -32,7 +32,7 @@ export default function TabK({ address }) {
     try {
       const r = await surroundingsPptx(address, radius);
       setPptxUrl(r.url);
-      window.open(r.url, "_blank");
+      window.open(r.url, "_blank", "noopener");
     } catch (e) { setError(e); } finally { setPptxLoading(false); }
   }
 

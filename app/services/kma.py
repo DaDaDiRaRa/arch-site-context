@@ -119,11 +119,13 @@ def fetch_weather(
         if not items:
             return None, ["기상청: 예보 데이터 없음."]
 
-        # 가장 이른 예보시점(fcstDate+fcstTime) 선택
-        first = min(items, key=lambda it: (it["fcstDate"], it["fcstTime"]))
-        fd, ft = first["fcstDate"], first["fcstTime"]
-        by_cat = {it["category"]: it["fcstValue"]
-                  for it in items if it["fcstDate"] == fd and it["fcstTime"] == ft}
+        # 가장 이른 예보시점(fcstDate+fcstTime) 선택 — 필드 결측 항목이 있어도 KeyError 로
+        # 쓸만한 예보 전체를 폐기하지 않도록 .get() 사용.
+        first = min(items, key=lambda it: (it.get("fcstDate", ""), it.get("fcstTime", "")))
+        fd, ft = first.get("fcstDate", ""), first.get("fcstTime", "")
+        by_cat = {it.get("category"): it.get("fcstValue")
+                  for it in items
+                  if it.get("fcstDate") == fd and it.get("fcstTime") == ft and it.get("category")}
 
         def _num(v):
             try:

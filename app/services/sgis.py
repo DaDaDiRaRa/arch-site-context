@@ -72,8 +72,12 @@ def get_token(client: httpx.Client, cache: Optional[Cache] = None) -> str:
     # accessTimeout = 만료 epoch ms (실측). 초로 환산해 캐시.
     try:
         exp = float(res.get("accessTimeout", 0)) / 1000.0
-    except Exception:
-        exp = time.time() + 3600
+    except (ValueError, TypeError):
+        exp = 0.0
+    if exp <= time.time():
+        # 파싱실패·과거·결측 → 1h 추정 대신 보수적 단기 TTL(10분).
+        # (실토큰이 더 일찍 죽으면 죽은 토큰을 1시간 재사용해 '데이터 공백'으로 오인하는 것 방지)
+        exp = time.time() + 600
     cache.set(ckey, {"token": token, "exp": exp})
     return token
 

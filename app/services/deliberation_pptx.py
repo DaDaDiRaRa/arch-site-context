@@ -87,8 +87,9 @@ def _survey_slide(prs, a: QuotaAssessment) -> None:
            "", f"{a.survey.applied_pop_total:,}", f"{a.survey.applied_hh_total:,}"]
     for j, v in enumerate(tot):
         _setcell(tbl.cell(n - 1, j), v, bold=True, fill=_HEAD, size=11)
+    ym_label = f"{a.ym[:4]}.{a.ym[4:]} 기준" if len(a.ym) == 6 else "기준월 미상"
     cap = slide.shapes.add_textbox(Cm(2.0), Cm(2.6) + Cm(1.0 * n) + Cm(0.2), Cm(30), Cm(1.2)).text_frame
-    cap.text = (f"반경 {a.radius}m 걸침 행정동 · {a.ym[:4]}.{a.ym[4:]} 기준(행안부 주민등록) · "
+    cap.text = (f"반경 {a.radius}m 걸침 행정동 · {ym_label}(행안부 주민등록) · "
                 "걸침율=행정동 면적 대비 조사범위 교차비율 · ⚠타시군구 동은 '계' 제외(생활권 검토·사람 확정)")
     if cap.paragraphs[0].runs:
         cap.paragraphs[0].runs[0].font.size, cap.paragraphs[0].runs[0].font.name = Pt(10), _F

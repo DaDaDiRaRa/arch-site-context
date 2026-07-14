@@ -211,7 +211,13 @@ def _rule_interpretation(use_type, facts, diagnoses, hazards, cross) -> str:
     if cross:
         parts.append("교차 참고 시사점 " + str(len(cross)) + "건.")
     parts.append("모든 수치는 표기된 기준·근접도 기준이며 대지 고유값이 아닐 수 있다(참고).")
-    return " ".join(parts)
+    text = " ".join(parts)
+    # 그라운딩 풀 길이 상한 (비용·컨텍스트 폭주 방지). facts 는 KOSIS/규칙 출처라
+    # 정상 규모면 넉넉히 들어가고, 이상 증식 시에만 절삭 + 표시.
+    _CAP = 8000
+    if len(text) > _CAP:
+        text = text[:_CAP] + " …(이하 생략·풀 상한)"
+    return text
 
 
 def _rule_judgment() -> str:

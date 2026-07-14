@@ -68,7 +68,11 @@ def resolve_coord(address: str, client: Optional[httpx.Client] = None) -> Dict[s
             raise KakaoError(f"주소를 좌표로 해석할 수 없습니다: {address}")
 
         d = docs[0]
-        return {"lat": float(d["y"]), "lon": float(d["x"])}
+        try:
+            return {"lat": float(d["y"]), "lon": float(d["x"])}
+        except (KeyError, TypeError, ValueError):
+            # 키워드 폴백 문서 등 x/y 결측·비수치 → raw 예외 대신 KakaoError (호출부가 catch)
+            raise KakaoError(f"좌표 필드가 없는 검색결과입니다: {address}")
     finally:
         if own:
             client.close()
