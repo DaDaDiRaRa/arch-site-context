@@ -19,6 +19,8 @@
 | F | **대지 정보** | 주소 → 개별공시지가(필지)·실거래·건축물대장(건폐율·용적률) |
 | G | **보드 합본** | 주소 → 상권·학교·어린이집·문화시설·부동산지수·날씨·생활인구·공연시설 한 화면 |
 | H | **공동주택 readout** | 재건축·재개발·민간 부지 → 인구·산업·주거·복지 종합 프로파일 + 유형별 ★강조 (전국, KOSIS 다차원) |
+| **J** | **심의 현황팩** ★ | 주소 + 신축세대(다획지) → 서울시 통합심의 '커뮤니티 총량제 검토'를 자동 산정 — 조사범위 걸침 인구·세대, 시설현황, 주민공동시설 부족/충족 판정. **A3 편집가능 PPTX**(걸침표·시설현황표·편집가능 위치도·판정박스) 내려받기 |
+| **K** | **주변현황도** | 주소 + 반경 → 심의 슬라이드 4~6: 반경 내 여가·교육·주거·관공서·교통 시설 + 서술문. **위성 반경현황도 A3 PPTX** 내려받기 |
 
 ---
 
@@ -50,6 +52,19 @@
 
 **딜리버리 3종:** ① 탐색 대시보드(I탭) · ② API/**MCP 서버**(`mcp_server/`, Claude·에이전트가 `read_site_context`로 호출) · ③ 공유 보드(링크·PDF).
 **형제앱 연동:** 설계공모 제안서 앱 **competition_comparison** 이 `/board {brief:true}` 를 pull → 수주 제안서 대지분석을 실측화. **arch-site-model**(물리 3D)을 `POST /board {model:...}` 로 주입하면 물리+인문 = **완전한 보드**(축측 매싱 미리보기). 터읽기는 provider — 형제를 호출하지 않고 넘겨받은 모델을 렌더만 (상세 [INTEGRATION.md](INTEGRATION.md)).
+
+---
+
+## 심의 현황팩 — 서울시 통합심의 도서 자동화 (C 시리즈)
+
+건축경관심의 도서에서 손이 제일 많이 가는 **'조사·현황·기반시설' 파트**를 주소+세대수만으로 자동 생성한다. 실제 심의도서(동작 본동·삼익맨숀·노4·전농9·여의도·목동6단지 등 서울 통합심의)로 검증. 산출물은 **네이티브 편집가능 A3 PPT** — 심의도서에 드롭 후 크기·위치만 손질.
+
+- **C1 조사범위 걸침 합산** — 반경에 걸치는 행정동을 면적비율(걸침율=SGIS 경계∩반경 shapely)로 합산 × 인구·세대(행안부 rdoa). 시군구 경계 넘는 동은 ⚠생활권 검토 플래그(사람 확정).
+- **C2 총량제 판정** — 주민공동시설(도서관·경로당·어린이집·다함께돌봄센터) 부족/충족을 서울시 조례 산정식으로. **세대규모 5-tier**(300~500…2000+)는 실측·법령검증(주택건설기준 §55조의2). ⚠법정면적은 조례 변동값 → confidence 낮으면 "조례 확인" 자동 표기.
+- **C4·C5 딜리버리** — 걸침표·시설현황표·**편집가능 위치도**(위성 배경 + 네이티브 반경원·번호핀)·총량제 판정박스를 A3 PPTX로.
+- **C7 주변현황도** — 반경 250/500/750/1km 현황도 + 카테고리별 시설표 + 서술문(룰 조립·LLM 0). 카카오 카테고리 코드로 정제(학교·지하철·공공기관).
+
+원칙 유지: 걸침율·산정은 코드 기하·산수(LLM 0·새 숫자 0), 법정면적은 조례 변동으로 정직 표기, 도로폭·재개발 경계 등 소스 없는 항목은 만들지 않음(빈칸). 상세: [CLAUDE.md §8.13](CLAUDE.md).
 
 ---
 
@@ -96,6 +111,10 @@
 | `POST` | `/readout` | 공동주택 대지 readout — 인구·산업·주거·복지 종합 + 유형 프리셋 (KOSIS 다차원) |
 | `POST` | `/board` | **종합 읽기** ★ — 병렬 오케스트레이션 + 근접도·교차규칙·설계 드라이버·프로그램 함의·동네 유형·방법론 부록·(opt-in) AI 종합. `brief:true` 압축 투영(형제앱·MCP용), `model:` arch-site-model 물리 3D 주입 |
 | `POST` | `/board/view` | **보드 내보내기** — /board → 지도·물리모델 축측 매싱·드라이버·POR·종합·방법론 담긴 자체완결 한 장 HTML → `/files` 공유 URL (인쇄→PDF) |
+| `POST` | `/context-pack` | **심의 현황팩** ★ — 걸침 인구·세대(C1) + 시설현황 + 주민공동시설 총량제 부족/충족 판정(C2). 다획지 지원 |
+| `POST` | `/context-pack/pptx` | 심의 현황팩 A3 편집가능 PPTX → `/files` 공유 URL |
+| `POST` | `/surroundings` | **주변현황도** — 반경 내 여가·교육·주거·관공서·교통 + 서술문 (심의 슬라이드 4~6) |
+| `POST` | `/surroundings/pptx` | 주변현황도 A3 PPTX → `/files` 공유 URL |
 
 MCP 서버: `claude mcp add teoilgi python mcp_server/server.py` (도구: `read_site_context`·`diagnose_supply`)
 
@@ -214,6 +233,8 @@ POST /diagnose
   - `app/data/archetype_rules.json` — T1.5 대지 아키타입(동네 유형) 규칙
   - `app/data/program_rules.json` — T3 프로그램 함의(POR) 카테고리별 규칙
   - `app/data/methodology.json` — T5 방법론 부록 출처 카탈로그·산정식·도메인 매핑
+  - `app/data/community_quota.json` — C2 주민공동시설 총량제 세대규모 tier·법정면적(조례검증)
+  - `app/data/surroundings.json` — C7 주변현황 카테고리·키워드·카카오 코드·색
 
 ---
 
@@ -306,14 +327,22 @@ arch-site-context/
 │   │   ├── board_view.py    #   T4 대지분석 보드 HTML 렌더 (+물리모델 축측 매싱)
 │   │   ├── site_seed.py     #   보드 합본 진입점
 │   │   ├── census_multidim.py #  KOSIS 다차원 census 지표 (getMeta 차원해부, 사업체·빈집 등)
-│   │   └── readout.py       #   공동주택 대지 readout 오케스트레이션
-│   ├── schemas/             #   Pydantic v2 데이터 계약 (proximity·board·design_drivers·archetype·program 등)
+│   │   ├── readout.py       #   공동주택 대지 readout 오케스트레이션
+│   │   ├── survey.py        #   C1 조사범위 걸침 합산 (SGIS 경계∩반경 shapely × jumin 인구·세대)
+│   │   ├── quota.py         #   C2 주민공동시설 총량제 판정 (세대규모 tier·조례검증)
+│   │   ├── survey_facilities.py # 조사범위 내 도서관·경로당·어린이집 현황 수집
+│   │   ├── deliberation.py  #   C6 심의 현황팩 오케스트레이터 (C1+구통계+시설현황+C2)
+│   │   ├── deliberation_pptx.py # C4·C5 A3 편집가능 PPTX (걸침표·위치도·판정박스)
+│   │   ├── surroundings.py  #   C7 주변현황도 수집 + 서술문 룰조립 (카테고리 코드 정제)
+│   │   └── surroundings_pptx.py # C7 주변현황도 A3 PPTX
+│   ├── schemas/             #   Pydantic v2 데이터 계약 (proximity·board·quota·survey·surroundings 등)
 │   └── data/                #   외부 JSON 설정 (건축가 편집 — 원칙 7)
 │       ├── matrix.json · implications.json · supply_demand.json
 │       ├── cross_context.json · driver_rules.json · archetype_rules.json · program_rules.json
-│       └── methodology.json  (T5 방법론 부록)
+│       ├── methodology.json  (T5 방법론 부록)
+│       └── community_quota.json · surroundings.json  (C2 총량제 tier · C7 주변현황 카테고리)
 ├── mcp_server/              # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
-├── frontend/                # React + Vite + Tailwind (TabA~I, I=종합 읽기)
+├── frontend/                # React + Vite + Tailwind (TabA~K, I=종합 읽기·J=심의 현황팩·K=주변현황도)
 ├── tests/                   # pytest (단위 + 라이브 테스트)
 ├── scripts/                 # 유틸 스크립트 (KOSIS 카탈로그 마이너·차원 프로파일러·readout 데모 등)
 ├── docs/                    # API 검증 기록 + KOSIS 깊이확장 계획·지표사전

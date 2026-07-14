@@ -32,7 +32,7 @@
 | 4 | **출처·기준 명시** | 모든 `Fact`에 `source_tbl`, `year` 필드. "○○구 기준" 문단 필수 |
 | 5 | **판단은 분리·라벨하되 최종 결정은 사람** | 사실/AI의견을 벽 분리(종합 산출 `synthesis` ①사실 ②AI판단). 모든 `Implication`·`Diagnosis`·드라이버·POR가 `tag:"참고"`. **종합점수·순위 없음** |
 | 6 | **모델은 Claude 하나** | 다벤더·교차검증 금지. Claude 계열 내 티어 분리 허용: `synthesis.py` ①`claude-sonnet-5`·②`claude-opus-4-8`, `narrative.py`·`ask.py`는 Opus |
-| 7 | **설정은 JSON** | `matrix`·`implications`·`supply_demand`·`cross_context`·`driver_rules`·`archetype_rules`·`program_rules`.json — 코드 수정 없이 건축가가 편집 |
+| 7 | **설정은 JSON** | `matrix`·`implications`·`supply_demand`·`cross_context`·`driver_rules`·`archetype_rules`·`program_rules`·`methodology`·`community_quota`(C2 총량제 tier)·`surroundings`(C7 카테고리).json — 코드 수정 없이 건축가가 편집 |
 
 > **S/T 시리즈 (종합 읽기·2026-07-09):** 위 원칙 위에서 흩어진 출력을 `/board` 로 합성 + 해석 레이어를 얹었다.
 > **S1** 데이터 근접도 등급 · **S2** 교차규칙 엔진 · **S3** `/board` 통합 진입점 · **S4** 종합 산출(사실/AI의견 벽 분리) ·
@@ -59,6 +59,8 @@ arch-site-context/
 │   │   ├── seed.py              # POST /seed      (P14 보드 합본, ThreadPoolExecutor 병렬)
 │   │   ├── readout.py           # POST /readout   (공동주택 대지 readout)
 │   │   ├── board.py             # POST /board, /board/view (S/T 종합 읽기 + 보드 렌더)
+│   │   ├── context_pack.py      # POST /context-pack, /context-pack/pptx (심의 현황팩 C1·C2·C6)
+│   │   ├── surroundings.py      # POST /surroundings, /surroundings/pptx (주변현황도 C7)
 │   │   ├── matrix.py            # GET  /matrix    (투명성)
 │   │   └── health.py            # GET  /health
 │   ├── services/
@@ -88,6 +90,13 @@ arch-site-context/
 │   │   ├── site_model.py        # arch-site-model 물리 3D 결합 (넘겨받은 모델 요약·렌더)
 │   │   ├── board_contract.py    # /board 공유 계약 (board_brief·board_to_project_seed)
 │   │   ├── board_view.py        # T4 대지분석 보드 자체완결 HTML 렌더 (+물리모델 축측 매싱)
+│   │   ├── survey.py            # C1 조사범위 걸침 합산 (SGIS 경계∩반경 shapely × jumin)
+│   │   ├── quota.py             # C2 주민공동시설 총량제 판정 (세대규모 tier·조례검증)
+│   │   ├── survey_facilities.py # 조사범위 도서관·경로당·어린이집 현황 수집
+│   │   ├── deliberation.py      # C6 심의 현황팩 오케스트레이터 (C1+구통계+시설현황+C2)
+│   │   ├── deliberation_pptx.py # C4·C5 A3 편집가능 PPTX (걸침표·위치도·판정박스)
+│   │   ├── surroundings.py      # C7 주변현황도 수집 + 서술문 룰조립
+│   │   ├── surroundings_pptx.py # C7 주변현황도 A3 PPTX
 │   │   ├── map_compose.py       # PIL 위성 PNG 합성
 │   │   ├── tmap.py              # TMAP 보행자 경로 → 등시선 폴리곤
 │   │   ├── tiles.py             # VWorld 타일 조합 + 좌표↔픽셀 변환
@@ -113,12 +122,14 @@ arch-site-context/
 │       ├── driver_rules.json    # T2 설계 드라이버 규칙·가중치
 │       ├── archetype_rules.json # T1.5 대지 아키타입 규칙
 │       ├── program_rules.json   # T3 프로그램 함의(POR) 규칙
-│       └── methodology.json     # T5 방법론 부록 출처 카탈로그·산정식
+│       ├── methodology.json     # T5 방법론 부록 출처 카탈로그·산정식
+│       ├── community_quota.json # C2 주민공동시설 총량제 세대규모 tier·법정면적(조례검증)
+│       └── surroundings.json    # C7 주변현황 카테고리·키워드·카카오 코드·색
 ├── mcp_server/                  # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
 ├── frontend/                    # React + Vite + Tailwind
 │   └── src/
-│       ├── App.jsx              # 탭 라우팅 (A~I)
-│       ├── TabA.jsx ~ TabI.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(/board)
+│       ├── App.jsx              # 탭 라우팅 (A~K)
+│       ├── TabA.jsx ~ TabK.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(/board)·J 심의 현황팩(/context-pack)·K 주변현황도(/surroundings)
 │       ├── api.js               # fetch 헬퍼
 │       └── ui.jsx               # 공통 UI (IndexBar·ProximityChip 등)
 └── tests/                       # pytest (순수 로직 + live skipif)
@@ -443,6 +454,26 @@ build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
 /board 빌드 → `board_view.render_board_html`(자체완결 HTML: 지도 앵커·물리모델 축측 매싱·아키타입·드라이버·POR·종합·지수·방법론 부록) → `out/boards/*.html` 저장 → `{ url: "/files/boards/…", has_map }` 반환. 인쇄 시 PDF. `_satellite_anchor`가 VWorld 위성+반경링 data URI 임베드, `model` 넘어오면 `_massing_anchor`가 건물 footprint를 축측(2:1 이소) 투영해 매싱 미리보기 임베드 — **three.js 없이 서버사이드 PIL**로 자체완결·오프라인 유지 (둘 다 graceful).
 
 **MCP (`mcp_server/server.py`, FastMCP):** `read_site_context`(→board_brief) · `diagnose_supply`(→수급진단). 기존 서비스 얇게 래핑 — 개별·에이전트 파이프라인 둘 다.
+
+### 4.12 POST /context-pack — 심의 현황팩 (C1·C2·C6) ★
+
+서울시 통합심의 '커뮤니티 총량제 검토'(심의 슬라이드 95·96)를 자동 산정. 입력 `{address, new_households(int|list 다획지), radius, existing_area?, planned_area?}`.
+
+- **C1 걸침 합산** (`survey.survey_area`): kakao 좌표 → SGIS 읍면동 경계(cd=3, UTM-K) ∩ 반경 원(shapely) = 걸침율(면적비) → 각 동 중심 transcoord→H코드 → `jumin.fetch_dong_stats`(행안부 rdoa) 인구·세대 매칭 → 적용=총량×걸침율. 대지 시군구만 '계' 합산, 타시군구·미해석 동은 ⚠플래그·계 제외(정직).
+- **구 통계**: 구 영유아(KOSIS DT_1B04005N 0-4세)·구 세대(jumin 동 합산). 실패 시 어린이집만 '확인필요'(추정 안 함).
+- **시설 현황** (`survey_facilities`): 반경 내 도서관(카카오)·경로당(카카오+VWorld)·어린이집(카카오+cpmsapi021 정원). ⚠면적은 개별출처 미제공 → 목록·개수만.
+- **C2 총량제** (`quota.compute_quota` + `community_quota.json`): 시설별 예상인원·산출면적(예상×면적−기존)·부족(>0)/충족 판정. 법정면적은 **세대규모 5-tier**(신축세대 기준 선택, formula/공공개방 지원). confidence=low tier(조례 변동)는 판정 대신 "조례 확인" note. 다획지는 획지별 판정.
+- 출력 `QuotaAssessment{survey, facilities, results[], gu_infant, gu_households}`. 걸침 행정동 0개면 `NO_DATA`.
+- **`POST /context-pack/pptx`** (`deliberation_pptx.build_pptx`): A3 편집가능 — 걸침 인구세대표 + 시설현황(위성 배경 + 네이티브 반경원·번호핀 위치도 + 표) + 총량제 판정박스(부족=빨강/충족=초록). 표·도형 전부 네이티브(사람 손질). `out/packs/*.pptx` 저장·`/files` URL. graceful(타일 실패→표만).
+
+**원칙:** 걸침율=코드 기하·산정=산수(LLM 0·새 숫자 0), 법정면적=조례 변동(정직 표기), 도로폭·재개발경계 등 소스 없는 항목은 안 만듦.
+
+### 4.13 POST /surroundings — 주변현황도 (C7)
+
+심의 슬라이드 4~6. 입력 `{address, radius}`. `surroundings.collect_surroundings` → 반경 내 교통·교육·여가·주거·관공서 카카오 수집 + **카테고리 코드 정제**(학교 SC4·지하철 SW8·공공기관 PO3, `kakao.search_keyword` `category_group_code`) + 노이즈 토큰 필터(행정실·후문·ATM)·이름 정제(단지 하위시설 합침). **서술문**은 데이터 룰 조립(LLM 0). 설정 `surroundings.json`(카테고리·키워드·코드·색). 출력 `SurroundingsResult{categories[], narrative, ring_radii}`.
+
+- **`POST /surroundings/pptx`** (`surroundings_pptx`): A3 1슬라이드 — 위성 반경현황도(반경밴드 원 + 카테고리별 색 점) + 범례겸 카테고리표 + 서술문. `/files/packs/*.pptx`.
+- 도로폭·재개발 경계·아파트 세대수는 소스 미확보 → 표기 안 함(경계·원칙 3).
 
 ---
 
