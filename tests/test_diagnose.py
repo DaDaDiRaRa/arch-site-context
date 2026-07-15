@@ -38,6 +38,16 @@ def test_supply_level_thresholds() -> None:
     assert diagnose._supply_level_count(25, 3, 10, 2000) == "보통"
 
 
+def test_supply_level_small_radius_keeps_middle_band() -> None:
+    """B3: 작은 반경(500m·scale 0.25)에서 저임계 규칙의 '보통' 밴드가 붕괴하지 않는다.
+
+    초등학교(low_max=0, high_min=3) @ 500m — 학교 1개가 '많음'으로 튀면 안 됨(보통).
+    """
+    assert diagnose._supply_level_count(0, 0, 3, 500) == "적음"
+    assert diagnose._supply_level_count(1, 0, 3, 500) == "보통"  # ← 붕괴 시 '많음'이었음
+    assert diagnose._supply_level_count(2, 0, 3, 500) == "많음"
+
+
 def test_cross_rules_radius_density_is_primary() -> None:
     """반경 모드: 공급 판정이 반경 실인구 1인당 밀도 vs 전국(primary)으로 바뀐다 (네트워크 없음).
 

@@ -62,13 +62,15 @@ def build_readout(
     facts, fnotes, year = stats.collect_facts(loc.sgg_code, use_type, cache=cache)
     notes += fnotes
     fact_map = {f["item"]: f for f in facts}
+    scope_name = loc.sigungu or loc.sgg_code
     demographics = [
         DemographicFact(
             item=f["item"], value=f["value"], national_avg=f.get("national_avg"),
             unit=f.get("unit", ""), source_tbl=f.get("source_tbl", ""), year=f.get("year"),
-            emphasized=f["item"] in emphasis,
+            scope=scope_name, emphasized=f["item"] in emphasis,
         )
         for f in facts
+        if (f.get("source_tbl") or "").strip()  # 출처 없는 숫자는 방출 안 함 (절대 원칙 4·graceful)
     ]
 
     # ② 크랙한 census 지표 (산업·주거·복지)
@@ -90,7 +92,7 @@ def build_readout(
                 label=ind["label"], value=val, unit=ind["unit"], axis=ind["axis"],
                 breakdown=(data.get("breakdown", []) if data else []),
                 source_tbl=ind["tbl"], year=(data.get("year") if data else None),
-                emphasized=ind["label"] in emphasis,
+                scope=scope_name, emphasized=ind["label"] in emphasis,
             ))
     finally:
         if own:

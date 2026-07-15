@@ -47,11 +47,21 @@ def test_weak_match_falls_back_to_mixed() -> None:
     assert a is not None and a.name == "혼합형 시가지" and a.match_score == 0.0
 
 
-def test_min_match_gates_multi_signal_type() -> None:
-    # 생산연령 밀집(min_match 2): 생산가능 high 만 있고 인구밀도 없음 → 미채택
+def test_productive_urban_alive_in_sigungu_mode() -> None:
+    # B5: 인구밀도는 반경 모드 전용 → 예전엔 min_match 2 로 시군구 모드에서 死 규칙이었다.
+    # 이제 생산가능인구 상회(78/71=지수110)만으로도 후보로 살아난다 (score 1.0).
     facts = [_f("생산가능인구비율", 78.0, 71.0)]
     a = classify_archetype(facts, [], None)
-    assert a.name != "생산연령 밀집 도심"  # 폴백 또는 타 유형
+    assert a.name == "생산연령 밀집 도심"
+    assert a.match_score == 1.0  # 1신호(인구밀도 없음)
+
+
+def test_productive_urban_stronger_with_density() -> None:
+    # 반경 모드: 인구밀도(>15000)까지 매칭되면 score 2.0 으로 강해진다.
+    facts = [_f("생산가능인구비율", 78.0, 71.0),
+             _f("인구밀도", 16000.0, None, unit="명/㎢")]
+    a = classify_archetype(facts, [], None)
+    assert a.name == "생산연령 밀집 도심" and a.match_score == 2.0
 
 
 def test_hazard_only_classifies() -> None:

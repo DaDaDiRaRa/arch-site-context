@@ -52,10 +52,16 @@ def _demand_level(value: float, national: Optional[float], margin: float) -> str
 
 
 def _supply_level_count(count: int, low_max: int, high_min: int, radius: int = 1000) -> str:
-    """반경 내 공급 개수 레벨. 임계값은 radius=1000m 기준 — 면적 비례(radius²)로 스케일."""
+    """반경 내 공급 개수 레벨. 임계값은 radius=1000m 기준 — 면적 비례(radius²)로 스케일.
+
+    작은 반경(예: 500m→scale 0.25)에서 임계값이 뭉개지면 '보통' 밴드가 사라져
+    저임계 규칙(초등학교 low0/high3)이 1개만 있어도 '많음'으로 튄다.
+    → scaled_high 를 scaled_low+2 이상으로 보장해 '보통'(=scaled_low+1) 밴드를 항상 남긴다.
+    (radius=1000·2000 등 정상 스케일에선 high 임계가 커서 이 하한이 발동 안 함 — 무영향.)
+    """
     scale = (radius / 1000) ** 2
     scaled_low = max(0, round(low_max * scale))
-    scaled_high = max(scaled_low + 1, round(high_min * scale))
+    scaled_high = max(scaled_low + 2, round(high_min * scale))
     if count <= scaled_low:
         return "적음"
     if count >= scaled_high:
