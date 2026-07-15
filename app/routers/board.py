@@ -395,7 +395,21 @@ def board_pptx(req: BoardRequest):
     full = board(BoardRequest(**{**req.model_dump(), "brief": False, "synthesize": True}))
     if isinstance(full, JSONResponse):
         return full
-    data = build_board_deck(full.model_dump())
+    deck_input = full.model_dump()
+    # ★ 컨셉·설계방향 제안 (opt-in) — 여기서만 계산해 덱 dict 에 주입. BoardResult/brief/계약엔
+    # 절대 안 넣는다(격리 — competition 형제앱이 실측인 척 삼키는 것 차단, services/concept.py 참조).
+    if req.concept:
+        try:
+            from app.services.concept import derive_concept
+            con = derive_concept(
+                req.use_type, full.facts, full.diagnoses, full.hazards,
+                full.cross_implications, full.design_drivers, full.archetype,
+            )
+            if con:
+                deck_input["concept"] = con
+        except Exception:  # noqa: BLE001 — 컨셉 실패는 비치명, 나머지 덱은 그대로
+            pass
+    data = build_board_deck(deck_input)
     # 생성 이력 저장 (best-effort)
     try:
         from app.services import history

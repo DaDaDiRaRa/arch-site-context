@@ -47,6 +47,7 @@ export default function TabI({ address }) {
   const [resolution, setResolution] = useState("시군구");
   const [radius, setRadius] = useState(1000);
   const [synth, setSynth] = useState(false);
+  const [concept, setConcept] = useState(false);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingPptx, setExportingPptx] = useState(false);
@@ -86,7 +87,7 @@ export default function TabI({ address }) {
     setExportingPptx(true);
     setError(null);
     try {
-      const blob = await boardPptx(address, useType, radius, resolution);  // S4 종합 기본 포함
+      const blob = await boardPptx(address, useType, radius, resolution, concept);  // S4 종합 기본 포함 + 컨셉 커버(opt-in)
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -138,6 +139,10 @@ export default function TabI({ address }) {
         <label className="flex items-center gap-2 text-sm cursor-pointer mt-1" style={{ color: "var(--body)" }}>
           <input type="checkbox" checked={synth} onChange={(e) => setSynth(e.target.checked)} />
           <span>AI 종합 해석 생성 <span style={{ color: "var(--mute)" }}>(①사실 해석 + ②종합 의견 — Claude 2콜, 느려짐)</span></span>
+        </label>
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: "var(--warn)" }}>
+          <input type="checkbox" checked={concept} onChange={(e) => setConcept(e.target.checked)} />
+          <span>컨셉·설계방향 제안 커버 <span style={{ color: "var(--mute)" }}>(PPT 전용 · AI 창작 제안 · 발표용 참고안 — 계약엔 미포함)</span></span>
         </label>
       </div>
 

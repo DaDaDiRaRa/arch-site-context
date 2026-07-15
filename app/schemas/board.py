@@ -42,6 +42,11 @@ class BoardRequest(BaseModel):
         False,
         description="압축 투영(board_brief) 반환 여부. 제안서·프롬프트·형제앱 주입용 — 원시 seed context 제외 (계약 board_brief/1.0)",
     )
+    concept: bool = Field(
+        False,
+        description="[PPTX 전용] 컨셉·설계방향 제안 커버 슬라이드 생성 여부(AI 창작·발표용). "
+        "opt-in(기본 off). BoardResult/brief/계약에는 절대 포함 안 됨 — 덱 렌더에서만 소비 (격리)",
+    )
     model: Optional[dict] = Field(
         None,
         description="arch-site-model 물리 3D 출력(assembler 가 넘김 — 터읽기는 렌더·요약만, 호출 안 함). "

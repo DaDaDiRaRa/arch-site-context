@@ -21,6 +21,8 @@
 | H | **공동주택 readout** | 재건축·재개발·민간 부지 → 인구·산업·주거·복지 종합 프로파일 + 유형별 ★강조 (전국, KOSIS 다차원) |
 | **J** | **심의 현황팩** ★ | 주소 + 신축세대(다획지) → 서울시 통합심의 '커뮤니티 총량제 검토'를 자동 산정 — 조사범위 걸침 인구·세대, 시설현황, 주민공동시설 부족/충족 판정. **A3 편집가능 PPTX**(걸침표·시설현황표·편집가능 위치도·판정박스) 내려받기 |
 | **K** | **주변현황도** | 주소 + 반경 → 심의 슬라이드 4~6: 반경 내 여가·교육·주거·관공서·교통 시설 + 서술문. **위성 반경현황도 A3 PPTX** 내려받기 |
+| **L** | **대지분석 덱** | 주소+용도+반경 → 지도 4종 + 데이터 + 시설 상세 한 PPTX (POST /deck/full) |
+| **M** | **생성 이력** | 만든 덱·종합읽기 PPT 목록 → 재생성 없이 다시 받기 (GET /history) |
 
 ---
 
@@ -115,6 +117,10 @@
 | `POST` | `/context-pack/pptx` | 심의 현황팩 A3 편집가능 PPTX → `/files` 공유 URL |
 | `POST` | `/surroundings` | **주변현황도** — 반경 내 여가·교육·주거·관공서·교통 + 서술문 (심의 슬라이드 4~6) |
 | `POST` | `/surroundings/pptx` | 주변현황도 A3 PPTX → `/files` 공유 URL |
+| `POST` | `/deck/full` | 종합 대지분석 덱 (지도 4종 + 데이터 + 시설 종류별 상세) A3 PPTX 다운로드 |
+| `POST` | `/board/pptx` | 종합 대지 읽기 → A3 편집가능 PPTX (S4 ①해석·②의견 포함) |
+| `GET` | `/history` | 생성 이력 목록 (id·kind·title·params·created·size·backend) |
+| `GET` | `/history/{id}/file` | 이력 1건 재다운로드 (pptx 스트리밍) |
 | `POST` | `/basemap` | 위성 basemap 합성 PNG (핀 없이 배경만, `routers/facilities.py`) |
 | `GET` | `/api` | 진입 안내(엔드포인트 요약) |
 
@@ -298,7 +304,8 @@ gcloud run deploy arch-site-context \
   --set-secrets "$SECRETS"
 ```
 
-> 캐시는 기본 파일캐시(`OUT_DIR=/tmp/out`, Cloud Run 임시 FS라 인스턴스별·비영속). 영속 캐시가 필요하면 `--set-env-vars` 에 `GCS_CACHE_BUCKET=<버킷>` 을 추가하면 `GCSCache` 로 전환된다(코드 준비됨, 현재 미설정).
+> 캐시는 기본 파일캐시(`OUT_DIR=/tmp/out`, Cloud Run 임시 FS라 인스턴스별·비영속). `--set-env-vars` 에 `GCS_CACHE_BUCKET=<버킷>` 을 추가하면 `GCSCache` 로 전환되어 캐시와 **생성 이력**(덱·종합읽기 PPT)이 GCS 에 영구 저장된다 — Cloud Run 재시작·다중 인스턴스에서도 유지(미설정 시 로컬 폴백).
+> (선택) 대지분석 덱 형제앱 연동: `SITEMODEL_URL`·`LAW_URL`(arch-site-model 물리 3D·법규 앱 HTTP 주소). 미설정 시 해당 슬라이드는 생략된다.
 
 ---
 
@@ -346,7 +353,14 @@ arch-site-context/
 │   │   ├── deliberation.py  #   C6 심의 현황팩 오케스트레이터 (C1+구통계+시설현황+C2)
 │   │   ├── deliberation_pptx.py # C4·C5 A3 편집가능 PPTX (걸침표·위치도·판정박스)
 │   │   ├── surroundings.py  #   C7 주변현황도 수집 + 서술문 룰조립 (카테고리 코드 정제)
-│   │   └── surroundings_pptx.py # C7 주변현황도 A3 PPTX
+│   │   ├── surroundings_pptx.py # C7 주변현황도 A3 PPTX
+│   │   └── history.py       #   생성물 이력 저장·재다운로드(GCS/로컬 폴백)
+│   ├── deck/                # 대지분석 덱·종합읽기 PPT (deck-builder 흡수)
+│   │   ├── style.py         #   PPTX 디자인 언어(색·타이포·발산차트 index_chart)
+│   │   ├── map_slides.py    #   지도 4종 + build_full_deck 오케스트레이션
+│   │   ├── board_slides.py  #   종합읽기 PPT(종합결론·차트·①②·드라이버·교차·POR)
+│   │   ├── data_slides.py   #   덱 데이터 슬라이드(지역통계 차트·수급진단 카드·시설상세)
+│   │   └── clients.py       #   형제앱 HTTP(SITEMODEL_URL·LAW_URL) + 내부 직호출
 │   ├── schemas/             #   Pydantic v2 데이터 계약 (proximity·board·quota·survey·surroundings 등)
 │   └── data/                #   외부 JSON 설정 (건축가 편집 — 원칙 7)
 │       ├── matrix.json · implications.json · supply_demand.json
@@ -354,7 +368,7 @@ arch-site-context/
 │       ├── methodology.json  (T5 방법론 부록)
 │       └── community_quota.json · surroundings.json  (C2 총량제 tier · C7 주변현황 카테고리)
 ├── mcp_server/              # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
-├── frontend/                # React + Vite + Tailwind (TabA~K, I=종합 읽기·J=심의 현황팩·K=주변현황도)
+├── frontend/                # React + Vite + Tailwind (TabA~M, I=종합 읽기·J=심의 현황팩·K=주변현황도·L=대지분석 덱·M=생성 이력)
 ├── tests/                   # pytest (단위 + 라이브 테스트)
 ├── scripts/                 # 유틸 스크립트 (KOSIS 카탈로그 마이너·차원 프로파일러·readout 데모 등)
 ├── docs/                    # API 검증 기록 + KOSIS 깊이확장 계획·지표사전

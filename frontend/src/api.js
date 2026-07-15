@@ -89,13 +89,13 @@ export async function downloadHistory(id, filename) {
 }
 
 // 종합읽기 PPT (S4 종합 ①해석·②의견 기본 포함) — 대지분석 덱 디자인의 A3 PPTX blob 다운로드
-export async function boardPptx(address, use_type, radius = 1000, resolution = "시군구") {
+export async function boardPptx(address, use_type, radius = 1000, resolution = "시군구", concept = false) {
   let res;
   try {
     res = await fetch("/board/pptx", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ address, use_type, radius, resolution }),
+      body: JSON.stringify({ address, use_type, radius, resolution, concept }),
     });
   } catch (e) {
     throw new ApiError("서버에 연결할 수 없습니다.");

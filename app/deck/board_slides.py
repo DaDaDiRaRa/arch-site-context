@@ -346,6 +346,63 @@ def slide_program(prs, board):
     return True
 
 
+# ── 컨셉·설계방향 제안 (발표 커버 — AI 제안·격리, services/concept.py 참조) ──
+def slide_concept(prs, board):
+    """이미지 레퍼런스(PROJECT VALUE)처럼 컨셉명 + 키워드 3개로 설계 방향 제안.
+
+    board['concept'] 가 있을 때만 렌더(opt-in). 이건 S4 원칙의 의도적 예외(창작)라
+    '① 검증된 사실'이 아니라 'AI 제안'임을 라벨·핑크 강조로 사실 슬라이드와 분리한다.
+    """
+    con = board.get("concept") or {}
+    kws = con.get("keywords") or []
+    if not kws:
+        return False
+    sl = k.blank_slide(prs)
+    # 상단 라벨 칩 — 이건 '사실'이 아니라 'AI 제안'
+    k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, Cm(16.5), Cm(1.4), Cm(9.0), Cm(1.0), fill=AMBER, alpha_pct=92)
+    k.tb(sl, Cm(16.5), Cm(1.4), Cm(9.0), Cm(1.0), "AI 제안 · 설계 방향", size=13, color=k.WHITE, bold=True,
+         align=k.PP_ALIGN.CENTER, anchor=k.MSO_ANCHOR.MIDDLE)
+    k.tb(sl, Cm(1.5), Cm(2.9), Cm(39), Cm(1.0), "PROJECT DIRECTION", size=15, color=k.MUTE,
+         bold=True, align=k.PP_ALIGN.CENTER)
+
+    # 컨셉명 (창작·핑크). 규칙 폴백이면 name 이 비어 '설계 방향' 을 대신 씀.
+    name = (con.get("name") or "").strip()
+    headline = f"– {name} –" if name else "설계 방향"
+    _runs_tb(sl, Cm(1.5), Cm(4.6), Cm(39), Cm(3.2), [(headline, PINK)], size=54,
+             align=k.PP_ALIGN.CENTER, anchor=k.MSO_ANCHOR.MIDDLE)
+    tag = (con.get("tagline") or "").strip()
+    if tag:
+        k.tb(sl, Cm(1.5), Cm(7.9), Cm(39), Cm(0.9), tag, size=14, color=k.WHITE, align=k.PP_ALIGN.CENTER)
+
+    # 키워드 행 (word · word · word) — 이미지의 대형 중앙 배열
+    words = [str(w.get("word", "")).strip() for w in kws if str(w.get("word", "")).strip()]
+    runs = []
+    for i, w in enumerate(words):
+        if i > 0:
+            runs.append((" · ", k.MUTE))
+        runs.append((w, k.WHITE))
+    _runs_tb(sl, Cm(1.5), Cm(9.6), Cm(39), Cm(2.0), runs, size=34, align=k.PP_ALIGN.CENTER,
+             anchor=k.MSO_ANCHOR.MIDDLE)
+
+    # 키워드 풀이 (뜻 + 근거) — 각 키워드가 어느 드라이버/사실에서 나왔는지 추적
+    y = 12.4
+    for w in kws:
+        word = str(w.get("word", "")).strip()
+        gloss = _txt(w.get("gloss"), 60)
+        _runs_tb(sl, Cm(4.0), Cm(y), Cm(34), Cm(0.9),
+                 [(f"{word}: ", PINK), (gloss, k.WHITE)], size=15, align=k.PP_ALIGN.CENTER)
+        basis = _txt(w.get("basis"), 70)
+        if basis:
+            k.tb(sl, Cm(4.0), Cm(y + 0.85), Cm(34), Cm(0.7), f"근거: {basis}", size=10,
+                 color=k.MUTE, align=k.PP_ALIGN.CENTER)
+        y += 1.85
+
+    label = con.get("label") or ""
+    k.caption_band(sl, [("AI 설계방향 제안 · 컨셉·네이밍은 참고안 ", k.WHITE, True),
+                        ("· 검증/재현 보장 없음 · 최종 컨셉·제안서는 사람", HL, True)])
+    return True
+
+
 # ── 방법론·출처 부록 ──
 def slide_methodology(prs, board):
     meth = board.get("methodology") or {}
@@ -379,6 +436,7 @@ def build_board_deck(board: dict) -> bytes:
     slide_drivers(prs, board)
     slide_cross(prs, board)
     slide_program(prs, board)
+    slide_concept(prs, board)  # opt-in — board['concept'] 있을 때만 (AI 제안·격리)
     slide_methodology(prs, board)
     buf = io.BytesIO()
     prs.save(buf)

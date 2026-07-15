@@ -129,7 +129,7 @@ arch-site-context/
 ├── frontend/                    # React + Vite + Tailwind
 │   └── src/
 │       ├── App.jsx              # 탭 라우팅 (I·A~H·J·K·L)
-│       ├── TabA.jsx ~ TabL.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(/board)·J 심의 현황팩(/context-pack)·K 주변현황도(/surroundings)·L 대지분석 덱(형제앱 deck-builder 연동, WIP·미추적)
+│       ├── TabA.jsx ~ TabL.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(`/board` + 보드 내보내기 `/board/view` + 종합읽기 PPT `/board/pptx`)·J 심의 현황팩(/context-pack)·K 주변현황도(/surroundings)·L 대지분석 덱 — **deck-builder를 흡수**, 내부 `POST /deck/full` 호출(app/deck/ 패키지). 지도 4종 + 데이터 + 시설 상세 A3 PPTX.· M 생성 이력(`/history`)
 │       ├── api.js               # fetch 헬퍼
 │       └── ui.jsx               # 공통 UI (IndexBar·ProximityChip 등)
 └── tests/                       # pytest (순수 로직 + live skipif)
@@ -457,6 +457,10 @@ build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
 - **`brief=true`** → `board_brief`(압축 투영, ~66KB→~7KB, 원시 seed context 제외·해석층만). 제안서·MCP·형제앱 주입용.
 - 종합점수·순위 없음 (원칙 5). 각 브랜치 graceful — 실패 격리.
 
+### 4.10b POST /board/pptx — 종합 대지 읽기 PPT (S4)
+
+`/board`를 synthesize=true로 빌드해 deck.style 디자인의 A3 편집가능 PPTX 반환. 종합결론(헤드라인)·동네프로필 발산차트·①검증된 사실/②종합 의견(green/amber 벽 분리)·설계 드라이버·교차시사점·POR·방법론. 생성 이력 자동 저장. `app/deck/board_slides.py`.
+
 ### 4.11 POST /board/view — 대지분석 보드 렌더 (T4)
 
 /board 빌드 → `board_view.render_board_html`(자체완결 HTML: 지도 앵커·물리모델 축측 매싱·아키타입·드라이버·POR·종합·지수·방법론 부록) → `out/boards/*.html` 저장 → `{ url: "/files/boards/…", has_map }` 반환. 인쇄 시 PDF. `_satellite_anchor`가 VWorld 위성+반경링 data URI 임베드, `model` 넘어오면 `_massing_anchor`가 건물 footprint를 축측(2:1 이소) 투영해 매싱 미리보기 임베드 — **three.js 없이 서버사이드 PIL**로 자체완결·오프라인 유지 (둘 다 graceful).
@@ -482,6 +486,12 @@ build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
 
 - **`POST /surroundings/pptx`** (`surroundings_pptx`): A3 1슬라이드 — 위성 반경현황도(반경밴드 원 + 카테고리별 색 점) + 범례겸 카테고리표 + 서술문. `/files/packs/*.pptx`.
 - 도로폭·재개발 경계·아파트 세대수는 소스 미확보 → 표기 안 함(경계·원칙 3).
+
+### 4.14 GET /history — 생성 이력 목록 · GET /history/{id}/file — 재다운로드
+
+- **`GET /history`**: 생성 이력 목록 (id·kind(deck|board)·title·params·created·size·backend, 최신순).
+- **`GET /history/{id}/file`**: 재다운로드 (pptx 스트리밍).
+- 저장은 `services/history.py` — `GCS_CACHE_BUCKET` 설정 시 GCS(매니페스트+blob), 미설정 시 로컬 OUT_DIR(인스턴스 수명). 최대 60건.
 
 ---
 
@@ -649,6 +659,9 @@ class ResolvedAddress:
 | 어린이집 (정보공개포털) | 시군구 어린이집 개수·정원 | `CHILDCARE_INFO_KEY` | cpmsapi021, XML |
 | 문화기반시설총람 | 박물관·미술관 등 10종 | `DATA_GO_KR_API_KEY` | B553457 |
 | OSM Overpass | 공공시설 보충 | 없음(무료) | rate-limit, 재시도 없음 |
+| arch-site-model | 덱 지도매싱 | `SITEMODEL_URL` | 기본 localhost:8001 |
+| arch-law-diagnose | 덱 용도지역 | `LAW_URL` | 기본 localhost:8002 |
+| GCS | 생성이력·캐시 영구저장 | `GCS_CACHE_BUCKET` | 선택 (미설정 시 로컬 OUT_DIR) |
 
 ---
 
@@ -824,7 +837,7 @@ tests/
 
 **단일 서비스:** FastAPI가 `frontend/dist` 정적 서빙 → URL 하나, CORS 불필요
 
-**라이브(2026-07-15):** 서비스 `arch-site-context` / 프로젝트 `arch-diagnose` / `asia-northeast3` / 메모리 1Gi / 시크릿 15개 / 리비전 00048 — `https://arch-site-context-dqj4exlefq-du.a.run.app`. 의존성에 `shapely`·`python-pptx` 포함(심의팩). 배포 명령은 README "배포" 참조.
+**라이브(2026-07-15):** 서비스 `arch-site-context` / 프로젝트 `arch-diagnose` / `asia-northeast3` / 메모리 1Gi / 시크릿 15개 / 리비전 00048 — `https://arch-site-context-dqj4exlefq-du.a.run.app`. 의존성에 `shapely`·`python-pptx`·`pyproj` 포함(심의팩·덱). 배포 명령은 README "배포" 참조.
 
 ```
 Cloud Run
