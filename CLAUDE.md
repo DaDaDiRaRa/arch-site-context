@@ -191,7 +191,7 @@ git push        # 작업 후 GitHub에 올리기
 | GET | `/health` | - | 헬스체크 |
 | GET | `/api` · `POST /basemap` | - | 진입 안내(`/api`) · 위성 basemap 합성(`/basemap`, `routers/facilities.py`) |
 
-> **프론트 탭 지도** (`frontend/src/App.jsx`): I 종합읽기 · A 지역통계 · B 주변시설 · C 수급진단 · D 후보지비교 · E 물어보기 · F 대지정보(/site) · G 종합(/seed) · H 공동주택 readout · J 심의 현황팩 · K 주변현황도 · **L 대지분석 덱**. **TabL** 은 터읽기 엔드포인트가 아니라 형제앱 **deck-builder**(`D:\APPS\deck-builder`, 대지분석 덱 자동생성)에 연결되는 프론트 전용 탭 — 현재 미추적(WIP).
+> **프론트 탭 지도** (`frontend/src/App.jsx`): I 종합읽기 · A 지역통계 · B 주변시설 · C 수급진단 · D 후보지비교 · E 물어보기 · F 대지정보(/site) · G 종합(/seed) · H 공동주택 readout · J 심의 현황팩 · K 주변현황도 · **L 대지분석 덱**. **TabL** 은 `POST /deck/full`(터읽기 자체 엔드포인트, `app/deck/` 패키지)을 호출한다 — 지도 4종(광역·용도·높이·조망) + 데이터(지역통계·수급진단·대지정보·생활맥락·주변현황도·주변시설) + 시설 종류별 상세를 A3 편집가능 PPTX 로. **구 별도 서비스 deck-builder(`D:\APPS\deck-builder`)를 2026-07-15 터읽기에 흡수** — board·facilities·surroundings·basemap 은 in-process 직접호출, arch-site-model·arch-law-diagnose 만 HTTP(env `SITEMODEL_URL`·`LAW_URL`, 없으면 매싱·용도 슬라이드 graceful skip). 상세 메모리 `deck-builder-plan`.
 
 ---
 

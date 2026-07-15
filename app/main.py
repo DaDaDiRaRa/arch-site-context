@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import FRONTEND_DIST, OUT_DIR
 from app.routers import (
-    analyze, ask, board, compare, context_pack, deck_proxy, diagnose, facilities, health,
+    analyze, ask, board, compare, context_pack, deck, diagnose, facilities, health,
     matrix, readout, seed, site, surroundings,
 )
 
@@ -60,7 +60,7 @@ app.include_router(readout.router)
 app.include_router(board.router)
 app.include_router(context_pack.router)
 app.include_router(surroundings.router)
-app.include_router(deck_proxy.router)  # /deck/* → deck-builder 패스스루 (정적마운트보다 먼저)
+app.include_router(deck.router)  # /deck/full 대지분석 덱 (deck-builder 흡수 — 정적마운트보다 먼저)
 
 # 합성된 위성 PNG 다운로드/표시용 정적 서빙 (예: /files/maps/map_xxx.png)
 app.mount("/files", StaticFiles(directory=str(OUT_DIR)), name="files")
