@@ -363,16 +363,21 @@ def build_full_deck(address: str, use_type: str = "주거", radius: int = 1000) 
     지도 핀+이름·거리 목록). 형제앱(model·law·site) + 터읽기(board·surroundings·facilities)
     병렬 fetch. 전부 graceful — 소스 하나 죽어도 나머지로 덱 생성(절대 원칙 3).
     """
-    center = clients.fetch_facilities(address, ["지하철역"], 500)
-    c = (center or {}).get("center") or {}
-    lat, lon = c.get("lat"), c.get("lon")
+    # 주소 1회 해석 — 좌표 + PNU(VWorld). law 는 pnu 로 조회(가장 견고, §law 400 회피).
+    from app.services.site_seed import build_site
+    try:
+        _s = build_site(address)
+        lat, lon, pnu = _s.lat, _s.lon, (_s.pnu or "")
+    except Exception:  # noqa: BLE001 — 주소 해석 실패는 하드블록
+        lat = lon = None
+        pnu = ""
     if lat is None:
         raise ValueError("주소 해석 실패")
 
     # model·law·site(지도용) + board·surroundings·facilities(데이터용) 병렬
     with ThreadPoolExecutor(max_workers=6) as ex:
         f_model = ex.submit(clients.fetch_model, address, 350)
-        f_law = ex.submit(clients.fetch_law, address, "", lat, lon)
+        f_law = ex.submit(clients.fetch_law, address, pnu)
         f_site = ex.submit(clients.fetch_site, address)
         f_board = ex.submit(clients.fetch_board, address, use_type, radius, False)
         f_surr = ex.submit(clients.fetch_surroundings, address, radius)

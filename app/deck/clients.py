@@ -136,14 +136,18 @@ def fetch_model(address: str, radius_m: int) -> Optional[dict]:
 
 
 def fetch_law(address: str, pnu: str = "", lat: float | None = None, lon: float | None = None) -> Optional[dict]:
-    """토지이용계획 — arch-law-diagnose. board 권위 좌표 주입(지오코딩 오인식 회피)."""
+    """토지이용계획 — arch-law-diagnose. **pnu 우선**(권위·지오코딩 불필요), 없으면 address.
+
+    ⚠ 배포된 law 는 lat/lon 만으로는 400("pnu 또는 address 필수"), lat/lon 동봉 시 '좌표 변환 실패'
+    를 내므로 **lat/lon 은 보내지 않는다**. pnu(build_site 가 VWorld 로 해석)가 가장 견고.
+    """
     params: dict = {}
-    if lat is not None and lon is not None:
-        params["lat"], params["lon"] = lat, lon
     if pnu:
         params["pnu"] = pnu
-    if address and not params:
+    elif address:
         params["address"] = address
+    if not params:
+        return None
     try:
         r = httpx.get(f"{LAW_URL}/api/land_info", params=params, timeout=TIMEOUT_LAW, headers=_auth())
         r.raise_for_status()
