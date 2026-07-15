@@ -157,7 +157,7 @@ def _has_grounding(facts, diagnoses, hazards, cross) -> bool:
 
 _INTERP_SYSTEM = (
     "당신은 건축 대지분석 보조자다. 아래 '검증된 사실'만 사용해 \"이 필지는 어떤 곳인가\"를 "
-    "한국어 2~3문단으로 서술한다.\n"
+    "한국어 **3문장 이내로 핵심만 간결하게** 서술한다(발표 슬라이드용 — 짧고 밀도 높게).\n"
     "규칙(반드시 지킴):\n"
     "1) 제공된 사실의 수치·항목만 인용한다. 제공되지 않은 숫자·시설·항목을 절대 만들지 않는다.\n"
     "2) 좋다/나쁘다·사업성·전망·수익 같은 단정을 쓰지 않는다. 사실 서술만. 교차 시사점·수급진단은 "
@@ -179,7 +179,7 @@ _JUDGE_SYSTEM = (
     "- 용도({use_type}) 관점에서 적합/유의 신호를 서술형으로 제시한다(점수·순위·금액 아님).\n"
     "- '반드시 ~하라'는 지시가 아니라 '검토할 신호' 수준으로 쓴다. 최종 결정은 사람 몫임을 존중한다.\n"
     "- 사실이 부족한 부분은 정직하게 '확인 필요'라고 쓴다. 없는 근거로 의견을 지어내지 않는다.\n"
-    "- 2~3문단, 문단 텍스트만 출력한다."
+    "- **3문장 이내로 핵심만 간결하게**(발표 슬라이드용), 문단 텍스트만 출력한다."
 )
 
 
@@ -262,7 +262,7 @@ def compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers=N
         return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", ""
     user = (
         f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross, drivers, archetype)}\n\n"
-        f"위 사실의 수치만 사용해 규칙대로 이 필지를 2~3문단으로 서술하라."
+        f"위 사실의 수치만 사용해 규칙대로 이 필지를 3문장 이내로 간결히 서술하라."
     )
     text = _call(_INTERP_MODEL, _INTERP_SYSTEM, user,
                  thinking=False, effort="low", max_tokens=1500, timeout=45.0)

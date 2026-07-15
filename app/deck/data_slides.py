@@ -49,45 +49,46 @@ def _radius_label(rm):
     return f"{rm}m"
 
 
-# ── 1. 지역통계 ──
+def _level_col(lv):
+    """수급 수준 → 방향색 (높음/많음=주황, 낮음/적음=파랑, 평이/보통=회색). 판정 아님."""
+    if lv in ("높음", "많음"):
+        return k.IDX_UP
+    if lv in ("낮음", "적음"):
+        return k.IDX_DOWN
+    return k.MUTE
+
+
+def _badge(sl, x, y, text, col):
+    w = Cm(0.9 + 0.5 * len(str(text)))
+    k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, Cm(0.74), fill=col, alpha_pct=92)
+    k.tb(sl, x, y, w, Cm(0.74), text, size=10.5, color=k.WHITE, bold=True,
+         align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
+    return w
+
+
+# ── 1. 지역통계 (발산형 막대차트 + 총량 KPI) ──
 def slide_region_stats(prs, address, region, facts, implications) -> bool:
     facts = [f for f in (facts or []) if f.get("item")]
     if not facts:
         return False
-    sl = k.blank_slide(prs)
     rname = (region or {}).get("name") or ""
-    k.bracket_title(sl, "지역통계", f"REGIONAL STATISTICS · {rname} 기준 (시군구 평균·대지 고유값 아님)")
+    sl = k.blank_slide(prs)
+    k.bracket_title(sl, "지역통계", f"REGIONAL STATISTICS · {rname} 기준 · 전국=100 대비 (시군구 평균)")
 
-    headers = ["지표", "값", "전국평균", "전국=100", "기준지역"]
-    rows = []
-    for f in facts[:16]:
-        unit = f.get("unit") or ""
-        idx = f.get("index")
-        na = f.get("national_avg")
-        rows.append([
-            f.get("item"),
-            _num(f.get("value")) + unit,
-            (_num(na) + unit) if na is not None else "-",
-            (f"{idx} {f.get('index_band') or ''}".strip()) if idx is not None else "-",
-            f.get("scope") or rname or "-",
-        ])
-    k.table(sl, Cm(1.3), Cm(3.4), Cm(27.4), headers, rows, ratios=[3.2, 1.7, 1.7, 1.9, 2.1], fs=9.5)
-
-    impl = [i for i in (implications or []) if i.get("text")]
-    px = 29.4
-    k.panel_head(sl, Cm(px), Cm(3.4), "참고 시사점", w=Cm(11))
-    iy = 5.0
-    for i in impl[:8]:
-        k.rect(sl, MSO_SHAPE.OVAL, Cm(px), Cm(iy + 0.1), Cm(0.22), Cm(0.22), fill=k.RED)
-        k.tb(sl, Cm(px + 0.5), Cm(iy), Cm(10.6), Cm(1.2),
-             [i.get("text"), f"근거: {i.get('basis', '')}"], size=10, color=k.WHITE)
-        iy += 1.35
-    if not impl:
-        k.tb(sl, Cm(px), Cm(5.0), Cm(11), Cm(1), "해당 시사점 없음", size=11, color=k.MUTE)
+    n = k.index_chart(sl, facts, top=4.6, count=7)
+    abs_facts = [f for f in facts if not isinstance(f.get("index"), (int, float))][:4]
+    if abs_facts:
+        cw, gap = Cm(9.3), Cm(0.5)
+        ky = 4.6 + n * 1.75 + 0.7
+        k.panel_head(sl, Cm(1.3), Cm(ky), "총량 지표 (전국=100 무의미한 절대수)", w=Cm(22), size=13)
+        for i, f in enumerate(abs_facts):
+            unit = f.get("unit") or ""
+            k.kpi_card(sl, Cm(1.3) + i * (cw + gap), Cm(ky + 1.1), cw, Cm(3.0),
+                       f.get("item", ""), f"{_num(f.get('value'))}{unit}", f.get("scope") or rname)
 
     k.caption_band(sl, [(f"{rname} 기준 인구·가구 통계 ", k.WHITE, True),
                         (f"{len(facts)}개 지표", HL, True),
-                        (" — 시군구 평균값이며 대지 고유값이 아님(참고).", k.WHITE, True)])
+                        (" · 시군구 평균값이며 대지 고유값이 아님(참고)", k.WHITE, True)])
     return True
 
 
@@ -206,35 +207,40 @@ def slide_facility_details(prs, address, facilities, radius) -> int:
     return n
 
 
-# ── 3. 수급진단 ──
+# ── 3. 수급진단 (수요↔공급 카드) ──
 def slide_diagnose(prs, address, diagnoses) -> bool:
     di = [d for d in (diagnoses or []) if d.get("name")]
     if not di:
         return False
     sl = k.blank_slide(prs)
-    k.bracket_title(sl, "수급진단", "SUPPLY vs DEMAND · 인구 수요 × 시설 공급 교차 (참고)")
+    k.bracket_title(sl, "수급진단", "SUPPLY vs DEMAND · 인구 수요 × 시설 공급 (참고)")
 
-    headers = ["수급 항목", "수요 지표", "수요", "공급(반경 개수)", "공급", "신호"]
-    rows = []
-    for d in di:
+    W, RH = Cm(19.3), 4.6
+    xs = [Cm(1.3), Cm(21.4)]
+    for i, d in enumerate(di[:6]):
+        x, y = xs[i % 2], Cm(3.6 + (i // 2) * RH)
         dem = d.get("demand") or {}
         sup = d.get("supply") or {}
-        unit = dem.get("unit") or ""
+        k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, W, Cm(4.2), fill=k.PANEL)
+        k.tb(sl, x + Cm(0.5), y + Cm(0.32), W - Cm(1), Cm(0.8), d.get("name", ""), size=15, color=k.WHITE, bold=True)
+        # 수요 행
+        dlv = dem.get("level", "-")
+        k.tb(sl, x + Cm(0.5), y + Cm(1.35), Cm(2.6), Cm(0.7), "수요", size=11, color=k.MUTE, bold=True)
+        k.tb(sl, x + Cm(3.1), y + Cm(1.33), Cm(11), Cm(0.7),
+             f"{dem.get('item', '')} {_num(dem.get('value'))}{dem.get('unit', '')}", size=11, color=k.WHITE)
+        bw = _badge(sl, x + W - Cm(0.5) - Cm(0.9 + 0.5 * len(dlv)), y + Cm(1.3), dlv, _level_col(dlv))
+        # 공급 행
+        slv = sup.get("level", "-")
         kinds = ", ".join((sup.get("kinds") or [])[:2])
-        rows.append([
-            d.get("name"),
-            dem.get("item") or "-",
-            f"{_num(dem.get('value'))}{unit}·{dem.get('level', '-')}",
-            f"{sup.get('count', '-')}개 ({kinds})",
-            sup.get("level", "-"),
-            d.get("signal") or "-",
-        ])
-    k.table(sl, Cm(1.3), Cm(3.6), Cm(39.4), headers, rows,
-            ratios=[2.6, 2.4, 2.6, 3.6, 1.4, 3.0], fs=9.5, row_h=Cm(1.05))
+        k.tb(sl, x + Cm(0.5), y + Cm(2.28), Cm(2.6), Cm(0.7), "공급", size=11, color=k.MUTE, bold=True)
+        k.tb(sl, x + Cm(3.1), y + Cm(2.26), Cm(11), Cm(0.7),
+             f"{sup.get('count', '-')}개  ({kinds})", size=11, color=k.WHITE)
+        _badge(sl, x + W - Cm(0.5) - Cm(0.9 + 0.5 * len(slv)), y + Cm(2.23), slv, _level_col(slv))
+        # 신호
+        k.tb(sl, x + Cm(0.5), y + Cm(3.25), W - Cm(1), Cm(0.8), f"→ {d.get('signal', '')}", size=11.5, color=HL, bold=True)
 
-    note = (di[0].get("note") or "")[:56]
-    k.caption_band(sl, [("수급진단 ", k.WHITE, True), (f"{len(di)}건", HL, True),
-                        (f" — 부족/과잉은 휴리스틱·'참고', 판단은 사람. {note}", k.WHITE, True)])
+    k.caption_band(sl, [("수요(인구) × 공급(반경 시설) 교차 ", k.WHITE, True), (f"{len(di)}건", HL, True),
+                        (" · 부족/과잉은 휴리스틱·'참고', 판단은 사람", k.WHITE, True)])
     return True
 
 

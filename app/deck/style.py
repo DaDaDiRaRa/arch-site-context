@@ -283,3 +283,50 @@ def table(sl, x, y, w, headers, rows, *, ratios=None, fs=9.0, header_fs=9.5,
             al = PP_ALIGN.LEFT if c == 0 else PP_ALIGN.CENTER
             _cell(tbl, ri, c, "" if val is None else val, fill=fill, align=al, size=fs)
     return gfx
+
+
+IDX_UP = RGBColor(0xE8, 0x8A, 0x1E)     # 전국 상회
+IDX_DOWN = RGBColor(0x35, 0x9F, 0xE0)   # 전국 하회
+
+
+def _fmt_num(v):
+    try:
+        f = float(v)
+        return f"{int(f):,}" if f == int(f) else f"{f:,.1f}"
+    except (TypeError, ValueError):
+        return str(v if v is not None else "-")
+
+
+def index_chart(sl, facts, *, top=4.9, count=9, cx=26.5, scale=0.244, label_x=1.3):
+    """지표 리스트 → 전국=100 발산형 막대차트 (상회 ▶주황 / 하회 ◀파랑). 공용.
+
+    facts=[{item,value,unit,index,index_band}] 중 index(숫자) 있는 것만. 반환=그린 행 수.
+    """
+    facts = [f for f in (facts or []) if isinstance(f.get("index"), (int, float))]
+    if not facts:
+        return 0
+    facts = sorted(facts, key=lambda f: -abs((f.get("index") or 100) - 100))[:count]
+    lo, hi = 55, 145
+    bot = top + len(facts) * 1.75
+    rect(sl, MSO_SHAPE.RECTANGLE, Cm(cx - 0.03), Cm(top - 0.35), Cm(0.06), Cm(bot - top + 0.2), fill=MUTE)
+    tb(sl, Cm(cx - 1.6), Cm(top - 1.05), Cm(3.2), Cm(0.6), "전국 100", size=10, color=MUTE,
+       bold=True, align=PP_ALIGN.CENTER)
+    for gv in (70, 130):
+        gx = cx + (gv - 100) * scale
+        rect(sl, MSO_SHAPE.RECTANGLE, Cm(gx), Cm(top - 0.2), Cm(0.02), Cm(bot - top), fill=NAVY)
+        tb(sl, Cm(gx - 1.0), Cm(top - 1.0), Cm(2), Cm(0.5), str(gv), size=8, color=MUTE, align=PP_ALIGN.CENTER)
+    y = top
+    for f in facts:
+        idx = int(f.get("index"))
+        band = f.get("index_band")
+        col = IDX_UP if band == "상회" else (IDX_DOWN if band == "하회" else MUTE)
+        d = (max(lo, min(hi, idx)) - 100) * scale
+        tb(sl, Cm(label_x), Cm(y + 0.05), Cm(12), Cm(0.8), f.get("item", ""), size=13, color=WHITE, bold=True)
+        bx = Cm(cx) if d >= 0 else Cm(cx + d)
+        rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, bx, Cm(y + 0.12), Cm(max(abs(d), 0.12)), Cm(0.72), fill=col)
+        unit = f.get("unit") or ""
+        tb(sl, Cm(38.1), Cm(y + 0.02), Cm(3.7), Cm(0.7), f"{_fmt_num(f.get('value'))}{unit}",
+           size=12, color=WHITE, bold=True)
+        tb(sl, Cm(38.1), Cm(y + 0.72), Cm(3.7), Cm(0.55), f"지수 {idx}·{band or '-'}", size=8.5, color=col)
+        y += 1.75
+    return len(facts)

@@ -106,42 +106,11 @@ def slide_conclusion(prs, board):
 
 # ── 동네 프로필 (지표 전국=100 발산형 막대차트) ──
 def slide_indicators(prs, board):
-    facts = [f for f in (board.get("facts") or []) if isinstance(f.get("index"), (int, float))]
-    if not facts:
+    if not [f for f in (board.get("facts") or []) if isinstance(f.get("index"), (int, float))]:
         return False
-    facts = sorted(facts, key=lambda f: -abs((f.get("index") or 100) - 100))[:9]
     sl = k.blank_slide(prs)
     k.bracket_title(sl, "동네 프로필", "PROFILE · 주요 지표 전국=100 대비 (상회 ▶ / 하회 ◀)")
-
-    cx, scale, lo, hi = 26.5, 0.244, 55, 145
-    top = 4.9
-    rows = len(facts)
-    bot = top + rows * 1.75
-    # 100 기준선 + 눈금
-    k.rect(sl, MSO_SHAPE.RECTANGLE, Cm(cx - 0.03), Cm(top - 0.35), Cm(0.06), Cm(bot - top + 0.2), fill=k.MUTE)
-    k.tb(sl, Cm(cx - 1.6), Cm(top - 1.05), Cm(3.2), Cm(0.6), "전국 100", size=10, color=k.MUTE,
-         bold=True, align=k.PP_ALIGN.CENTER)
-    for gv in (70, 130):
-        gx = cx + (gv - 100) * scale
-        k.rect(sl, MSO_SHAPE.RECTANGLE, Cm(gx), Cm(top - 0.2), Cm(0.02), Cm(bot - top), fill=k.NAVY)
-        k.tb(sl, Cm(gx - 1.0), Cm(top - 1.0), Cm(2), Cm(0.5), str(gv), size=8, color=k.MUTE, align=k.PP_ALIGN.CENTER)
-
-    y = top
-    for f in facts:
-        idx = int(f.get("index"))
-        band = f.get("index_band")
-        col = UP if band == "상회" else (DOWN if band == "하회" else k.MUTE)
-        cidx = max(lo, min(hi, idx))
-        d = (cidx - 100) * scale
-        k.tb(sl, Cm(1.3), Cm(y + 0.05), Cm(12), Cm(0.8), f.get("item", ""), size=13, color=k.WHITE, bold=True)
-        bx = Cm(cx) if d >= 0 else Cm(cx + d)
-        bw = Cm(max(abs(d), 0.12))
-        k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, bx, Cm(y + 0.12), bw, Cm(0.72), fill=col)
-        unit = f.get("unit") or ""
-        k.tb(sl, Cm(38.1), Cm(y + 0.02), Cm(3.7), Cm(0.7), f"{_n(f.get('value'))}{unit}", size=12, color=k.WHITE, bold=True)
-        k.tb(sl, Cm(38.1), Cm(y + 0.72), Cm(3.7), Cm(0.55), f"지수 {idx}·{band or '-'}", size=8.5, color=col)
-        y += 1.75
-
+    k.index_chart(sl, board.get("facts"), top=4.9)
     k.caption_band(sl, [("주요 지표를 전국 평균(100) 대비 막대로 ", k.WHITE, True),
                         ("· 상회/하회는 방향일 뿐 판정 아님(참고)", HL, True)])
     return True
@@ -230,52 +199,44 @@ def slide_overview(prs, board):
                         ("· 확인불가는 숨기지 않음(참고)", HL, True)])
 
 
-# ── 텍스트 벽 (①해석·②의견 공통) ──
-def _wall_slide(prs, title, subtitle, chip_label, chip_col, edge_col, body, cap_runs):
+# ── 종합 해석·의견 (한 슬라이드 좌우 분리: ① 사실 / ② 의견) ──
+def _syn_panel(sl, x, y, w, h, chip, edge, body):
+    k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, w, h, fill=k.PANEL)
+    k.rect(sl, MSO_SHAPE.RECTANGLE, x, y, Cm(0.2), h, fill=edge)
+    k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x + Cm(0.6), y + Cm(0.5), Cm(7.6), Cm(0.95), fill=edge, alpha_pct=90)
+    k.tb(sl, x + Cm(0.6), y + Cm(0.5), Cm(7.6), Cm(0.95), chip, size=12, color=k.WHITE, bold=True,
+         align=k.PP_ALIGN.CENTER, anchor=k.MSO_ANCHOR.MIDDLE)
+    _prose(sl, x + Cm(0.8), y + Cm(1.9), w - Cm(1.5), h - Cm(2.3), body, accent=edge, size=15)
+
+
+def slide_synthesis(prs, board):
+    syn = board.get("synthesis") or {}
+    itp = syn.get("interpretation")
+    jdg = syn.get("judgment")
+    if not itp and not jdg:
+        return False
     sl = k.blank_slide(prs)
-    k.bracket_title(sl, title, subtitle)
-    # 내용 길이에 맞춰 벽 높이 산정 (문장수 × 줄여유) — 빈 박스 최소화
-    n = max(1, len(_sentences(body)))
-    est = min(21.5, max(6.0, 2.4 + n * 1.9))
-    k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, Cm(1.3), Cm(3.5), Cm(39.4), Cm(est), fill=k.PANEL)
-    k.rect(sl, MSO_SHAPE.RECTANGLE, Cm(1.3), Cm(3.5), Cm(0.2), Cm(est), fill=edge_col)
-    if chip_label:
-        k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, Cm(2.0), Cm(4.0), Cm(8.2), Cm(0.95), fill=edge_col, alpha_pct=90)
-        k.tb(sl, Cm(2.0), Cm(4.0), Cm(8.2), Cm(0.95), chip_label, size=12.5, color=k.WHITE, bold=True,
-             align=k.PP_ALIGN.CENTER, anchor=k.MSO_ANCHOR.MIDDLE)
-    # 좁은 measure(≈32cm)로 줄길이 단축 → 가독성 + 문장 불릿·여백
-    _prose(sl, Cm(2.3), Cm(5.5), Cm(32.0), Cm(est - 2.6), body, accent=edge_col, size=15)
-    k.caption_band(sl, cap_runs)
-    return sl
-
-
-def slide_interpretation(prs, board):
-    syn = board.get("synthesis") or {}
-    body = syn.get("interpretation")
-    if not body:
-        return False
-    _wall_slide(
-        prs, "종합 해석", "SYNTHESIS ① 검증된 사실 종합 · 그라운디드",
-        "① 검증된 사실", GREEN, GREEN, body,
-        [("검증된 수치만 인용한 종합 서술 ", k.WHITE, True), ("· 참고", HL, True)],
-    )
-    return True
-
-
-def slide_judgment(prs, board):
-    syn = board.get("synthesis") or {}
-    body = syn.get("judgment")
-    if not body:
-        return False
-    _wall_slide(
-        prs, "종합 의견", "SYNTHESIS ② 종합 의견 · 참고 (근거 인용 · 최종 판단은 사람)",
-        "② 종합 의견 · 참고", AMBER, AMBER, body,
-        [("근거 사실 위의 종합 의견 ", k.WHITE, True), ("· 최종 판단은 사람", HL, True)],
-    )
+    k.bracket_title(sl, "종합 해석 · 의견", "SYNTHESIS · ① 검증된 사실 / ② 종합 의견(참고·최종 판단은 사람)")
+    # 내용(문장 수)에 맞춰 패널 높이 산정 후 세로 중앙 — 큰 빈 박스 방지
+    ns = max([len(_sentences(b)) for b in (itp, jdg) if b] + [1])
+    hc = min(20.0, max(6.5, 3.0 + ns * 2.6))
+    top = 3.6 + max(0.0, (23.7 - hc) / 2)
+    W, H = Cm(19.3), Cm(hc)
+    if itp:
+        _syn_panel(sl, Cm(1.3), Cm(top), W, H, "① 검증된 사실", GREEN, itp)
+    if jdg:
+        _syn_panel(sl, Cm(21.4), Cm(top), W, H, "② 종합 의견 · 참고", AMBER, jdg)
+    k.caption_band(sl, [("① 검증된 사실 · ② 그 위의 종합 의견 ", k.WHITE, True),
+                        ("· 최종 판단은 사람", HL, True)])
     return True
 
 
 # ── 설계 드라이버 ──
+def _center_top(rows, row_h, top=3.6, bottom=27.3):
+    """카드 그리드를 세로 중앙에 — 위에 몰리고 아래 비는 것 방지."""
+    return top + max(0.0, (bottom - top - rows * row_h) / 2)
+
+
 def slide_drivers(prs, board):
     drivers = board.get("design_drivers") or []
     if not drivers:
@@ -283,7 +244,7 @@ def slide_drivers(prs, board):
     sl = k.blank_slide(prs)
     k.bracket_title(sl, "설계 드라이버", "DESIGN DRIVERS · 지배 드라이버 (증거강도 랭킹 · 검토 신호)")
     maxs = max((d.get("strength") or 0 for d in drivers), default=1) or 1
-    y = 3.6
+    y = _center_top(len(drivers[:5]), 3.75)
     for d in drivers[:5]:
         k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, Cm(1.3), Cm(y), Cm(39.4), Cm(3.5), fill=k.PANEL)
         k.tb(sl, Cm(1.7), Cm(y + 0.35), Cm(2.6), Cm(1), f"#{d.get('rank')}", size=22, color=k.RED, bold=True)
@@ -325,23 +286,29 @@ def slide_cross(prs, board):
         return False
     sl = k.blank_slide(prs)
     k.bracket_title(sl, "교차시사점", "CROSS-CONTEXT · 도메인 교차 (인구 × 수급 × 재해)")
-    W, RH = Cm(19.3), 4.5
+    # 항목 수에 맞춰 카드 높이를 키워 세로를 채움 (2열, 적을수록 큼)
+    W = Cm(19.3)
     xs = [Cm(1.3), Cm(21.4)]
-    for i, c in enumerate(cross[:6]):
-        x, y = xs[i % 2], Cm(3.6 + (i // 2) * RH)
-        k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, W, Cm(4.1), fill=k.PANEL)
+    cc = cross[:6]
+    rows = (len(cc) + 1) // 2
+    ch = min(8.2, max(4.2, (23.4 - (rows - 1) * 0.5) / rows))
+    RH = ch + 0.5
+    y0 = 3.6  # 상단 정렬 — 위부터 채워 자연스럽게
+    for i, c in enumerate(cc):
+        x, y = xs[i % 2], Cm(y0 + (i // 2) * RH)
+        k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, W, Cm(ch), fill=k.PANEL)
         # 도메인 칩 (인구 × 수급 …)
         cxp = x + Cm(0.5)
         for j, dm in enumerate((c.get("domains") or [])[:3]):
             if j > 0:
-                k.tb(sl, cxp, y + Cm(0.42), Cm(0.55), Cm(0.7), "×", size=12, color=k.MUTE, bold=True,
+                k.tb(sl, cxp, y + Cm(0.5), Cm(0.55), Cm(0.7), "×", size=12, color=k.MUTE, bold=True,
                      align=k.PP_ALIGN.CENTER, anchor=k.MSO_ANCHOR.MIDDLE)
                 cxp += Cm(0.55)
-            cxp += _chip(sl, cxp, y + Cm(0.42), dm, DOMAIN_COL.get(dm, k.MUTE)) + Cm(0.2)
-        k.tb(sl, x + Cm(0.5), y + Cm(1.4), W - Cm(0.9), Cm(0.7), c.get("name", ""), size=14, color=k.WHITE, bold=True)
-        k.tb(sl, x + Cm(0.5), y + Cm(2.15), W - Cm(0.9), Cm(1.2), _txt(c.get("text"), 90), size=11, color=k.WHITE)
+            cxp += _chip(sl, cxp, y + Cm(0.5), dm, DOMAIN_COL.get(dm, k.MUTE)) + Cm(0.2)
+        k.tb(sl, x + Cm(0.5), y + Cm(1.6), W - Cm(0.9), Cm(0.8), c.get("name", ""), size=15, color=k.WHITE, bold=True)
+        k.tb(sl, x + Cm(0.5), y + Cm(2.55), W - Cm(0.9), Cm(1.4), _txt(c.get("text"), 90), size=12, color=k.WHITE)
         basis = " · ".join(f"{b.get('key')} {b.get('detail')}" for b in (c.get("basis") or [])[:2])
-        k.tb(sl, x + Cm(0.5), y + Cm(3.35), W - Cm(0.9), Cm(0.6), f"근거: {basis}", size=9, color=k.MUTE)
+        k.tb(sl, x + Cm(0.5), y + Cm(ch - 0.85), W - Cm(0.9), Cm(0.6), f"근거: {basis}", size=9.5, color=k.MUTE)
     k.caption_band(sl, [("도메인을 가로지르는 참고 시사점 ", k.WHITE, True),
                         ("· 규칙 조합(LLM 0)·판단 아님", HL, True)])
     return True
@@ -359,10 +326,12 @@ def slide_program(prs, board):
     k.bracket_title(sl, "프로그램 함의 (POR)", "PROGRAM · 카테고리별 공간·프로그램 권고 (검토 체크리스트)")
     W, CH = Cm(12.9), 6.6
     xs = [Cm(1.3), Cm(14.55), Cm(27.8)]
-    for i, (cat, items) in enumerate(list(groups.items())[:6]):
+    cats = list(groups.items())[:6]
+    y_top = _center_top((len(cats) + 2) // 3, CH)
+    for i, (cat, items) in enumerate(cats):
         col = CARD_PALETTE[i % len(CARD_PALETTE)]
         x = xs[i % 3]
-        yb = 3.6 + (i // 3) * CH  # float cm (Cm() 로 감쌀 기준값)
+        yb = y_top + (i // 3) * CH  # float cm (Cm() 로 감쌀 기준값)
         k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, x, Cm(yb), W, Cm(CH - 0.4), fill=k.PANEL)
         k.rect(sl, MSO_SHAPE.RECTANGLE, x, Cm(yb + 0.3), Cm(0.14), Cm(CH - 1.0), fill=col)
         k.tb(sl, x + Cm(0.45), Cm(yb + 0.28), W - Cm(0.7), Cm(0.8), cat, size=13, color=col, bold=True)
@@ -406,8 +375,7 @@ def build_board_deck(board: dict) -> bytes:
     slide_conclusion(prs, board)
     slide_overview(prs, board)
     slide_indicators(prs, board)
-    slide_interpretation(prs, board)
-    slide_judgment(prs, board)
+    slide_synthesis(prs, board)
     slide_drivers(prs, board)
     slide_cross(prs, board)
     slide_program(prs, board)
