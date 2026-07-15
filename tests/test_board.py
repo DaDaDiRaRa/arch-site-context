@@ -163,6 +163,47 @@ def test_board_synthesize_flag_wires_synthesis(monkeypatch) -> None:
     assert syn["judgment_label"] == "AI 의견 라벨"
 
 
+# ── B4: 결과 캐시 — 같은 요청은 브랜치·Claude 재실행 없이 재사용 ──────────────
+def test_board_caches_and_reuses(monkeypatch) -> None:
+    calls = {"n": 0}
+
+    def _diag_counting():
+        calls["n"] += 1
+        return _diagnose_ok()
+
+    _patch_all(monkeypatch, diagnose=_diag_counting)
+    body = {"address": "서울 영등포구 여의대로 24", "use_type": "주거", "radius": 1000}
+
+    assert client.post("/board", json=body).status_code == 200
+    assert calls["n"] == 1
+    # 두 번째 동일 요청 → 캐시 히트 (브랜치 재실행 안 함) — /board/view 가 이 이득을 봄
+    assert client.post("/board", json=body).status_code == 200
+    assert calls["n"] == 1
+    # 다른 파라미터(radius) → 캐시 미스 → 재계산
+    assert client.post("/board", json={**body, "radius": 2000}).status_code == 200
+    assert calls["n"] == 2
+
+
+def test_board_cache_expires(monkeypatch) -> None:
+    from app.routers import board as board_mod
+    calls = {"n": 0}
+
+    def _diag_counting():
+        calls["n"] += 1
+        return _diagnose_ok()
+
+    _patch_all(monkeypatch, diagnose=_diag_counting)
+    body = {"address": "x", "use_type": "주거"}
+    assert client.post("/board", json=body).status_code == 200
+    assert calls["n"] == 1
+    # TTL 지난 것처럼 타임스탬프를 과거로 → 다음 호출은 재계산
+    key = next(iter(board_mod._BOARD_CACHE))
+    _ts, val = board_mod._BOARD_CACHE[key]
+    board_mod._BOARD_CACHE[key] = (_ts - board_mod._BOARD_TTL - 1, val)
+    assert client.post("/board", json=body).status_code == 200
+    assert calls["n"] == 2
+
+
 # ── 주소 해석 실패 = 하드블록 ────────────────────────────────────────────────
 def test_board_bad_address_hard_blocks(monkeypatch) -> None:
     from app.services.kakao import KakaoError

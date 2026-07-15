@@ -11,9 +11,10 @@
 from __future__ import annotations
 
 import json
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
-from typing import Any, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -21,12 +22,46 @@ from fastapi.responses import JSONResponse
 from app.schemas import AnalyzeRequest, ErrorBlock
 from app.schemas.board import BoardRequest, BoardResult, DomainCoverage
 from app.schemas.site import SiteRequest
+from app.services.cache import make_key
 from app.services.cross_context import derive_cross_context
 from app.services.diagnose import build_diagnosis
 from app.services.kakao import KakaoError
 from app.services.site_seed import build_site
 
 router = APIRouter(tags=["board"])
+
+
+# ── B4: /board 결과 단기 메모 ────────────────────────────────────────────────
+# /board/view(공유·인쇄)와 반복 조회가 board() 전체(외부 API 4브랜치 + Claude 2콜)를
+# 매번 재실행하던 것을 방지. 프로세스 내 짧은 TTL 캐시 — 다중 인스턴스에선 miss 시
+# 재계산(graceful). brief 는 캐시 대상이 아님(마지막 투영일 뿐 — full result 를 캐시).
+_BOARD_CACHE: Dict[str, Tuple[float, BoardResult]] = {}
+_BOARD_TTL = 300.0  # 5분 — 대지 분석 보드는 분 단위로 안 바뀜
+_BOARD_CACHE_MAX = 64
+
+
+def _board_cache_key(req: BoardRequest) -> str:
+    model_sig = make_key(json.dumps(req.model, sort_keys=True, default=str)) if req.model else "nomodel"
+    # brief 제외 — full result 를 캐시하고 투영만 그때그때. 그 외 계산에 영향 주는 필드 전부.
+    return make_key(req.address, req.use_type, req.radius, req.resolution, req.synthesize, model_sig)
+
+
+def _board_cache_get(key: str) -> Optional[BoardResult]:
+    ent = _BOARD_CACHE.get(key)
+    if ent is None:
+        return None
+    ts, val = ent
+    if time.time() - ts > _BOARD_TTL:
+        _BOARD_CACHE.pop(key, None)
+        return None
+    return val
+
+
+def _board_cache_put(key: str, val: BoardResult) -> None:
+    if len(_BOARD_CACHE) >= _BOARD_CACHE_MAX and key not in _BOARD_CACHE:
+        oldest = min(_BOARD_CACHE, key=lambda k: _BOARD_CACHE[k][0])  # 가장 오래된 항목 evict
+        _BOARD_CACHE.pop(oldest, None)
+    _BOARD_CACHE[key] = (time.time(), val)
 
 
 def _error(code: str, message: str) -> JSONResponse:
@@ -66,6 +101,15 @@ def board(req: BoardRequest):
     from app.services.matrix import use_types
     if req.use_type not in use_types():
         return _error("NO_DATA", f"알 수 없는 용도: {req.use_type}")
+
+    # 1b) B4 캐시 조회 — 히트면 4브랜치·Claude 재실행 없이 재사용 (brief 는 그때그때 투영)
+    cache_key = _board_cache_key(req)
+    cached = _board_cache_get(cache_key)
+    if cached is not None:
+        if req.brief:
+            from app.services.board_contract import board_brief
+            return board_brief(cached)
+        return cached
 
     # 2) 도메인 브랜치 — 기존 서비스/라우터를 그대로 재사용, 병렬 (지연 import 로 순환참조 회피)
     def _analyze():
@@ -183,6 +227,9 @@ def board(req: BoardRequest):
     if req.model is not None:
         from app.services.site_model import summarize_model
         result.model = summarize_model(req.model)
+
+    # B4: full result 를 캐시 (brief 투영 전 — /board/view·반복 조회가 재사용)
+    _board_cache_put(cache_key, result)
 
     # 계약(2단계): 제안서·형제앱 주입용 압축 투영 (원시 seed context 제외)
     if req.brief:
