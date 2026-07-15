@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import FRONTEND_DIST, OUT_DIR
 from app.routers import (
     analyze, ask, board, compare, context_pack, deck, diagnose, facilities, health,
-    matrix, readout, seed, site, surroundings,
+    history, matrix, readout, seed, site, surroundings,
 )
 
 load_dotenv()  # 로컬 .env 로드 (배포는 Secret Manager → env 주입)
@@ -61,6 +61,7 @@ app.include_router(board.router)
 app.include_router(context_pack.router)
 app.include_router(surroundings.router)
 app.include_router(deck.router)  # /deck/full 대지분석 덱 (deck-builder 흡수 — 정적마운트보다 먼저)
+app.include_router(history.router)  # /history 생성물 이력 (재다운로드)
 
 # 합성된 위성 PNG 다운로드/표시용 정적 서빙 (예: /files/maps/map_xxx.png)
 app.mount("/files", StaticFiles(directory=str(OUT_DIR)), name="files")

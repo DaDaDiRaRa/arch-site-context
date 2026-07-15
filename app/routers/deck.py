@@ -30,6 +30,13 @@ def deck_full(req: DeckRequest):
         data = build_full_deck(req.address, req.use_type, req.radius)
     except ValueError as e:  # 주소 해석 실패 등 — 추정 대신 명확히 멈춤 (절대 원칙 3)
         return JSONResponse(status_code=422, content={"detail": str(e)})
+    # 생성 이력 저장 (best-effort — 실패해도 다운로드는 진행)
+    try:
+        from app.services import history
+        history.save("deck", req.address, {"use_type": req.use_type, "radius": req.radius},
+                     f"대지분석_{req.address.replace(' ', '')}.pptx", data)
+    except Exception:  # noqa: BLE001
+        pass
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",

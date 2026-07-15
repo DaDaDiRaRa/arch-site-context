@@ -11,6 +11,7 @@ import TabI from "./TabI.jsx";
 import TabJ from "./TabJ.jsx";
 import TabK from "./TabK.jsx";
 import TabL from "./TabL.jsx";
+import TabHistory from "./TabHistory.jsx";
 import { downloadResultHtml } from "./exportHtml.jsx";
 
 const TABS = [
@@ -26,6 +27,7 @@ const TABS = [
   ["J", "심의 현황팩"],
   ["K", "주변현황도"],
   ["L", "대지분석 덱"],
+  ["M", "생성 이력"],
 ];
 const TAB_LABEL = Object.fromEntries(TABS);
 
@@ -138,6 +140,9 @@ export default function App() {
         </div>
         <div ref={setRef("L")} className={tab === "L" ? "" : "hidden"}>
           <TabL address={address} />
+        </div>
+        <div ref={setRef("M")} className={tab === "M" ? "" : "hidden"}>
+          <TabHistory />
         </div>
 
         <footer className="mt-10" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',fontSize:11}}>

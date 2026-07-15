@@ -66,6 +66,28 @@ export const board = (address, use_type, radius = 1000, resolution = "시군구"
 export const boardView = (address, use_type, radius = 1000, resolution = "시군구", synthesize = false) =>
   post("/board/view", { address, use_type, radius, resolution, synthesize });
 
+// 생성 이력 (덱·종합읽기 재다운로드용 목록)
+export async function getHistory() {
+  const res = await fetch("/history");
+  if (!res.ok) throw new ApiError("이력 조회 실패", { status: res.status });
+  return await res.json();  // {items:[{id,kind,title,params,created,size,backend,filename}]}
+}
+
+export async function downloadHistory(id, filename) {
+  const res = await fetch(`/history/${id}/file`);
+  if (!res.ok) {
+    let msg = "다운로드 실패 (만료·삭제됨)";
+    try { const j = await res.json(); msg = j.detail || msg; } catch {}
+    throw new ApiError(msg, { status: res.status });
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename || "download.pptx";
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+
 // 종합읽기 PPT (S4 종합 ①해석·②의견 기본 포함) — 대지분석 덱 디자인의 A3 PPTX blob 다운로드
 export async function boardPptx(address, use_type, radius = 1000, resolution = "시군구") {
   let res;

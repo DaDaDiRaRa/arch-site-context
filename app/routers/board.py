@@ -396,6 +396,13 @@ def board_pptx(req: BoardRequest):
     if isinstance(full, JSONResponse):
         return full
     data = build_board_deck(full.model_dump())
+    # 생성 이력 저장 (best-effort)
+    try:
+        from app.services import history
+        history.save("board", req.address, {"use_type": req.use_type, "radius": req.radius},
+                     f"종합읽기_{req.address.replace(' ', '')}.pptx", data)
+    except Exception:  # noqa: BLE001
+        pass
     return StreamingResponse(
         _io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
