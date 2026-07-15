@@ -1,0 +1,38 @@
+{
+  "_meta": {
+    "desc": "P13 — 분석 프로파일별 관련 소스. use_type 지정 시 이 목록의 소스만 호출(관련 소스만·API 절감). seed=/seed context 블록 키, supply=/diagnose 수급규칙 이름(supply_demand.json). 프로파일 미지정(None)·미등록이면 전체 호출(하위호환). 건축가가 JSON만 수정(절대 원칙 7).",
+    "seed_keys": "stores(상권)·schools(학교)·childcare(어린이집)·culture(문화시설)·real_estate_index(부동산지수)·weather(날씨)·living_population(생활인구·서울)·venues(공연시설)",
+    "supply_rules": "supply_demand.json 의 name — 보육시설/노인복지시설/1인가구 생활시설/의료시설/초등학교/문화시설 수급",
+    "updated": "2026-07-15"
+  },
+  "profiles": {
+    "주거": {
+      "seed": ["stores", "schools", "childcare", "culture", "real_estate_index", "weather", "living_population", "venues"],
+      "supply": ["보육시설 수급", "초등학교 수급", "노인복지시설 수급", "의료시설 수급", "1인가구 생활시설 수급", "문화시설 수급"]
+    },
+    "상업": {
+      "seed": ["stores", "real_estate_index", "living_population", "venues", "weather", "culture"],
+      "supply": ["의료시설 수급", "문화시설 수급", "1인가구 생활시설 수급"]
+    },
+    "의료": {
+      "seed": ["stores", "childcare", "schools", "real_estate_index", "weather"],
+      "supply": ["의료시설 수급", "노인복지시설 수급", "보육시설 수급"]
+    },
+    "복합": {
+      "seed": ["stores", "schools", "childcare", "culture", "real_estate_index", "weather", "living_population", "venues"],
+      "supply": ["보육시설 수급", "초등학교 수급", "노인복지시설 수급", "의료시설 수급", "1인가구 생활시설 수급", "문화시설 수급"]
+    },
+    "공공": {
+      "seed": ["stores", "schools", "childcare", "culture", "living_population", "venues", "weather"],
+      "supply": ["보육시설 수급", "초등학교 수급", "노인복지시설 수급", "의료시설 수급", "문화시설 수급"]
+    },
+    "교육": {
+      "seed": ["schools", "childcare", "culture", "stores", "living_population"],
+      "supply": ["초등학교 수급", "보육시설 수급", "문화시설 수급"]
+    },
+    "복지": {
+      "seed": ["childcare", "culture", "stores", "living_population", "weather", "schools"],
+      "supply": ["노인복지시설 수급", "보육시설 수급", "의료시설 수급", "1인가구 생활시설 수급"]
+    }
+  }
+}

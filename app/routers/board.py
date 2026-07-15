@@ -97,9 +97,9 @@ def board(req: BoardRequest):
         return _error("ADDR_UNRESOLVED", f"주소 해석 불가: {e}")
     if not site.sgg_code:
         return _error("NO_REGION_CODE", "시군구 코드를 확인할 수 없습니다.")
-    # 용도 유효성 — 알 수 없는 용도면 하드블록 (silent-empty 방지 + use_type 이 synthesis 프롬프트에 삽입되므로 화이트리스트, 절대 원칙 3)
-    from app.services.matrix import use_types
-    if req.use_type not in use_types():
+    # 용도 유효성 — 프로파일 또는 법적 용도(2계층)면 통과, 아니면 하드블록 (silent-empty 방지, 절대 원칙 3)
+    from app.services.matrix import resolve_profile
+    if resolve_profile(req.use_type) is None:
         return _error("NO_DATA", f"알 수 없는 용도: {req.use_type}")
 
     # 1b) B4 캐시 조회 — 히트면 4브랜치·Claude 재실행 없이 재사용 (brief 는 그때그때 투영)
@@ -120,7 +120,8 @@ def board(req: BoardRequest):
         ))
 
     def _diagnose():
-        return build_diagnosis(req.address, radius=req.radius, resolution=req.resolution)
+        # P13 — 용도 관련 수급규칙만 진단
+        return build_diagnosis(req.address, radius=req.radius, resolution=req.resolution, use_type=req.use_type)
 
     def _site():
         from app.routers.site import site_info
@@ -129,7 +130,8 @@ def board(req: BoardRequest):
     def _seed():
         from app.routers.seed import seed
         from app.schemas.seed import SeedRequest
-        return seed(SeedRequest(address=req.address, radius=req.radius))
+        # P13 — 용도 관련 context 소스만 호출
+        return seed(SeedRequest(address=req.address, radius=req.radius, use_type=req.use_type))
 
     branches = [
         ("analyze", lambda: _run("인구 통계", _analyze)),

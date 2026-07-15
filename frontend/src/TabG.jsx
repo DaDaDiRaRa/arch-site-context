@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { seed } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { useUseTypeCatalog, UseTypeOptions } from "./useTypes.jsx";
 
 const RADII = [500, 1000, 2000];
 
@@ -42,6 +43,8 @@ function Block({ title, badge, source, empty, children }) {
 
 export default function TabG({ address }) {
   const [radius, setRadius] = useState(1000);
+  const [useType, setUseType] = useState("");  // "" = 전체(용도 무관·P13 미적용)
+  const useTypeCatalog = useUseTypeCatalog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -49,7 +52,7 @@ export default function TabG({ address }) {
   async function run() {
     if (!address.trim()) { setError({ message: "주소를 먼저 입력하세요." }); return; }
     setLoading(true); setError(null); setData(null);
-    try { setData(await seed(address, radius)); }
+    try { setData(await seed(address, radius, useType || null)); }
     catch (e) { setError(e); }
     finally { setLoading(false); }
   }
@@ -83,6 +86,23 @@ export default function TabG({ address }) {
               </button>
             ))}
           </div>
+        </label>
+        <label className="text-sm">
+          <span
+            className="block mb-1"
+            style={{color:'var(--mute)',fontSize:11,fontFamily:'var(--font-mono)',letterSpacing:'0.06em',textTransform:'uppercase'}}
+          >
+            건물 용도 (선택 · 관련 소스만)
+          </span>
+          <select
+            value={useType}
+            onChange={(e) => setUseType(e.target.value)}
+            className="px-3 py-1.5 text-sm"
+            style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)',background:'var(--canvas-elevated)',color:'var(--body)'}}
+          >
+            <option value="">전체 (용도 무관)</option>
+            <UseTypeOptions catalog={useTypeCatalog} />
+          </select>
         </label>
         <button
           onClick={run}

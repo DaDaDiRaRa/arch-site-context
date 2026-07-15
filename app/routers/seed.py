@@ -86,6 +86,21 @@ def seed(req: SeedRequest):
         tasks.append(("living_population", lambda: _gather(
             "생활인구", seoul.fetch_living_population, lat=site.lat, lon=site.lon, cache=cache)))
 
+    # P13 — 용도(프로파일) 관련 소스만 호출(API 절감). 미지정·미등록이면 전체(하위호환).
+    from app.services.matrix import relevant_seed, resolve_profile
+    allowed = relevant_seed(req.use_type)
+    p13_note: list = []
+    if allowed is not None:
+        kept = [(k, t) for k, t in tasks if k in allowed]
+        if kept:
+            dropped = [k for k, _ in tasks if k not in allowed]
+            tasks = kept
+            if dropped:
+                p13_note.append(
+                    f"용도({resolve_profile(req.use_type)}) 무관 소스 {len(dropped)}개 미호출 "
+                    f"(관련 소스만·P13): {', '.join(dropped)}."
+                )
+
     # 병렬 실행 — _gather 가 예외를 흡수하므로 future.result() 는 항상 (data, notes).
     results: dict = {}
     with ThreadPoolExecutor(max_workers=len(tasks)) as ex:
@@ -94,7 +109,7 @@ def seed(req: SeedRequest):
             results[futs[fut]] = fut.result()
 
     # context 조립 — tasks 정의 순서대로 (notes 순서 안정·결정적).
-    notes: list = []
+    notes: list = list(p13_note)
     context: dict = {}
     for key, _ in tasks:
         data, n = results[key]

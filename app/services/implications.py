@@ -52,6 +52,9 @@ def derive_implications(
     반환 항목: {text, basis, tag}.
     """
     rules = load_rules()
+    # 법적 용도(건축법 별표1)면 분석 프로파일로 해석 — 규칙 use_types 는 프로파일명 (2계층).
+    from app.services.matrix import resolve_profile
+    profile = resolve_profile(use_type) if use_type is not None else None
     fact_by_item: Dict[str, Any] = {}
     for f in facts:
         item = _get(f, "item")
@@ -61,7 +64,7 @@ def derive_implications(
     out: List[Dict[str, str]] = []
     for rule in rules:
         uses = rule.get("use_types") or []
-        if use_type is not None and uses and use_type not in uses:
+        if profile is not None and uses and profile not in uses:
             continue
 
         when = rule.get("when", {})

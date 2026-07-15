@@ -176,6 +176,38 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     assert "8.3%" in boyuk.note and "전국 10.3%" in boyuk.note
 
 
+def test_build_diagnosis_p13_filters_rules_by_use_type(monkeypatch) -> None:
+    # P13 — 용도(의료) 관련 수급규칙만 진단(의료·노인복지·보육), 무관 규칙(초등·1인가구·문화)은 제외
+    monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
+    monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
+    monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
+    monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
+
+    res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000, use_type="의료")
+    names = {d.name for d in res.diagnoses}
+    assert names == {"의료시설 수급", "노인복지시설 수급", "보육시설 수급"}
+    assert "초등학교 수급" not in names and "문화시설 수급" not in names
+    # 제외를 정직하게 note 로 표시 (P13)
+    assert any("P13" in n and "제외" in n for n in res.notes)
+
+
+def test_build_diagnosis_p13_legal_use_and_none(monkeypatch) -> None:
+    # 법적 용도(노유자시설→복지)도 해석되어 필터, 미지정이면 전체(하위호환)
+    monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
+    monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
+    monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
+    monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
+
+    welfare = diagnose.build_diagnosis("주소", radius=1000, use_type="노유자시설")
+    assert {d.name for d in welfare.diagnoses} == {
+        "노인복지시설 수급", "보육시설 수급", "의료시설 수급", "1인가구 생활시설 수급"}
+    # 미지정 → 전체 6개 (하위호환)
+    full = diagnose.build_diagnosis("주소", radius=1000)
+    assert len(full.diagnoses) == 6
+
+
 def test_build_diagnosis_radius_mode_uses_sgis(monkeypatch) -> None:
     """반경 모드: SGIS 집계구 합산으로 demand 교체, 미제공 지표(1인가구)는 시군구 폴백 (D2)."""
     monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())

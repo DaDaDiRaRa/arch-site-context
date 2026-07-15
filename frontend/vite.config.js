@@ -9,7 +9,7 @@ const DECK = process.env.VITE_DECK_TARGET || "http://127.0.0.1:8100";
 
 // 개발 서버에서 백엔드 엔드포인트를 프록시 → CORS·URL 고민 없이 상대경로로 호출.
 const proxy = Object.fromEntries(
-  ["/analyze", "/facilities", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/matrix", "/files", "/health"].map((p) => [
+  ["/analyze", "/facilities", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/matrix", "/use-types", "/files", "/health"].map((p) => [
     p,
     { target: API, changeOrigin: true },
   ])

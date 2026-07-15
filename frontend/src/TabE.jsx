@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ask } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, CopyButton } from "./ui.jsx";
 
-const USE_TYPES = ["주거", "상업", "의료"];
+import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 const KIND_OPTIONS = ["어린이집", "경로당", "학교", "병원", "약국", "공원", "도서관", "지하철역", "버스정류장", "카페"];
 const RADII_OPTIONS = [500, 1000, 2000];
 
@@ -19,7 +19,8 @@ const selStyle = {
 };
 
 export default function TabE({ address }) {
-  const [useType, setUseType] = useState("주거");
+  const [useType, setUseType] = useState(DEFAULT_USE_TYPE);
+  const useTypeCatalog = useUseTypeCatalog();
   const [radius, setRadius] = useState(1000);
   const [kinds, setKinds] = useState(["어린이집", "경로당"]);
   const [question, setQuestion] = useState("");
@@ -66,7 +67,7 @@ export default function TabE({ address }) {
             용도
           </span>
           <select value={useType} onChange={(e) => setUseType(e.target.value)} className="px-3 py-2" style={selStyle}>
-            {USE_TYPES.map((u) => <option key={u} value={u}>{u}</option>)}
+            <UseTypeOptions catalog={useTypeCatalog} />
           </select>
         </label>
         <div>

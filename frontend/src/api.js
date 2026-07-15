@@ -42,8 +42,8 @@ export const facilities = (address, kinds, radii) =>
 export const facilitiesMap = (address, kinds, radii, basemap = "vworld") =>
   post("/facilities/map", { address, kinds, radii, basemap });
 
-export const diagnose = (address, radius, resolution = "시군구") =>
-  post("/diagnose", { address, radius, resolution });
+export const diagnose = (address, radius, resolution = "시군구", use_type = null) =>
+  post("/diagnose", { address, radius, resolution, use_type });
 
 export const compare = (addresses, use_type, radius, kinds) =>
   post("/compare", { addresses, use_type, radius, kinds });
@@ -54,8 +54,8 @@ export const ask = (address, question, use_type, radius, kinds, web = false) =>
 export const site = (address) =>
   post("/site", { address });
 
-export const seed = (address, radius = 1000) =>
-  post("/seed", { address, radius });
+export const seed = (address, radius = 1000, use_type = null) =>
+  post("/seed", { address, radius, use_type });
 
 export const readout = (address, project_type = "재건축", use_type = "주거") =>
   post("/readout", { address, project_type, use_type });

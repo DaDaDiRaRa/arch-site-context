@@ -39,9 +39,13 @@ def _collect_facts(*a, **k):
 
 
 def _census(org, tbl, itm, sigungu, prd, **k):
-    # biz 는 값·breakdown 있음, 나머지는 결측(None) — 결측도 출처와 함께 정직하게 방출.
+    # biz·의료인력·아파트거래량은 값 있음, 나머지는 결측(None) — 결측도 출처와 함께 정직하게 방출.
     if tbl == "DT_1BD1032":
         return {"value": 96993, "breakdown": [["제조업", 1000], ["도소매", 800]], "year": "2021"}, []
+    if tbl == "DT_HIRA4U":  # Phase3 의료인력
+        return {"value": 8194, "breakdown": [], "year": "202601"}, []
+    if tbl == "DT_408_2006_S0049":  # Phase3 아파트 거래량(월)
+        return {"value": 977, "breakdown": [], "year": "202605"}, []
     return {"value": None, "breakdown": [], "year": None}, [f"{tbl}: 데이터 없음"]
 
 
@@ -95,6 +99,20 @@ def test_readout_derived_only_when_data(monkeypatch) -> None:
     # 장애인·신혼부부 census 결측 → 관련 파생 없음 (억지 계산 안 함)
     assert "장애인비율" not in labels
     assert "신혼부부/세대" not in labels
+
+
+# ── Phase3: 신규 census 지표(의료인력·아파트거래량) 편입 + 파생 ──────────────
+def test_readout_phase3_indicators(monkeypatch) -> None:
+    _patch(monkeypatch)
+    b = client.post("/readout", json={"address": "x", "project_type": "재건축"}).json()
+    ctx = {c["label"]: c for c in b["context"]}
+    assert ctx["의료인력"]["value"] == 8194 and ctx["의료인력"]["source_tbl"] == "DT_HIRA4U"
+    assert ctx["아파트 거래량(월)"]["value"] == 977
+    # 재건축 프리셋 → 아파트 거래량 강조
+    assert ctx["아파트 거래량(월)"]["emphasized"] is True
+    # 파생: 인구당 의료인력 (8194 / 370000 × 1000 = 22.1)
+    der = {d["label"]: d["value"] for d in b["derived"]}
+    assert der["의료인력/천명"] == 22.1
 
 
 # ── 알 수 없는 용도 = 하드블록 ───────────────────────────────────────────────

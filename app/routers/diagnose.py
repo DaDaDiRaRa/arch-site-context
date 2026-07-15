@@ -24,7 +24,7 @@ def _error(code: str, message: str) -> JSONResponse:
 def diagnose(req: DiagnoseRequest):
     """수급진단. 수요 데이터가 하나도 없으면 ErrorBlock."""
     try:
-        result = build_diagnosis(req.address, req.radius, resolution=req.resolution)
+        result = build_diagnosis(req.address, req.radius, resolution=req.resolution, use_type=req.use_type)
     except KakaoError as e:
         return _error("ADDR_UNRESOLVED", f"주소 해석 불가: {e}")
 

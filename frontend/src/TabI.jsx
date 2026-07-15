@@ -2,7 +2,7 @@ import { useState } from "react";
 import { board, boardView } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, ProximityChip } from "./ui.jsx";
 
-const USE_TYPES = ["주거", "상업", "의료"];
+import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 const RESOLUTIONS = ["시군구", "읍면동", "반경"];
 const RES_LABEL = { 시군구: "시군구(구)", 읍면동: "읍면동(동)", 반경: "반경(집계구)" };
 const RADII = [500, 1000, 2000];
@@ -42,7 +42,8 @@ function Field({ label, children }) {
 const DOMAIN_DOTS = { 인구: "인구", 수급: "수급", 재해: "재해" };
 
 export default function TabI({ address }) {
-  const [useType, setUseType] = useState("주거");
+  const [useType, setUseType] = useState(DEFAULT_USE_TYPE);
+  const useTypeCatalog = useUseTypeCatalog();
   const [resolution, setResolution] = useState("시군구");
   const [radius, setRadius] = useState(1000);
   const [synth, setSynth] = useState(false);
@@ -88,9 +89,14 @@ export default function TabI({ address }) {
 
       <div className="space-y-3">
         <Field label="건물 용도">
-          {USE_TYPES.map((u) => (
-            <ToggleBtn key={u} active={useType === u} onClick={() => setUseType(u)}>{u}</ToggleBtn>
-          ))}
+          <select
+            value={useType}
+            onChange={(e) => setUseType(e.target.value)}
+            className="px-3 py-2"
+            style={{ borderRadius: 6, border: "1px solid var(--line, #ddd)", background: "var(--bg, #fff)", color: "var(--ink, #222)" }}
+          >
+            <UseTypeOptions catalog={useTypeCatalog} />
+          </select>
         </Field>
         <Field label="반경 (m)">
           {RADII.map((r) => (

@@ -76,6 +76,29 @@ def test_seed_isolates_service_failure(monkeypatch) -> None:
     assert b["context"]["culture"]["total"] == 10
 
 
+# ── P13: 용도 지정 시 관련 소스만 호출 ───────────────────────────────────────
+def test_seed_p13_filters_sources_by_use_type(monkeypatch) -> None:
+    # 의료 프로파일 관련 소스만: stores·childcare·schools·real_estate_index·weather
+    # (culture·venues·living_population 은 미호출)
+    _patch(monkeypatch, site=_site(sgg_code="11560", sido="서울", sigungu="영등포구"))
+    b = client.post("/seed", json={"address": "서울 영등포구 여의대로 24", "use_type": "의료"}).json()
+    ctx = b["context"]
+    assert ctx["stores"] is not None and ctx["childcare"] is not None
+    # 무관 소스는 호출 안 됨 → context 에 없음(또는 None 자리)
+    assert ctx.get("culture") is None and ctx.get("venues") is None
+    # living_population 은 자리표시만 (계약 보장)
+    assert ctx.get("living_population") is None
+    assert any("P13" in n and "미호출" in n for n in ctx["notes"])
+
+
+def test_seed_p13_none_calls_all(monkeypatch) -> None:
+    # 미지정이면 전체 호출 (하위호환)
+    _patch(monkeypatch)
+    b = client.post("/seed", json={"address": "경기 성남시 분당구 불정로 6"}).json()
+    ctx = b["context"]
+    assert ctx["stores"] is not None and ctx["culture"] is not None
+
+
 # ── 주소 해석 실패 = 하드블록 ────────────────────────────────────────────────
 def test_seed_bad_address_blocks(monkeypatch) -> None:
     from app.services.kakao import KakaoError

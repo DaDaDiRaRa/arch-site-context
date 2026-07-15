@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { diagnose } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, ProximityChip, IndexBar } from "./ui.jsx";
+import { useUseTypeCatalog, UseTypeOptions } from "./useTypes.jsx";
 
 const RADII_OPTIONS = [500, 1000, 2000];
 const RESOLUTIONS = ["시군구", "읍면동", "반경"];
@@ -12,6 +13,8 @@ const supplyTone = (lv) => (lv === "적음" ? "amber" : lv === "많음" ? "green
 export default function TabC({ address }) {
   const [radius, setRadius] = useState(1000);
   const [resolution, setResolution] = useState("시군구");
+  const [useType, setUseType] = useState("");  // "" = 전체(용도 무관·P13 미적용)
+  const useTypeCatalog = useUseTypeCatalog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -22,7 +25,7 @@ export default function TabC({ address }) {
     setError(null);
     setData(null);
     try {
-      setData(await diagnose(address, radius, resolution));
+      setData(await diagnose(address, radius, resolution, useType || null));
     } catch (e) {
       setError(e);
     } finally {
@@ -90,6 +93,25 @@ export default function TabC({ address }) {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 건물 용도 (P13 — 지정 시 관련 수급규칙만 진단) */}
+      <div className="text-sm mt-3">
+        <span
+          className="block mb-1.5"
+          style={{color:'var(--mute)',fontSize:11,fontFamily:'var(--font-mono)',letterSpacing:'0.06em',textTransform:'uppercase'}}
+        >
+          건물 용도 (선택 · 관련 수급규칙만)
+        </span>
+        <select
+          value={useType}
+          onChange={(e) => setUseType(e.target.value)}
+          className="px-3 py-1.5 text-sm"
+          style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)',background:'var(--canvas-elevated)',color:'var(--body)'}}
+        >
+          <option value="">전체 (용도 무관)</option>
+          <UseTypeOptions catalog={useTypeCatalog} />
+        </select>
       </div>
 
       <button

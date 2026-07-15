@@ -254,6 +254,7 @@ def build_diagnosis(
     client: Optional[httpx.Client] = None,
     cache: Optional[Cache] = None,
     resolution: str = "시군구",
+    use_type: Optional[str] = None,
 ) -> DiagnoseResult:
     """수급진단 결과 구성. demand facts 가 하나도 없으면 diagnoses 빈 배열(라우터가 ErrorBlock).
 
@@ -266,6 +267,21 @@ def build_diagnosis(
         loc = resolve_address(address, client=client)
         rules = load_rules()
         notes: List[str] = list(loc.notes)
+
+        # P13 — 용도(프로파일) 관련 수급규칙만 (demand 지표·카카오 시설검색·진단이 줄어 API 절감).
+        # 미지정·미등록이면 전체(하위호환). 전부 걸러지면 안전하게 전체 유지.
+        from app.services.matrix import relevant_supply, resolve_profile
+        allowed = relevant_supply(use_type)
+        if allowed is not None:
+            kept = [r for r in rules if r["name"] in allowed]
+            if kept:
+                dropped = [r["name"] for r in rules if r["name"] not in allowed]
+                rules = kept
+                if dropped:
+                    notes.append(
+                        f"용도({resolve_profile(use_type)}) 무관 수급규칙 {len(dropped)}개 제외 "
+                        f"(관련 소스만 호출·P13): {', '.join(dropped)}."
+                    )
 
         # 읍면동 요청이면 행정동 H코드 lazy 조회. 실패 시 구로 폴백.
         from app.services.kakao import coord_to_hdong

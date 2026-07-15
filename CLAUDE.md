@@ -174,13 +174,14 @@ git push        # 작업 후 GitHub에 올리기
 | POST | `/facilities` | B | 반경 시설 목록·개수 |
 | POST | `/facilities/map` | B | 위성 PNG (핀·반경) |
 | POST | `/analyze` | A | 지역 통계 + 함의 + 문단 |
-| GET | `/matrix` | A | 용도별 항목 목록 (투명성) |
+| GET | `/matrix` | A | 용도별 항목 목록 (투명성). 법적 용도 입력 시 해석된 프로파일도 반환 |
+| GET | `/use-types` | A | 2계층 용도 카탈로그 — 분석 프로파일 7개 + 법적 용도(별표1) 그룹핑 + 매핑 + 데이터 한정 목록. 프론트 드롭다운용 (`use_type_map.json`) |
 | POST | `/diagnose` | P11 | 수급진단 (A수요×B공급 교차) ★간판 |
 | POST | `/compare` | P9 | 여러 후보지 A·B·P11 나란히 비교 |
 | POST | `/ask` | P10 | 물어보기 (데이터 위에서만 + 웹검색 opt-in 폴백) |
 | POST | `/site` | P14 | 대지 기본정보 (개별공시지가=VWorld·실거래·건축물대장 + **재해위험**=SGIS 홍수·산사태 영향범위, §8.10). 공시지가는 data.go.kr 미승인 → VWorld `LP_PA_CBND_BUBUN` 우회 |
 | POST | `/seed` | P14 | 보드 합본 진입점 — 공유 site(좌표·pnu) + context(상권·학교·어린이집·문화시설·부동산지수·날씨·생활인구·공연시설). `schemas/project_seed.ProjectSeed`. law·knowledge는 형제앱 자리(INTEGRATION). 8블록 ThreadPoolExecutor 병렬 |
-| POST | `/readout` | - | 공동주택 대지 readout — 인구·가구(matrix) + 산업·주거·복지(KOSIS 다차원 census 크랙) + 파생 + 유형 프리셋(재건축/재개발/민간/주상복합). `services/{readout,census_multidim}.py`. 전국 작동 |
+| POST | `/readout` | - | 공동주택 대지 readout — 인구·가구(matrix) + 산업·주거·복지·**의료·부동산**(KOSIS 다차원 census 크랙: 사업체수·빈집·신혼부부·등록장애인·**의료인력(DT_HIRA4U)·아파트거래량(DT_408, KOSIS Phase3 2026-07-15)**) + 파생(사업체밀도·장애인비율·신혼부부/세대·**의료인력/천명**) + 유형 프리셋(재건축/재개발/민간/주상복합). `services/{readout,census_multidim}.py`. 전국 작동 |
 | POST | `/board` | S3·S4·T | 대지 종합 읽기 — analyze·diagnose·site·seed **병렬 오케스트레이션**(새 데이터 0) + S1 근접도 + **S2 교차시사점** + **T2 설계 드라이버**(design_drivers, 증거강도 랭킹) + **T5 방법론 부록**(methodology, 출처·산정식·한계 자동 각인) + 도메인 coverage. `synthesize=true`면 **S4 종합 산출**(①Sonnet·②Opus 벽분리). **`brief=true`면 압축 투영(board_brief/1.0)** — 제안서·MCP·형제앱 주입용(원시 seed context 제외). **`model=`(선택)이면 arch-site-model 물리 3D 요약 병합**(assembler 가 넘김·터읽기는 호출 안 함, 물리+인문=완전한 보드). `schema_version:"board/1.0"`. 종합점수 없음. 프론트 I탭 |
 | POST | `/board/view` | T4 | 대지분석 보드 HTML 렌더 — /board 빌드 → 자체완결 한 장(지도앵커·**물리모델 축측매싱**·드라이버·S4·지수·부록·출처) → `out/boards/*.html` 저장, `/files/...` **공유 URL** 반환. 인쇄→PDF. `services/board_view.py` |
 | POST | `/context-pack` | C1·C2·C6 | **심의 현황팩** — 주소+신축세대(다획지 list) → 조사범위 걸침 인구·세대(C1 `survey.py`) + 구 영유아·세대(KOSIS/jumin) + 시설현황(`survey_facilities.py`) + 주민공동시설 총량제 부족/충족 판정(C2 `quota.py`, `community_quota.json` 세대규모 tier). `services/deliberation.py assess_quota`→`QuotaAssessment`. 프론트 J탭 |
@@ -301,10 +302,10 @@ git push        # 작업 후 GitHub에 올리기
 | | P10 | '물어보기' 모드 (데이터 위에서만) | ✅ 완료 (/ask + 프론트 E탭, 그라운디드 답변·확인불가 하드블록·웹검색 opt-in 폴백 검증) |
 | | P11 | 수급 진단 (A×B 교차) ★간판기능 | ✅ 완료 (/diagnose + supply_demand.json + 프론트 C탭, 영등포 실데이터 검증) |
 | **데이터 확장** | P12 | matrix.json 멀티소스 구조 확장 (source_type 필드, KOSIS 외 소스 통합 설계) | 🟡 골격 완료·검증 후 막힘 (§8.7) |
-| | P13 | 용도별 API 세트 매핑 (용도 선택 → 관련 소스만 호출, `API_MASTER_LIST.md` 기반) | 예정 |
+| | P13 | 용도별 API 세트 매핑 (용도 선택 → 관련 소스만 호출) | ✅ **완료 (2026-07-15)**: `app/data/profile_sources.json`(프로파일7 → 관련 seed context 키·수급규칙 이름) + `matrix.relevant_seed()`/`relevant_supply()`. **`/diagnose`·`/seed`·`/board`에 `use_type` 지정 시 관련 소스만 호출** — build_diagnosis 가 무관 수급규칙 제외(demand 지표·카카오 시설검색·진단 감소=실 API 절감), seed 가 무관 context 소스 미호출. 법적 용도도 resolve_profile 로 해석. 미지정이면 전체(하위호환). 제외분 notes 정직 표시 |
 | | P14 | 우선순위 소스 통합 ① /site(공시지가·실거래·건축물대장) + /seed(상권·학교·부동산지수·날씨·생활인구·공연·어린이집·문화시설) + 수급진단 5규칙 | ✅ 완료 (2026-06-29) |
 | | P15 | 우선순위 소스 통합 ② 기상청·LURIS·HIRA·소상공인마당 등 | 예정 |
-| | P16 | 용도 확장 (숙박·공공·산업·복합 등 신규 용도 추가) | 예정 |
+| | P16 | 용도 확장 + **2계층 용도 매핑** | ✅ **완료 (2026-07-15)**. **분석 프로파일 7개**(주거·상업·의료·복합·공공·교육·복지) — matrix.json. **법적 용도(건축법 별표1) 30개 → 프로파일 매핑**(`use_type_map.json`) `matrix.resolve_profile()`: 프론트는 법적 용도를 그룹핑 노출(`/use-types`, 4탭 grouped 드롭다운), 백엔드는 프로파일로 분석. 여러 법적 용도가 한 프로파일 공유=우리 인구데이터로 구분 못 함(정직). **데이터 한정 용도**(숙박·공장·물류 등 14개)는 가장 가까운 프로파일+⚠캐비엇. list_items·implications·cross_context·design_drivers·program·archetype·board·readout 전부 법적 용도 수용(내부 resolve). **원칙: 인구통계 재조합으로 억지 차별화 안 함(§2 게이트) — 데이터가 진짜 다른 프로파일만 신설** |
 | **해상도 확장** | D1 | 읍면동 해상도 옵션 (모드A·수급진단 demand를 동 단위로) | ✅ 완료 (2026-06-30, §8.8) |
 | | D2 | 진짜 반경 인구 (통계청 SGIS 집계구) — 수급진단 demand를 반경 실인구로 | ✅ 완료 (2026-06-30, §8.9) |
 | **종합·해석** | S1 | 데이터 근접도 레이어 (모든 수치에 대지근접도 등급: 대지>반경>읍면동>시군구>proxy) | ✅ 완료 (2026-07-09, §8.11) |

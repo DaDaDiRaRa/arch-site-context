@@ -254,10 +254,12 @@ def derive_cross_context(
         if name is not None:
             diag_by_name[name] = d
 
+    from app.services.matrix import resolve_profile
+    profile = resolve_profile(use_type) if use_type is not None else None  # 법적 용도 → 프로파일 (2계층)
     out: List[CrossImplication] = []
     for rule in load_rules():
         uses = rule.get("use_types") or []
-        if use_type is not None and uses and use_type not in uses:
+        if profile is not None and uses and profile not in uses:
             continue
 
         clauses = rule.get("when") or []

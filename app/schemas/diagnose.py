@@ -28,6 +28,11 @@ class DiagnoseRequest(BaseModel):
         description="수요(인구) 해상도. '읍면동'=동 단위(KOSIS). '반경'=radius 반경 내 실인구(SGIS 집계구 합산) — 수요·공급 같은 반경. SGIS 미제공 지표(1인가구 등)는 시군구 폴백",
         examples=["시군구"],
     )
+    use_type: Optional[str] = Field(
+        None,
+        description="용도(분석 프로파일 또는 법적 용도). 지정 시 관련 수급규칙만 진단(P13). 미지정이면 전체.",
+        examples=["의료", "노유자시설"],
+    )
 
 
 class DemandSignal(BaseModel):

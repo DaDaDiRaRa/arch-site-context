@@ -17,3 +17,7 @@ class SeedRequest(BaseModel):
     adstrd_code: Optional[str] = Field(
         None, description="서울 생활인구용 행정동코드(8자리). 없으면 생활인구 생략", examples=["11560540"]
     )
+    use_type: Optional[str] = Field(
+        None, description="용도(분석 프로파일 또는 법적 용도). 지정 시 관련 context 소스만 호출(P13). 미지정이면 전체.",
+        examples=["교육", "교육연구시설"],
+    )

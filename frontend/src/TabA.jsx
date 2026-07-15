@@ -2,7 +2,7 @@ import { useState, Fragment } from "react";
 import { analyze } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, CopyButton, ProximityChip, IndexBar } from "./ui.jsx";
 
-const USE_TYPES = ["주거", "상업", "의료"];
+import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 
 function fmt(v) {
   if (typeof v === "number" && Number.isInteger(v) && Math.abs(v) >= 1000) {
@@ -41,7 +41,8 @@ function ToggleBtn({ active, onClick, children, title }) {
 }
 
 export default function TabA({ address }) {
-  const [useType, setUseType] = useState("주거");
+  const [useType, setUseType] = useState(DEFAULT_USE_TYPE);
+  const useTypeCatalog = useUseTypeCatalog();
   const [resolution, setResolution] = useState("시군구");
   const [radius, setRadius] = useState(1000);
   const [loading, setLoading] = useState(false);
@@ -82,9 +83,7 @@ export default function TabA({ address }) {
             className="px-3 py-2"
             style={selStyle}
           >
-            {USE_TYPES.map((u) => (
-              <option key={u} value={u}>{u}</option>
-            ))}
+            <UseTypeOptions catalog={useTypeCatalog} />
           </select>
         </label>
         <label className="text-sm">

@@ -40,12 +40,14 @@ def derive_program(
     fact_by_item = {_get(f, "item"): f for f in facts if _get(f, "item")}
     diag_by_name = {_get(d, "name"): d for d in diagnoses if _get(d, "name")}
 
+    from app.services.matrix import resolve_profile
+    profile = resolve_profile(use_type) if use_type is not None else None  # 법적 용도 → 프로파일 (2계층)
     # (category, recommendation) → basis 집합 (병합·순서 보존)
     merged: dict = {}
     order: List[tuple] = []
     for rule in rules.get("rules", []):
         uses = rule.get("use_types") or []
-        if use_type is not None and uses and use_type not in uses:
+        if profile is not None and uses and profile not in uses:
             continue
         clauses = rule.get("when") or []
         if not clauses:

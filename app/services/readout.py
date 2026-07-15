@@ -24,6 +24,7 @@ from app.services.cache import Cache, default_cache
 from app.services.resolve import resolve_address
 
 # 크랙한 census 지표 정의 (org, tbl, itm, 주기, 단위, 라벨, 축, breakdown).
+# 값은 census_multidim 크랙 엔진으로 실호출 (2026-06-30·2026-07-15 영등포 실측 검증).
 _CONTEXT_INDICATORS = [
     {"key": "biz", "org": "101", "tbl": "DT_1BD1032", "itm": "T01", "prd": "년",
      "unit": "개", "label": "사업체수", "axis": "산업·고용", "breakdown": True},
@@ -33,14 +34,19 @@ _CONTEXT_INDICATORS = [
      "unit": "쌍", "label": "신혼부부", "axis": "주거수요"},
     {"key": "disabled", "org": "117", "tbl": "DT_11761_N009", "itm": "ALL", "prd": "년",
      "unit": "명", "label": "등록장애인", "axis": "복지"},
+    # Phase3 편입 (2026-07-15) — 의료 인프라·시장 활성도
+    {"key": "medical", "org": "354", "tbl": "DT_HIRA4U", "itm": "ALL", "prd": "분기",
+     "unit": "명", "label": "의료인력", "axis": "복지·의료"},
+    {"key": "apt_trade", "org": "408", "tbl": "DT_408_2006_S0049", "itm": "ALL", "prd": "월",
+     "unit": "건", "label": "아파트 거래량(월)", "axis": "부동산"},
 ]
 
 # 유형별 강조 지표(라벨·item 이름). 데이터는 동일, 표시 강조만.
 _PRESET = {
-    "재건축": {"고령인구비율", "빈집", "세대수", "순이동"},
-    "재개발": {"빈집", "순이동", "1인가구비율", "고령인구비율"},
+    "재건축": {"고령인구비율", "빈집", "세대수", "순이동", "아파트 거래량(월)"},
+    "재개발": {"빈집", "순이동", "1인가구비율", "고령인구비율", "아파트 거래량(월)"},
     "민간": {"신혼부부", "순이동", "사업체수", "유소년인구비율"},
-    "주상복합": {"사업체수", "1인가구비율", "총인구수"},
+    "주상복합": {"사업체수", "1인가구비율", "총인구수", "아파트 거래량(월)"},
 }
 
 
@@ -108,6 +114,8 @@ def build_readout(
         derived.append(DerivedIndicator(label="장애인비율", value=round(census_vals["disabled"] / pop * 100, 1), unit="%"))
     if sed and census_vals.get("newly"):
         derived.append(DerivedIndicator(label="신혼부부/세대", value=round(census_vals["newly"] / sed * 100, 1), unit="%"))
+    if pop and census_vals.get("medical"):
+        derived.append(DerivedIndicator(label="의료인력/천명", value=round(census_vals["medical"] / pop * 1000, 1), unit="명/천명"))
 
     if project_type == "민간":
         notes.append("택지·신도시 신축이면 시군구 평균이 '형성 전 신규단지'를 못 반영 — 배후 규모 참고용.")
