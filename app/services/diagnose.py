@@ -24,7 +24,7 @@ from app.schemas.diagnose import (
 )
 from app.schemas.facility import Center
 from app.schemas.region import Region
-from app.services import childcare, stats
+from app.services import census_multidim, childcare, stats
 from app.services.cache import Cache
 from app.services.stats import fetch_total_pop
 from app.services.facilities import build_facility_result
@@ -106,6 +106,7 @@ def cross_rules(
     capacity_data: Optional[dict] = None,
     total_pop: Optional[int] = None,
     radius_pop: Optional[int] = None,
+    workforce_data: Optional[dict] = None,
 ) -> tuple:
     """수요 facts × 공급 개수(band)를 규칙과 교차 → (diagnoses, notes).
 
@@ -119,6 +120,7 @@ def cross_rules(
     """
     rules = rules if rules is not None else load_rules()
     capacity_data = capacity_data or {}
+    workforce_data = workforce_data or {}
     diagnoses: List[Diagnosis] = []
     notes: List[str] = []
     for r in rules:
@@ -178,6 +180,20 @@ def cross_rules(
             f"(시군구 {cap_scope} 정원 {capacity}명)" if capacity is not None else ""
         )
 
+        # 시군구 공급 인력 보강 (의료인력 등 — 반경 개수와 단위 다름, 참고). 만명당은 시군구 인구 기준.
+        wf_info = workforce_data.get(r["name"]) or {}
+        workforce = wf_info.get("workforce")
+        wf_scope = wf_info.get("scope", "")
+        workforce_per_10k = (
+            round(workforce / (total_pop / 10_000), 1)
+            if (workforce is not None and total_pop and total_pop > 0) else None
+        )
+        wf_txt = (
+            f"(시군구 {wf_scope} 의료인력 {workforce}명"
+            + (f"·{workforce_per_10k}/만명)" if workforce_per_10k is not None else ")")
+            if workforce is not None else ""
+        )
+
         # 밀도 텍스트 (분모 기준 명시 — 반경 실인구 vs 시군구 참고)
         if density_per_10k is not None and nat_density:
             basis_lbl = "반경인구" if density_basis == "반경" else "시군구인구"
@@ -191,7 +207,7 @@ def cross_rules(
         dscope_txt = f", {dscope} 기준" if dscope else ""
         note = (
             f"{r['demand_item']} {fact['value']}{unit}({nat_txt}{dscope_txt}) · "
-            f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개{density_txt}{cap_txt} — {verdict}"
+            f"반경 {radius}m {'·'.join(r['supply_kinds'])} {count}개{density_txt}{cap_txt}{wf_txt} — {verdict}"
         )
         diagnoses.append(
             Diagnosis(
@@ -214,6 +230,8 @@ def cross_rules(
                     vs_national_pct=vs_national_pct,
                     density_basis=density_basis,
                     capacity=capacity, capacity_scope=cap_scope,
+                    workforce=workforce, workforce_per_10k=workforce_per_10k,
+                    workforce_scope=wf_scope,
                 ),
                 signal=f"수요 {dlevel}·공급 {slevel}",
                 note=note,
@@ -246,6 +264,31 @@ def _collect_capacity(
                         "capacity": cc["total_capacity"], "scope": cc["scope"]
                     }
     return capacity_data, notes
+
+
+def _collect_workforce(
+    rules: List[dict], sgg_code: str, region_name: str, sido: str,
+    cache: Optional[Cache], client: Optional[httpx.Client],
+) -> tuple:
+    """workforce_source 지정 규칙의 시군구 공급 인력 수집 → ({규칙명:{workforce,scope}}, notes).
+
+    현재 'medical'(HIRA 의료인력 DT_HIRA4U — census 크랙)만. 반경 시설개수와 단위 다름·시군구 단위·참고.
+    graceful — 실패 시 해당 규칙만 인력 생략 (절대 원칙 3).
+    """
+    workforce_data: dict = {}
+    notes: List[str] = []
+    needs_medical = any(r.get("workforce_source") == "medical" for r in rules)
+    if needs_medical:
+        data, wnotes = census_multidim.fetch_census_indicator(
+            "354", "DT_HIRA4U", "ALL", region_name, "분기",
+            sido=sido, cache=cache, client=client,
+        )
+        notes += wnotes
+        if data and data.get("value") is not None:
+            for r in rules:
+                if r.get("workforce_source") == "medical":
+                    workforce_data[r["name"]] = {"workforce": data["value"], "scope": region_name}
+    return workforce_data, notes
 
 
 def build_diagnosis(
@@ -350,6 +393,12 @@ def build_diagnosis(
         )
         notes += capnotes
 
+        # 시군구 공급 인력 보강 (의료인력 HIRA — 반경 개수와 단위 다름, 참고). Phase3 연계
+        workforce_data, wfnotes = _collect_workforce(
+            rules, loc.sgg_code, loc.sigungu, loc.sido, cache, client
+        )
+        notes += wfnotes
+
         # 시군구 총인구 — 밀도 계산용 (DT_1B04005N 캐시 재사용, 추가 API 호출 없음)
         total_pop = fetch_total_pop(loc.sgg_code, cache=cache)
 
@@ -358,6 +407,7 @@ def build_diagnosis(
             capacity_data=capacity_data,
             total_pop=total_pop,
             radius_pop=radius_pop,
+            workforce_data=workforce_data,
         )
         notes += cnotes
 

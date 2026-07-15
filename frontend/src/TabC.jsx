@@ -198,6 +198,17 @@ export default function TabC({ address }) {
                         )}
                       </span>
                     )}
+                    {d.supply.workforce != null && (
+                      <span style={{color:'var(--body)'}}>
+                        {" · "}의료인력{" "}
+                        <span className="font-semibold" style={{color:'var(--ink)'}}>
+                          {d.supply.workforce.toLocaleString("ko-KR")}명
+                        </span>
+                        {d.supply.workforce_per_10k != null && (
+                          <span style={{color:'var(--mute)'}}> ({d.supply.workforce_per_10k}/만명·{d.supply.workforce_scope})</span>
+                        )}
+                      </span>
+                    )}
                     {d.supply.vs_national_pct != null && (
                       <span className="block text-xs mt-0.5" style={{color:'var(--mute)'}}>
                         {d.supply.density_per_10k}개/만명 · 전국{" "}

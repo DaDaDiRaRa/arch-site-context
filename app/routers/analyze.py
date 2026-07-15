@@ -121,6 +121,15 @@ def analyze(req: AnalyzeRequest):
     facts = facts + common_facts
     notes = notes + common_notes
 
+    # 3.6) census 밀도정규화 facts (opt-in) — 사업체수·빈집 등을 per-천명 + 동적 전국대비로 (§8.6)
+    if req.density:
+        from app.services.census_density import collect_density_facts
+        dfacts, dnotes = collect_density_facts(
+            loc.sgg_code, loc.sigungu, loc.sido, req.use_type
+        )
+        facts = facts + dfacts
+        notes = notes + dnotes
+
     # 3.5) 반경 모드 — SGIS 집계구 합산으로 인구/연령 facts 교체 + 인구밀도·평균나이 신규 (D2)
     radius_ok = False
     if req.resolution == "반경":

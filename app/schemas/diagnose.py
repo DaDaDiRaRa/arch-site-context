@@ -105,6 +105,15 @@ class SupplySignal(BaseModel):
     capacity_scope: str = Field(
         "", description="정원 출처 범위 (시군구명 — 반경 개수와 단위 다름)", examples=["영등포구"]
     )
+    workforce: Optional[int] = Field(
+        None, description="시군구 공급 인력(의료인력 등 — 반경 아님, 참고). 시설 개수 못 보는 공급 캐파", examples=[8194]
+    )
+    workforce_per_10k: Optional[float] = Field(
+        None, description="시군구 인구 만명당 공급 인력 (workforce / (시군구총인구/10,000)) — 참고", examples=[220.6]
+    )
+    workforce_scope: str = Field(
+        "", description="인력 출처 범위 (시군구명 — 반경 개수와 단위 다름)", examples=["영등포구"]
+    )
     proximity: Proximity = Field(
         "반경",
         description="공급 데이터 근접도 등급 — 개수는 항상 반경 내 실측이므로 '반경'. capacity(정원)만 시군구 (capacity_scope 참조) — S1",

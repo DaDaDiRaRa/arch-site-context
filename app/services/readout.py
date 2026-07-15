@@ -39,6 +39,8 @@ _CONTEXT_INDICATORS = [
      "unit": "명", "label": "의료인력", "axis": "복지·의료"},
     {"key": "apt_trade", "org": "408", "tbl": "DT_408_2006_S0049", "itm": "ALL", "prd": "월",
      "unit": "건", "label": "아파트 거래량(월)", "axis": "부동산"},
+    {"key": "house_trade", "org": "408", "tbl": "DT_408_2006_S0040", "itm": "ALL", "prd": "월",
+     "unit": "건", "label": "주택 거래량(월)", "axis": "부동산"},
 ]
 
 # 유형별 강조 지표(라벨·item 이름). 데이터는 동일, 표시 강조만.
@@ -116,6 +118,10 @@ def build_readout(
         derived.append(DerivedIndicator(label="신혼부부/세대", value=round(census_vals["newly"] / sed * 100, 1), unit="%"))
     if pop and census_vals.get("medical"):
         derived.append(DerivedIndicator(label="의료인력/천명", value=round(census_vals["medical"] / pop * 1000, 1), unit="명/천명"))
+    if census_vals.get("apt_trade") and census_vals.get("house_trade"):
+        derived.append(DerivedIndicator(
+            label="아파트거래비중", value=round(census_vals["apt_trade"] / census_vals["house_trade"] * 100, 1),
+            unit="%"))  # 주택거래 중 아파트 비중 — 아파트 시장 집중도(재건축·주상복합 맥락)
 
     if project_type == "민간":
         notes.append("택지·신도시 신축이면 시군구 평균이 '형성 전 신규단지'를 못 반영 — 배후 규모 참고용.")

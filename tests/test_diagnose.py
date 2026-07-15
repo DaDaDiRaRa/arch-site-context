@@ -120,6 +120,7 @@ class _FakeLoc:
     address = "서울 영등포구 여의대로 24"
     sgg_code = "11560"
     sigungu = "영등포구"
+    sido = "서울"
     notes: list = []
 
 
@@ -127,11 +128,17 @@ def _fake_childcare(*_a, **_k):
     return {"count": 50, "total_capacity": 2785, "sample": [], "scope": "영등포구"}, []
 
 
+def _fake_workforce(*_a, **_k):
+    # 의료인력 census 크랙 mock (HIRA DT_HIRA4U) — 영등포 8,194명
+    return {"value": 8194, "year": "202601"}, []
+
+
 def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     monkeypatch.setattr(diagnose, "resolve_address", lambda *a, **k: _FakeLoc())
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose.census_multidim, "fetch_census_indicator", _fake_workforce)
     monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000)
@@ -163,6 +170,11 @@ def test_build_diagnosis_crosses_demand_and_supply(monkeypatch) -> None:
     medical = by_name["의료시설 수급"]
     assert medical.demand.level == "높음" and medical.supply.level == "보통"
     assert medical.supply.count == 23
+    # Phase3 연계 — 시군구 의료인력 보강(참고, 반경 개수와 단위 다름). 만명당 = 8194/(371362/10000)
+    assert medical.supply.workforce == 8194
+    assert medical.supply.workforce_scope == "영등포구"
+    assert medical.supply.workforce_per_10k == 220.6
+    assert "의료인력 8194명" in medical.note
     # 초등학교: 유소년 8.3 < 10.3-1 → 낮음, 초등학교 1개, 0<1<3 → 보통
     school = by_name["초등학교 수급"]
     assert school.demand.level == "낮음" and school.supply.level == "보통"
@@ -182,6 +194,7 @@ def test_build_diagnosis_p13_filters_rules_by_use_type(monkeypatch) -> None:
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose.census_multidim, "fetch_census_indicator", _fake_workforce)
     monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000, use_type="의료")
@@ -198,6 +211,7 @@ def test_build_diagnosis_p13_legal_use_and_none(monkeypatch) -> None:
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose.census_multidim, "fetch_census_indicator", _fake_workforce)
     monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
 
     welfare = diagnose.build_diagnosis("주소", radius=1000, use_type="노유자시설")
@@ -214,6 +228,7 @@ def test_build_diagnosis_radius_mode_uses_sgis(monkeypatch) -> None:
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose.census_multidim, "fetch_census_indicator", _fake_workforce)
     monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: 371362)
 
     def _fake_radius_pop(lat, lon, radius, **k):
@@ -251,6 +266,7 @@ def test_build_diagnosis_radius_fallback_when_sgis_unavailable(monkeypatch) -> N
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", _fake_facts)
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose.census_multidim, "fetch_census_indicator", _fake_workforce)
     monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: None)
     monkeypatch.setattr("app.services.sgis.fetch_radius_population", lambda *a, **k: None)
 
@@ -267,6 +283,7 @@ def test_build_diagnosis_skips_missing_demand_item(monkeypatch) -> None:
     monkeypatch.setattr(diagnose.stats, "collect_facts_by_items", lambda *a, **k: ([], [], None))
     monkeypatch.setattr(diagnose, "build_facility_result", _fake_facility_result)
     monkeypatch.setattr(diagnose.childcare, "fetch_childcare", _fake_childcare)
+    monkeypatch.setattr(diagnose.census_multidim, "fetch_census_indicator", _fake_workforce)
     monkeypatch.setattr(diagnose, "fetch_total_pop", lambda *a, **k: None)
 
     res = diagnose.build_diagnosis("서울 영등포구 여의대로 24", radius=1000)

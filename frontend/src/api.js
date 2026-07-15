@@ -33,8 +33,8 @@ async function post(path, body) {
   return data;
 }
 
-export const analyze = (address, use_type, year, resolution = "시군구", radius = 1000) =>
-  post("/analyze", { address, use_type, year: year ?? null, resolution, radius });
+export const analyze = (address, use_type, year, resolution = "시군구", radius = 1000, density = false) =>
+  post("/analyze", { address, use_type, year: year ?? null, resolution, radius, density });
 
 export const facilities = (address, kinds, radii) =>
   post("/facilities", { address, kinds, radii });

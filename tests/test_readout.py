@@ -46,6 +46,8 @@ def _census(org, tbl, itm, sigungu, prd, **k):
         return {"value": 8194, "breakdown": [], "year": "202601"}, []
     if tbl == "DT_408_2006_S0049":  # Phase3 아파트 거래량(월)
         return {"value": 977, "breakdown": [], "year": "202605"}, []
+    if tbl == "DT_408_2006_S0040":  # Phase3 후속 주택 거래량(월)
+        return {"value": 1167, "breakdown": [], "year": "202605"}, []
     return {"value": None, "breakdown": [], "year": None}, [f"{tbl}: 데이터 없음"]
 
 
@@ -108,11 +110,13 @@ def test_readout_phase3_indicators(monkeypatch) -> None:
     ctx = {c["label"]: c for c in b["context"]}
     assert ctx["의료인력"]["value"] == 8194 and ctx["의료인력"]["source_tbl"] == "DT_HIRA4U"
     assert ctx["아파트 거래량(월)"]["value"] == 977
+    assert ctx["주택 거래량(월)"]["value"] == 1167
     # 재건축 프리셋 → 아파트 거래량 강조
     assert ctx["아파트 거래량(월)"]["emphasized"] is True
-    # 파생: 인구당 의료인력 (8194 / 370000 × 1000 = 22.1)
+    # 파생: 인구당 의료인력 (8194 / 370000 × 1000 = 22.1) · 아파트거래비중 (977/1167 = 83.7%)
     der = {d["label"]: d["value"] for d in b["derived"]}
     assert der["의료인력/천명"] == 22.1
+    assert der["아파트거래비중"] == 83.7
 
 
 # ── 알 수 없는 용도 = 하드블록 ───────────────────────────────────────────────

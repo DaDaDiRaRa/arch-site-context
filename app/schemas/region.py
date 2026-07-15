@@ -62,6 +62,11 @@ class AnalyzeRequest(BaseModel):
     radius: int = Field(
         1000, ge=100, le=5000, description="resolution='반경'일 때 반경(m). 보통 500/1000/2000.", examples=[1000]
     )
+    density: bool = Field(
+        False,
+        description="census 밀도지표(사업체수·빈집 등 인구당·전국대비) 포함 여부(opt-in). census 크랙 호출로 다소 느림.",
+        examples=[False],
+    )
 
 
 class Region(BaseModel):

@@ -45,6 +45,7 @@ export default function TabA({ address }) {
   const useTypeCatalog = useUseTypeCatalog();
   const [resolution, setResolution] = useState("시군구");
   const [radius, setRadius] = useState(1000);
+  const [density, setDensity] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -59,7 +60,7 @@ export default function TabA({ address }) {
     setError(null);
     setData(null);
     try {
-      setData(await analyze(address, useType, null, resolution, radius));
+      setData(await analyze(address, useType, null, resolution, radius, density));
     } catch (e) {
       setError(e);
     } finally {
@@ -125,6 +126,11 @@ export default function TabA({ address }) {
             </select>
           </label>
         )}
+        <label className="text-sm flex items-center gap-1.5 pb-2" style={{color:'var(--body)'}}
+          title="사업체수·빈집·신혼부부 등을 인구당(천명당)·전국대비 지수로 추가 (census 조회로 다소 느림)">
+          <input type="checkbox" checked={density} onChange={(e) => setDensity(e.target.checked)} />
+          census 밀도지표
+        </label>
         <button
           onClick={run}
           disabled={loading}

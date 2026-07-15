@@ -59,6 +59,8 @@
       "national_density_source": "병원 4,277개 + 의원 34,219개 + 약국 24,090개(건강보험심사평가원 요양기관현황 2024) / 전국인구 51,720,611명",
       "density_low_pct": 60,
       "density_high_pct": 150,
+      "workforce_source": "medical",
+      "workforce_note": "시군구 의료인력(HIRA DT_HIRA4U — 간호사 등)을 공급 캐파 보강으로 참고 첨부. 반경 시설개수(판정)와 단위 다름·시군구 단위·참고(절대 원칙 4). 시설 개수만으론 대형병원 인력규모를 못 봄.",
       "tag": "참고"
     },
     {
