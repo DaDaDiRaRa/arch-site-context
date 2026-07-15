@@ -35,6 +35,73 @@ def _n(v):
 
 UP = k.RGBColor(0xE8, 0x8A, 0x1E)     # 상회
 DOWN = k.RGBColor(0x35, 0x9F, 0xE0)   # 하회
+PINK = k.RGBColor(0xF0, 0x2E, 0x8A)   # 결론 핵심어 강조
+
+
+def _runs_tb(sl, x, y, w, h, runs, *, size, align=None, bold=True, anchor=None):
+    """한 문단 안에 여러 색 run — 헤드라인 문장(핵심어 강조)용."""
+    b = sl.shapes.add_textbox(x, y, w, h)
+    tf = b.text_frame
+    tf.word_wrap = True
+    if anchor is not None:
+        tf.vertical_anchor = anchor
+    p = tf.paragraphs[0]
+    p.alignment = align if align is not None else k.PP_ALIGN.LEFT
+    try:
+        p.line_spacing = 1.15
+    except Exception:  # noqa: BLE001
+        pass
+    for text, color in runs:
+        r = p.add_run(); r.text = text
+        r.font.size, r.font.name, r.font.bold, r.font.color.rgb = Pt(size), k.F, bold, color
+    return b
+
+
+# ── 종합 결론 (헤드라인 문장 + 핵심어 강조 — 발표용, 데이터에서 조립·LLM 0) ──
+def slide_conclusion(prs, board):
+    arch = board.get("archetype") or {}
+    drivers = board.get("design_drivers") or []
+    cross = board.get("cross_implications") or []
+    facts = [f for f in (board.get("facts") or []) if isinstance(f.get("index"), (int, float))]
+
+    findings = []  # (statement_runs, evidence)
+    if arch.get("name"):
+        ev = " · ".join(f"{e.get('key')} {e.get('detail')}" for e in (arch.get("evidence") or [])[:2])
+        findings.append(([("이 동네는 ", k.WHITE), (arch["name"], PINK), (" 유형이다.", k.WHITE)], ev))
+    if drivers:
+        d = drivers[0]
+        ev = " · ".join([d.get("response", "")] + [f"{e.get('key')} {e.get('detail')}" for e in (d.get("evidence") or [])[:1]])
+        findings.append(([("설계의 지배 변수는 ", k.WHITE), (d.get("name", ""), PINK), ("다.", k.WHITE)], ev))
+    if facts:
+        f = max(facts, key=lambda x: abs((x.get("index") or 100) - 100))
+        band = f.get("index_band") or "비슷"
+        findings.append(([(f.get("item", ""), PINK),
+                          (f" {_n(f.get('value'))}{f.get('unit', '')} — 전국 대비 {band}.", k.WHITE)],
+                         f"지수 {f.get('index')} (전국=100)"))
+    if cross:
+        c = cross[0]
+        findings.append(([(c.get("name", ""), PINK), (" 검토가 필요하다.", k.WHITE)], _txt(c.get("text"), 80)))
+    if not findings:
+        return False
+
+    sl = k.blank_slide(prs)
+    # 라벨 칩 (중앙 상단)
+    k.rect(sl, MSO_SHAPE.ROUNDED_RECTANGLE, Cm(18.0), Cm(1.3), Cm(6.0), Cm(1.0), fill=PINK, alpha_pct=90)
+    k.tb(sl, Cm(18.0), Cm(1.3), Cm(6.0), Cm(1.0), "종합 결론", size=13, color=k.WHITE, bold=True,
+         align=k.PP_ALIGN.CENTER, anchor=k.MSO_ANCHOR.MIDDLE)
+    k.tb(sl, Cm(1.5), Cm(2.7), Cm(39), Cm(1.3), "이 필지는 무엇이 다른가?", size=28, color=k.WHITE,
+         bold=True, align=k.PP_ALIGN.CENTER)
+
+    y = 5.3
+    step = min(4.6, (23.0 - y) / max(1, len(findings[:4])))
+    for runs, ev in findings[:4]:
+        _runs_tb(sl, Cm(3.5), Cm(y), Cm(35), Cm(1.6), runs, size=21, align=k.PP_ALIGN.CENTER)
+        k.tb(sl, Cm(3.5), Cm(y + 1.55), Cm(35), Cm(0.9), ev, size=11, color=k.MUTE, align=k.PP_ALIGN.CENTER)
+        y += step
+
+    k.caption_band(sl, [("데이터에서 뽑은 핵심 결론 ", k.WHITE, True),
+                        ("· 근거는 뒤 슬라이드(지표·드라이버·교차)에서", HL, True)])
+    return True
 
 
 # ── 동네 프로필 (지표 전국=100 발산형 막대차트) ──
@@ -336,6 +403,7 @@ def build_board_deck(board: dict) -> bytes:
     prs = Presentation()
     prs.slide_width, prs.slide_height = k.A3_W, k.A3_H
     _cover(prs, address, board)
+    slide_conclusion(prs, board)
     slide_overview(prs, board)
     slide_indicators(prs, board)
     slide_interpretation(prs, board)
