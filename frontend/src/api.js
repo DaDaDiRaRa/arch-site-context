@@ -66,6 +66,26 @@ export const board = (address, use_type, radius = 1000, resolution = "시군구"
 export const boardView = (address, use_type, radius = 1000, resolution = "시군구", synthesize = false) =>
   post("/board/view", { address, use_type, radius, resolution, synthesize });
 
+// 종합읽기 PPT (S4 종합 ①해석·②의견 기본 포함) — 대지분석 덱 디자인의 A3 PPTX blob 다운로드
+export async function boardPptx(address, use_type, radius = 1000, resolution = "시군구") {
+  let res;
+  try {
+    res = await fetch("/board/pptx", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, use_type, radius, resolution }),
+    });
+  } catch (e) {
+    throw new ApiError("서버에 연결할 수 없습니다.");
+  }
+  if (!res.ok) {
+    let msg = "종합읽기 PPT 생성 실패";
+    try { const j = await res.json(); msg = j.detail || j.message || msg; } catch {}
+    throw new ApiError(msg, { status: res.status });
+  }
+  return await res.blob();
+}
+
 // 심의 현황팩 (C6) — 걸침 인구세대(C1) + 총량제 판정(C2) + 시설 현황
 export const contextPack = (address, new_households, radius = 1000, existing_area = null, planned_area = null) =>
   post("/context-pack", { address, new_households, radius, existing_area, planned_area });

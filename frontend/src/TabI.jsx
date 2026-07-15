@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { board, boardView } from "./api.js";
+import { board, boardView, boardPptx } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, ProximityChip } from "./ui.jsx";
 
 import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
@@ -49,6 +49,7 @@ export default function TabI({ address }) {
   const [synth, setSynth] = useState(false);
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingPptx, setExportingPptx] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
@@ -77,6 +78,25 @@ export default function TabI({ address }) {
       setError(e);
     } finally {
       setExporting(false);
+    }
+  }
+
+  async function exportPptx() {
+    if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
+    setExportingPptx(true);
+    setError(null);
+    try {
+      const blob = await boardPptx(address, useType, radius, resolution);  // S4 종합 기본 포함
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `종합읽기_${address.replace(/\s+/g, "")}.pptx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setExportingPptx(false);
     }
   }
 
@@ -117,7 +137,7 @@ export default function TabI({ address }) {
         </Field>
         <label className="flex items-center gap-2 text-sm cursor-pointer mt-1" style={{ color: "var(--body)" }}>
           <input type="checkbox" checked={synth} onChange={(e) => setSynth(e.target.checked)} />
-          <span>AI 종합 해석 생성 <span style={{ color: "var(--mute)" }}>(①사실 해석 + ②AI 의견 — Claude 2콜, 느려짐)</span></span>
+          <span>AI 종합 해석 생성 <span style={{ color: "var(--mute)" }}>(①사실 해석 + ②종합 의견 — Claude 2콜, 느려짐)</span></span>
         </label>
       </div>
 
@@ -138,6 +158,15 @@ export default function TabI({ address }) {
           style={{ background: "var(--canvas-elevated)", color: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--radius-sm)" }}
         >
           {exporting ? "보드 생성 중…" : "보드 내보내기 ↗"}
+        </button>
+        <button
+          onClick={exportPptx}
+          disabled={exportingPptx}
+          title="종합읽기(①해석·②종합 의견·드라이버·교차·POR)를 대지분석 덱 디자인의 A3 편집가능 PPT로 내려받습니다 (S4 종합 포함 — Claude 2콜, ~3분)"
+          className="px-4 py-2 font-medium disabled:opacity-50"
+          style={{ background: "var(--canvas-elevated)", color: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--radius-sm)" }}
+        >
+          {exportingPptx ? "PPT 생성 중…" : "종합읽기 PPT ↓"}
         </button>
       </div>
 

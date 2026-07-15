@@ -378,6 +378,31 @@ def board_view(req: BoardRequest):
     }
 
 
+@router.post("/board/pptx", response_model=None)
+def board_pptx(req: BoardRequest):
+    """종합 대지 읽기 → 대지분석 덱 디자인의 A3 편집가능 PPTX. S4 종합(①해석·②의견) 기본 포함.
+
+    아키타입·커버리지·①사실 종합·②종합 의견(참고)·설계 드라이버·교차시사점·POR·방법론을
+    deck.style 디자인 언어로 렌더. ①과 ②는 벽으로 분리(green/amber) — 사실·의견 구분.
+    """
+    import io as _io
+
+    from fastapi.responses import StreamingResponse
+
+    from app.deck.board_slides import build_board_deck
+
+    # S4(①해석·②의견) 기본 포함 — 종합읽기 PPT 의 핵심 (brief 는 전체 필드 필요하므로 off)
+    full = board(BoardRequest(**{**req.model_dump(), "brief": False, "synthesize": True}))
+    if isinstance(full, JSONResponse):
+        return full
+    data = build_board_deck(full.model_dump())
+    return StreamingResponse(
+        _io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": 'attachment; filename="site_synthesis.pptx"'},
+    )
+
+
 def _hazard_state(hazards) -> str:
     """재해 확보 내용 요약 (in_zone 사실만)."""
     parts = []
