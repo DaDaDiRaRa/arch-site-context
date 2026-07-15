@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import TabA from "./TabA.jsx";
 import TabB from "./TabB.jsx";
 import TabC from "./TabC.jsx";
@@ -11,15 +11,35 @@ import TabI from "./TabI.jsx";
 import TabJ from "./TabJ.jsx";
 import TabK from "./TabK.jsx";
 import TabL from "./TabL.jsx";
+import { downloadResultHtml } from "./exportHtml.jsx";
+
+const TABS = [
+  ["I", "종합 읽기"],
+  ["A", "지역 통계"],
+  ["B", "주변 시설"],
+  ["C", "수급진단"],
+  ["D", "후보지 비교"],
+  ["E", "물어보기"],
+  ["F", "대지 정보"],
+  ["G", "보드 합본"],
+  ["H", "공동주택 readout"],
+  ["J", "심의 현황팩"],
+  ["K", "주변현황도"],
+  ["L", "대지분석 덱"],
+];
+const TAB_LABEL = Object.fromEntries(TABS);
 
 export default function App() {
   const [address, setAddress] = useState("");
   const [tab, setTab] = useState("I");
   const [inputFocused, setInputFocused] = useState(false);
+  const contentRefs = useRef({});
+
+  const setRef = (key) => (el) => { contentRefs.current[key] = el; };
 
   return (
     <div className="min-h-screen" style={{backgroundColor:'var(--canvas-elevated)',color:'var(--ink)'}}>
-      <div className="max-w-3xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-6 py-8">
         {/* 헤더 */}
         <header className="mb-6">
           <h1 style={{fontSize:24,fontWeight:600,letterSpacing:'-0.02em',color:'var(--ink)'}}>
@@ -56,70 +76,67 @@ export default function App() {
           />
         </div>
 
-        {/* 탭 */}
-        <div className="flex gap-1 mb-5" style={{borderBottom:'1px solid var(--hairline)'}}>
-          {[
-            ["I", "종합 읽기"],
-            ["A", "지역 통계"],
-            ["B", "주변 시설"],
-            ["C", "수급진단"],
-            ["D", "후보지 비교"],
-            ["E", "물어보기"],
-            ["F", "대지 정보"],
-            ["G", "보드 합본"],
-            ["H", "공동주택 readout"],
-            ["J", "심의 현황팩"],
-            ["K", "주변현황도"],
-            ["L", "대지분석 덱"],
-          ].map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className="px-4 py-2.5 text-sm font-medium -mb-px border-b-2 border-transparent"
-              style={tab === key
-                ? {borderBottomColor:'var(--brand)',color:'var(--brand)'}
-                : {color:'var(--mute)'}}
-            >
-              {label}
-            </button>
-          ))}
+        {/* 탭 + HTML 저장 */}
+        <div className="flex items-end justify-between gap-4 mb-5" style={{borderBottom:'1px solid var(--hairline)'}}>
+          <div className="flex gap-1 overflow-x-auto">
+            {TABS.map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setTab(key)}
+                className="px-3 py-2.5 text-sm font-medium -mb-px border-b-2 border-transparent whitespace-nowrap flex-shrink-0"
+                style={tab === key
+                  ? {borderBottomColor:'var(--brand)',color:'var(--brand)'}
+                  : {color:'var(--mute)'}}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => downloadResultHtml(contentRefs.current[tab], TAB_LABEL[tab])}
+            title="현재 탭의 결과를 자체완결 HTML 한 장으로 저장"
+            className="mb-2 px-3 py-1.5 text-xs font-medium whitespace-nowrap flex-shrink-0"
+            style={{border:'1px solid var(--hairline)',borderRadius:'var(--radius-sm)',color:'var(--body)',background:'var(--canvas)'}}
+          >
+            ⤓ HTML 저장
+          </button>
         </div>
 
         {/* 탭 내용 (마운트 유지로 입력 상태 보존) */}
-        <div className={tab === "I" ? "" : "hidden"}>
+        <div ref={setRef("I")} className={tab === "I" ? "" : "hidden"}>
           <TabI address={address} />
         </div>
-        <div className={tab === "A" ? "" : "hidden"}>
+        <div ref={setRef("A")} className={tab === "A" ? "" : "hidden"}>
           <TabA address={address} />
         </div>
-        <div className={tab === "B" ? "" : "hidden"}>
+        <div ref={setRef("B")} className={tab === "B" ? "" : "hidden"}>
           <TabB address={address} />
         </div>
-        <div className={tab === "C" ? "" : "hidden"}>
+        <div ref={setRef("C")} className={tab === "C" ? "" : "hidden"}>
           <TabC address={address} />
         </div>
-        <div className={tab === "D" ? "" : "hidden"}>
+        <div ref={setRef("D")} className={tab === "D" ? "" : "hidden"}>
           <TabD />
         </div>
-        <div className={tab === "E" ? "" : "hidden"}>
+        <div ref={setRef("E")} className={tab === "E" ? "" : "hidden"}>
           <TabE address={address} />
         </div>
-        <div className={tab === "F" ? "" : "hidden"}>
+        <div ref={setRef("F")} className={tab === "F" ? "" : "hidden"}>
           <TabF address={address} />
         </div>
-        <div className={tab === "G" ? "" : "hidden"}>
+        <div ref={setRef("G")} className={tab === "G" ? "" : "hidden"}>
           <TabG address={address} />
         </div>
-        <div className={tab === "H" ? "" : "hidden"}>
+        <div ref={setRef("H")} className={tab === "H" ? "" : "hidden"}>
           <TabH address={address} />
         </div>
-        <div className={tab === "J" ? "" : "hidden"}>
+        <div ref={setRef("J")} className={tab === "J" ? "" : "hidden"}>
           <TabJ address={address} />
         </div>
-        <div className={tab === "K" ? "" : "hidden"}>
+        <div ref={setRef("K")} className={tab === "K" ? "" : "hidden"}>
           <TabK address={address} />
         </div>
-        <div className={tab === "L" ? "" : "hidden"}>
+        <div ref={setRef("L")} className={tab === "L" ? "" : "hidden"}>
           <TabL address={address} />
         </div>
 
