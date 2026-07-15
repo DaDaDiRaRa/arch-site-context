@@ -115,6 +115,8 @@
 | `POST` | `/context-pack/pptx` | 심의 현황팩 A3 편집가능 PPTX → `/files` 공유 URL |
 | `POST` | `/surroundings` | **주변현황도** — 반경 내 여가·교육·주거·관공서·교통 + 서술문 (심의 슬라이드 4~6) |
 | `POST` | `/surroundings/pptx` | 주변현황도 A3 PPTX → `/files` 공유 URL |
+| `POST` | `/basemap` | 위성 basemap 합성 PNG (핀 없이 배경만, `routers/facilities.py`) |
+| `GET` | `/api` | 진입 안내(엔드포인트 요약) |
 
 MCP 서버: `claude mcp add teoilgi python mcp_server/server.py` (도구: `read_site_context`·`diagnose_supply`)
 
@@ -247,8 +249,8 @@ C:\Users\<you>\AppData\Local\Programs\Python\Python311\python.exe -m venv D:\APP
 # 2) 의존성 설치
 D:\APPS\arch-site-context\.venv\Scripts\python.exe -m pip install -r requirements.txt
 
-# 3) 키 설정
-copy .env.example .env   # 값 채우기
+# 3) 키 설정 — .env.example 상단 주석의 "코드가 읽는 15개" 키를 채운다
+copy .env.example .env   # 값 채우기 (KAKAO·VWORLD·KOSIS·ANTHROPIC·JUSO·DATA_GO_KR·SGIS 2개·KMA·RONE·NEIS·SEOUL·KOPIS·CHILDCARE_INFO·TMAP)
 
 # 4) 서버 실행
 D:\APPS\arch-site-context\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
@@ -268,25 +270,35 @@ D:\APPS\arch-site-context\.venv\Scripts\python.exe -m pytest -q
 ## 배포 (GCP Cloud Run)
 
 프론트(`frontend/dist`)를 백엔드가 정적 서빙 — URL 하나, CORS 불필요.
+라이브: `https://arch-site-context-dqj4exlefq-du.a.run.app` (서비스 `arch-site-context` / 프로젝트 `arch-diagnose` / `asia-northeast3`).
+
+> ⚠️ 코드가 읽는 키는 **15개** — 5개만 등록하면 /site·/seed·/diagnose 반경·재해·심의팩 등이 빈값으로 동작한다. 아래처럼 15개 전부 등록한다.
 
 ```bash
-# 시크릿 등록 (1회)
-for K in KAKAO_KEY VWORLD_KEY KOSIS_KEY ANTHROPIC_API_KEY JUSO_API_KEY; do
+# 시크릿 등록 (1회) — 코드가 os.getenv 로 읽는 15개 전부
+KEYS="KAKAO_KEY VWORLD_KEY KOSIS_KEY ANTHROPIC_API_KEY JUSO_API_KEY \
+DATA_GO_KR_API_KEY SGIS_KEY SGIS_SECRET KMA_KEY RONE_KEY NEIS_KEY \
+SEOUL_API_KEY KOPIS_KEY CHILDCARE_INFO_KEY TMAP_KEY"
+for K in $KEYS; do
   printf "%s" "$(grep "^$K=" .env | cut -d= -f2-)" | \
-    gcloud secrets create $K --data-file=- 2>/dev/null || \
+    gcloud secrets create $K --data-file=- --replication-policy=automatic 2>/dev/null || \
   printf "%s" "$(grep "^$K=" .env | cut -d= -f2-)" | \
     gcloud secrets versions add $K --data-file=-
 done
 
-# 배포
+# 배포 (--set-secrets 도 15개 전부; 메모리 1Gi — shapely·python-pptx·Pillow 합성 + 병렬 fan-out)
+SECRETS=$(for K in $KEYS; do printf "%s=%s:latest," "$K" "$K"; done | sed 's/,$//')
 gcloud run deploy arch-site-context \
   --source . \
   --region asia-northeast3 \
   --allow-unauthenticated \
-  --memory 512Mi \
-  --set-env-vars OUT_DIR=/tmp/out,GCS_CACHE_BUCKET=<PROJECT_ID>-arch-cache \
-  --set-secrets KAKAO_KEY=KAKAO_KEY:latest,...
+  --memory 1Gi \
+  --timeout 300 \
+  --set-env-vars OUT_DIR=/tmp/out \
+  --set-secrets "$SECRETS"
 ```
+
+> 캐시는 기본 파일캐시(`OUT_DIR=/tmp/out`, Cloud Run 임시 FS라 인스턴스별·비영속). 영속 캐시가 필요하면 `--set-env-vars` 에 `GCS_CACHE_BUCKET=<버킷>` 을 추가하면 `GCSCache` 로 전환된다(코드 준비됨, 현재 미설정).
 
 ---
 
@@ -297,7 +309,7 @@ arch-site-context/
 ├── app/
 │   ├── main.py              # FastAPI 진입점
 │   ├── routers/             # 엔드포인트별 라우터
-│   ├── services/            # 외부 API 호출·계산 로직
+│   ├── services/            # 외부 API 호출·계산 로직 (아래는 주요 파일 발췌 — 전체는 디렉터리 참조)
 │   │   ├── facilities.py    #   반경 시설 (카카오 + VWorld 병합)
 │   │   ├── kakao.py         #   카카오 로컬 API
 │   │   ├── kosis.py         #   KOSIS 통계 + 캐시

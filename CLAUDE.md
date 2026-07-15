@@ -76,7 +76,7 @@
 ## 4. 기술 스택 · 환경
 
 - 백엔드: FastAPI (Python 3.11), 프론트: React + Vite + Tailwind
-- 배포: GCP Cloud Run + Secret Manager(키) + GCS(캐시 버킷)
+- 배포: GCP Cloud Run + Secret Manager(키). 캐시는 **파일캐시**(`services/cache.py FileCache`, `OUT_DIR=/tmp/out` — Cloud Run 임시 FS라 인스턴스별·비영속). GCS 캐시(`GCSCache`)는 코드에 있으나 **미연결**(`GCS_CACHE_BUCKET` 미설정 시 파일캐시) — §9.3 D8 부채.
 - **MCP 아님** — 순수 FastAPI HTTP 엔드포인트. (파이프라인 연결은 나중에 project_seed JSON)
 - 로컬: Windows, 프로젝트 `D:\APPS\arch-site-context`. **venv는 풀경로로 생성, Microsoft Store python 금지.**
 - 키(.env, 절대 커밋 금지): `KAKAO_KEY`, `JUSO_API_KEY`(주소 폴백·현재 dev키), `VWORLD_KEY`, `KOSIS_KEY`, `ANTHROPIC_API_KEY`, `DATA_GO_KR_API_KEY`(에어코리아·실거래·건축물대장·문화시설총람 등 다수), `KMA_KEY`(기상청 apihub), `RONE_KEY`(부동산원 R-ONE), `NEIS_KEY`(학교), `TMAP_KEY`(SK 보행자 등시선), `SEOUL_API_KEY`(생활인구, 서울전용), `KOPIS_KEY`(공연시설), `CHILDCARE_INFO_KEY`(cpmsapi021, 어린이집 개수·정원), `CHILDCARE_DETAIL_KEY`(cpmsapi030, 위경도·형태·상세 — 운영계정 전환 대기, §8.13), `SGIS_KEY`/`SGIS_SECRET`(통계청 SGIS 2키, 반경 집계구 인구 — D2), `SBIZ365_KEY`(REST API 없음·포털용), `LIBRARY_KEY`(미활성), `EUM_ID`/`EUM_KEY`(범위 외·보류), (선택)`VWORLD_REFERER`
@@ -188,6 +188,9 @@ git push        # 작업 후 GitHub에 올리기
 | POST | `/surroundings` | C7 | **주변현황도**(심의 슬라이드 4~6) — 반경 내 교통·교육·여가·주거·관공서 카카오 수집(카테고리 코드 정제·노이즈 필터) + 서술문 룰조립(LLM 0). `services/surroundings.py`. 프론트 K탭 |
 | POST | `/surroundings/pptx` | C7 | 주변현황도 A3 PPTX — 위성 반경현황도(카테고리 색점)+카테고리표+서술문 → `/files/packs/*.pptx`. `services/surroundings_pptx.py` |
 | GET | `/health` | - | 헬스체크 |
+| GET | `/api` · `POST /basemap` | - | 진입 안내(`/api`) · 위성 basemap 합성(`/basemap`, `routers/facilities.py`) |
+
+> **프론트 탭 지도** (`frontend/src/App.jsx`): I 종합읽기 · A 지역통계 · B 주변시설 · C 수급진단 · D 후보지비교 · E 물어보기 · F 대지정보(/site) · G 종합(/seed) · H 공동주택 readout · J 심의 현황팩 · K 주변현황도 · **L 대지분석 덱**. **TabL** 은 터읽기 엔드포인트가 아니라 형제앱 **deck-builder**(`D:\APPS\deck-builder`, 대지분석 덱 자동생성)에 연결되는 프론트 전용 탭 — 현재 미추적(WIP).
 
 ---
 
@@ -293,7 +296,7 @@ git push        # 작업 후 GitHub에 올리기
 | | P5 | KOSIS 실조회 + 캐시 | ✅ 완료 (연령구조 5지표 + 1인가구비율·평균가구원수(census), 캐시 0콜. 잔여 §8.6) |
 | | P6 | 한 문단 서술 + 폴백 | ✅ 완료 (Claude 1회, AI/규칙 폴백 둘 다 facts 보존) |
 | **합치기** | P7 | 프론트 — A·B 탭 한 화면 | ✅ 완료 (React+Vite+Tailwind, dev 프록시 연결) |
-| | P8 | Cloud Run 배포 | ✅ 완료 (arch-diagnose/서울, 공개URL 라이브, A·B·위성 검증) |
+| | P8 | Cloud Run 배포 | ✅ 완료 (**서비스명 `arch-site-context`** / 프로젝트 `arch-diagnose` / 리전 `asia-northeast3`, 라이브 `https://arch-site-context-dqj4exlefq-du.a.run.app`, 시크릿 15개·메모리 1Gi. 2026-07-15 전 기능 재배포 rev00048 — S/T 시리즈·MCP·심의팩 라이브화) |
 | **나중 확장** | P9 | 정렬·필터·여러 후보지 비교 | ✅ 완료 (/compare + 프론트 D탭, 후보지별 A·B·P11 나란히·컬럼정렬, 영등포vs강남 검증) |
 | | P10 | '물어보기' 모드 (데이터 위에서만) | ✅ 완료 (/ask + 프론트 E탭, 그라운디드 답변·확인불가 하드블록·웹검색 opt-in 폴백 검증) |
 | | P11 | 수급 진단 (A×B 교차) ★간판기능 | ✅ 완료 (/diagnose + supply_demand.json + 프론트 C탭, 영등포 실데이터 검증) |

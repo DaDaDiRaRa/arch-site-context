@@ -128,8 +128,8 @@ arch-site-context/
 ├── mcp_server/                  # 터읽기 MCP 서버 (read_site_context·diagnose_supply)
 ├── frontend/                    # React + Vite + Tailwind
 │   └── src/
-│       ├── App.jsx              # 탭 라우팅 (A~K)
-│       ├── TabA.jsx ~ TabK.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(/board)·J 심의 현황팩(/context-pack)·K 주변현황도(/surroundings)
+│       ├── App.jsx              # 탭 라우팅 (I·A~H·J·K·L)
+│       ├── TabA.jsx ~ TabL.jsx  # A 지역통계·B 시설·C 수급·D 비교·E 물어보기·F 대지정보·G 보드합본·H readout·I 종합읽기(/board)·J 심의 현황팩(/context-pack)·K 주변현황도(/surroundings)·L 대지분석 덱(형제앱 deck-builder 연동, WIP·미추적)
 │       ├── api.js               # fetch 헬퍼
 │       └── ui.jsx               # 공통 UI (IndexBar·ProximityChip 등)
 └── tests/                       # pytest (순수 로직 + live skipif)
@@ -278,9 +278,14 @@ resolve_address(address)
 
 공급 레벨 (반경 비례, primary):
   scale = (radius / 1000)²
-  count ≤ supply_low_max × scale  → "적음"
-  count ≥ supply_high_min × scale → "많음"
-  그 사이                          → "보통"
+  scaled_low  = round(supply_low_max × scale)
+  scaled_high = max(scaled_low + 2, round(supply_high_min × scale))  // B3: '보통' 밴드 항상 보장
+  count ≤ scaled_low   → "적음"
+  count ≥ scaled_high  → "많음"
+  그 사이               → "보통"
+  ※ B3(2026-07-15): 작은 반경(예: 500m·scale 0.25)에서 저임계 규칙(초등 low0/high3)의
+    '보통' 밴드가 붕괴해 1개→"많음"으로 튀던 것을 scaled_high 하한(scaled_low+2)으로 방지.
+    정상 스케일(1000·2000m)은 high 임계가 커서 무영향.
 
 공급 밀도 (보조 참고):
   density_per_10k = count / (시군구총인구 / 10_000)
@@ -292,6 +297,7 @@ resolve_address(address)
 **출력 (DiagnoseResult):**
 ```json
 {
+  "center": { "lat": 37.5222, "lon": 126.9199, "address": "서울 영등포구 여의대로 24" },
   "region": { "name": "영등포구", "code": "11560", "resolution": "시군구" },
   "radius": 1000,
   "diagnoses": [
@@ -420,6 +426,8 @@ resolve_address(address)
 - 사업체수(DT_1BD1032, +산업대분류 구성) · 빈집(DT_1JU1512) · 신혼부부(DT_1NW1037) · 등록장애인(DT_11761_N009)
 
 **출력 (ReadoutResult):** `site` · `project_type` · `demographics[]`(matrix 지표) · `context[]`(census 지표, 일부 breakdown) · `derived[]`(파생) · `notes[]`(시군구 캐비엇·greenfield 경고). 각 지표 graceful.
+- `DemographicFact` = `{ item, value, national_avg?, unit, source_tbl, year?, scope?(지역명), scope_level="시군구", emphasized }` — **`source_tbl` 필수**(B1, 2026-07-15): 값이 있으면 출처 없이 직렬화 불가(`model_validator` 로 강제, 절대 원칙 4). 출처 없는 fact 는 `services/readout.py` 가 방출 안 함.
+- `ContextIndicator` = `{ label, value?(결측 None 가능), unit, axis, breakdown[], source_tbl, year?, scope?, scope_level="시군구", emphasized }` — 마찬가지로 값 있으면 `source_tbl` 필수(결측 None 은 출처와 함께 허용).
 
 ### 4.10 POST /board — 종합 읽기 (S/T 시리즈) ★
 
@@ -440,7 +448,7 @@ build_site(address)  // 주소 1회 fail-fast (공유 Site·PNU)
   → derive_program()         // T3 프로그램 함의(POR)
   → build_methodology()      // T5 출처·산정식·한계 부록 (조인만, LLM 0)
   → (model 넘어오면) summarize_model()  // arch-site-model 물리 3D 압축 요약
-  → (synthesize=true) synthesize()  // S4 ①사실(Sonnet) ②AI판단(Opus)
+  → (synthesize=true) synthesize(use_type, facts, diagnoses, hazards, cross, drivers, archetype)  // S4 ①사실(Sonnet) ②AI판단(Opus) — 통합 풀 전체가 그라운딩(드라이버·아키타입 포함)
   → coverage(도메인 확보 여부, no silent skip)
 ```
 
@@ -816,14 +824,17 @@ tests/
 
 **단일 서비스:** FastAPI가 `frontend/dist` 정적 서빙 → URL 하나, CORS 불필요
 
+**라이브(2026-07-15):** 서비스 `arch-site-context` / 프로젝트 `arch-diagnose` / `asia-northeast3` / 메모리 1Gi / 시크릿 15개 / 리비전 00048 — `https://arch-site-context-dqj4exlefq-du.a.run.app`. 의존성에 `shapely`·`python-pptx` 포함(심의팩). 배포 명령은 README "배포" 참조.
+
 ```
 Cloud Run
 ├── FastAPI (0.0.0.0:8080)
 │   ├── POST /analyze, /facilities, ...  (백엔드)
 │   └── GET  /*                          (React SPA 서빙)
-├── Secret Manager (키 주입, .env 커밋 금지)
-├── GCS bucket (캐시 — 선택, 로컬 FileCache 폴백)
-└── OUT_DIR=/tmp/out (PNG 저장)
+├── Secret Manager (키 15개 주입, .env 커밋 금지)
+├── 캐시 = FileCache(OUT_DIR/kosis_cache) 기본 — 임시 FS라 인스턴스별·비영속.
+│         GCS bucket(GCSCache)은 코드 준비됨·GCS_CACHE_BUCKET 설정 시 전환(현재 미설정)
+└── OUT_DIR=/tmp/out (PNG·PPTX·보드 HTML 저장)
 ```
 
 **로컬 개발:**
