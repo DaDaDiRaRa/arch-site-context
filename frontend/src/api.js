@@ -82,10 +82,10 @@ export const surroundingsPptx = (address, radius = 1000) =>
   post("/surroundings/pptx", { address, radius });
 
 // 대지분석 덱 (deck-builder 서비스, :8100 프록시) — pptx blob 다운로드
-export async function kdbmDeck(address) {
+export async function generateDeck(address) {
   let res;
   try {
-    res = await fetch("/deck/kdbm", {
+    res = await fetch("/deck/full", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ address, use_type: "주거" }),
@@ -94,7 +94,7 @@ export async function kdbmDeck(address) {
     throw new ApiError("deck-builder 서비스에 연결할 수 없습니다 (:8100 이 떠 있는지 확인).");
   }
   if (!res.ok) {
-    let msg = "KDBM 덱 생성 실패";
+    let msg = "덱 생성 실패";
     try { const j = await res.json(); msg = j.detail || j.message || msg; } catch {}
     throw new ApiError(msg, { status: res.status });
   }

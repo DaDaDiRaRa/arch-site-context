@@ -1,7 +1,7 @@
 """deck-builder(:8100) 패스스루 프록시 — 프론트 TabL(대지분석 덱) 연결.
 
 vite dev(:5173)는 자체 프록시(/deck→:8100)를 쓰지만, 백엔드가 프론트를 서빙(배포·uvicorn)하면
-`POST /deck/kdbm` 이 SPA 정적마운트(GET/HEAD 전용)에 걸려 **405 Method Not Allowed** 가 난다.
+`POST /deck/full` 이 SPA 정적마운트(GET/HEAD 전용)에 걸려 **405 Method Not Allowed** 가 난다.
 이 얇은 패스스루가 요청을 deck-builder 로 전달한다(정적마운트보다 먼저 등록되어야 함).
 
 터읽기 분석 로직과 무관한 **프론트 연동용 패스스루** — deck-builder 미기동/미배포면 graceful 502.
@@ -23,11 +23,11 @@ def _target() -> str:
     return os.getenv("DECK_TARGET", "http://127.0.0.1:8100").rstrip("/")
 
 
-@router.post("/deck/kdbm")
-async def deck_kdbm(req: Request):
-    """KDBM 덱 생성 요청을 deck-builder 로 그대로 전달하고 pptx 를 스트리밍 반환."""
+@router.post("/deck/full")
+async def deck_full(req: Request):
+    """대지분석 덱 생성 요청을 deck-builder 로 그대로 전달하고 pptx 를 스트리밍 반환."""
     body = await req.body()
-    url = f"{_target()}/deck/kdbm"
+    url = f"{_target()}/deck/full"
     try:
         async with httpx.AsyncClient(timeout=180.0) as client:
             r = await client.post(
@@ -48,7 +48,7 @@ async def deck_kdbm(req: Request):
         media_type=r.headers.get("content-type", "application/octet-stream"),
         headers={
             "Content-Disposition": r.headers.get(
-                "content-disposition", 'attachment; filename="kdbm_deck.pptx"'
+                "content-disposition", 'attachment; filename="site_deck.pptx"'
             )
         },
     )

@@ -19,7 +19,7 @@ class _FakeResp:
         self.status_code = status
         self.headers = {
             "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "content-disposition": 'attachment; filename="kdbm_deck.pptx"',
+            "content-disposition": 'attachment; filename="site_deck.pptx"',
         }
 
 
@@ -39,7 +39,7 @@ class _FakeClient:
 
 def test_deck_proxy_passthrough(monkeypatch) -> None:
     monkeypatch.setattr("app.routers.deck_proxy.httpx.AsyncClient", _FakeClient)
-    r = client.post("/deck/kdbm", json={"address": "서울 영등포구 여의대로 24", "use_type": "주거"})
+    r = client.post("/deck/full", json={"address": "서울 영등포구 여의대로 24", "use_type": "주거"})
     assert r.status_code == 200  # 405 아님 — 라우트가 정적마운트보다 먼저 잡힘
     assert r.content == b"PPTXDATA"
     assert "presentationml" in r.headers.get("content-type", "")
@@ -51,6 +51,6 @@ def test_deck_proxy_graceful_when_down(monkeypatch) -> None:
             raise ConnectionError("connection refused")
 
     monkeypatch.setattr("app.routers.deck_proxy.httpx.AsyncClient", _Boom)
-    r = client.post("/deck/kdbm", json={"address": "x"})
+    r = client.post("/deck/full", json={"address": "x"})
     assert r.status_code == 502
     assert "deck-builder" in r.json()["detail"]
