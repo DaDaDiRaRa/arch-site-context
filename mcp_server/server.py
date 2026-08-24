@@ -30,8 +30,17 @@ load_dotenv(_ROOT / ".env")
 
 from fastapi.responses import JSONResponse  # noqa: E402
 from mcp.server.fastmcp import FastMCP  # noqa: E402
+from mcp.server.transport_security import TransportSecuritySettings  # noqa: E402
 
-mcp = FastMCP("teoilgi")
+# stateless_http・streamable_http_path="/"・DNS 리바인딩 방지 끄기 — 전부 arch-site-model
+# 배포에서 실측으로 확인한 것과 동일한 이유(kunwon-ops docs/plan-mcp-gateway.md §9).
+# 이 서버는 app/main.py 에 mount 되므로 stdio 실행(mcp.run())엔 영향 없다.
+mcp = FastMCP(
+    "teoilgi",
+    stateless_http=True,
+    streamable_http_path="/",
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
+)
 
 
 def _err(resp: JSONResponse) -> str:

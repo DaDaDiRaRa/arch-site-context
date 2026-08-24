@@ -13,4 +13,4 @@ google-cloud-storage>=2.16
 
 # 개발/테스트
 pytest>=8.0
-mcp>=1.2
+mcp>=1.2,<2.0.0       # 2.0.0 은 mcp.server.fastmcp 를 없앤다 — arch-site-model 배포 실측(2026-08-24)
