@@ -15,19 +15,20 @@
 from __future__ import annotations
 
 import base64
+import io
 import math
 import re
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 
 from lxml import etree
+from PIL import Image
 
 from app.deck import clients
 from app.deck import map_slides as ms
 import app.deck.style as k
 
 NS = "http://www.w3.org/2000/svg"
-XLINK = "http://www.w3.org/1999/xlink"
 
 NAVY, RED, WHITE, MUTE, INK, GRAY = (
     "#1B2438", "#E1242B", "#FFFFFF", "#B4BFD2", "#1E1E1E", "#555555",
@@ -63,7 +64,7 @@ def _el(parent, tag, attrib=None, text=None):
 
 
 def _svg_root():
-    return etree.Element(f"{{{NS}}}svg", nsmap={None: NS, "xlink": XLINK}, attrib={
+    return etree.Element(f"{{{NS}}}svg", nsmap={None: NS}, attrib={
         "viewBox": f"0 0 {TOTAL_W} {TOTAL_H}", "width": str(TOTAL_W), "height": str(TOTAL_H),
         "font-family": "'Malgun Gothic','맑은 고딕',sans-serif",
     })
@@ -83,11 +84,19 @@ def _page(title, subtitle):
 
 
 def _image(root, png, x, y, w, h, *, id_=None, source_ref=None):
-    b64 = base64.standard_b64encode(png).decode()
-    uri = f"data:image/png;base64,{b64}"
+    """위성 PNG를 SVG에 base64 임베드. 실측(2026-08-25) — 원본 PNG(무손실)를 그대로 넣으면
+    1500x1500 기준 장당 ~4.5MB → base64 텍스트라 zip 압축도 잘 안 먹어(파일당 ~12MB).
+    사진(위성영상)은 무손실일 필요가 없으므로 **JPEG로 재인코딩**(품질 87 — 실측 ~880KB,
+    5배 이상 축소) 후 임베드. `xlink:href` 중복은 안 넣는다 — SVG2 `href` 하나만으로도
+    이미지 바이트가 그대로 두 번 들어가는 걸 막는다(예전엔 호환성 명목으로 둘 다 넣어
+    파일 크기가 그대로 2배였음)."""
+    img = Image.open(io.BytesIO(png)).convert("RGB")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=87)
+    b64 = base64.standard_b64encode(buf.getvalue()).decode()
+    uri = f"data:image/jpeg;base64,{b64}"
     _el(root, "image", {"x": x, "y": y, "width": w, "height": h,
-                        "href": uri, f"{{{XLINK}}}href": uri,  # SVG2 href + xlink:href(구버전 뷰어 호환)
-                        "id": id_, "data-source-ref": source_ref})
+                        "href": uri, "id": id_, "data-source-ref": source_ref})
 
 
 def _polygon(root, pts, mx, my, *, fill, opacity=45, id_=None, source_ref=None):

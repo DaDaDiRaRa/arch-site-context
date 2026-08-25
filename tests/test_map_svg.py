@@ -5,7 +5,10 @@
 """
 from __future__ import annotations
 
+import io
+
 from lxml import etree
+from PIL import Image
 from fastapi.testclient import TestClient
 
 import app.deck.map_svg as msvg
@@ -15,7 +18,15 @@ from app.main import app
 client = TestClient(app)
 
 FAKE_META = {"zoom": 17, "cx": 1000.0, "cy": 1000.0, "radius_px": 500.0}
-FAKE_PNG = b"FAKEPNGDATA"
+
+
+def _make_fake_png() -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (4, 4), (100, 120, 140)).save(buf, format="PNG")
+    return buf.getvalue()
+
+
+FAKE_PNG = _make_fake_png()
 
 
 def _fake_basemap(*a, **kw):
@@ -37,6 +48,8 @@ def test_svg_wide_has_station_and_radius_provenance(monkeypatch) -> None:
     assert 'data-source-ref="computed:basemap-scale"' in svg
     assert "kakao:facilities.results[name=여의도역]" in svg
     assert "law:zone_use" in svg  # 정보패널 근거 라벨
+    assert 'href="data:image/jpeg;base64,' in svg  # 위성이미지는 JPEG로 재인코딩(용량 절감)
+    assert svg.count("base64,") == 1  # href 중복 임베드 없음(예전엔 xlink:href로 2배였음)
 
 
 def test_svg_use_renders_building_polygon_with_provenance(monkeypatch) -> None:
