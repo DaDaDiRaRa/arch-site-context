@@ -548,16 +548,19 @@ A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/�
   우리는 PPTX 하나뿐. `kordoc` 의 `markdownToHwpx`·`fillHwpx` 를 쓴다(concept-studio 가
   이미 CLI subprocess 로 검증한 경로 — 새 라이브러리 조사 불필요). `app/deck/` 의 PPTX
   내보내기 옆에 옵션 하나 추가하는 규모로 시작.
-- [ ] **다이어그램을 독립 파일로도 출력** — Sitedia 벤치마크: 대지+반경 → 현황
-  다이어그램 12장을 SVG·PNG·DXF·GLB 로 뽑아준다. 지금 `map_slides.py` 의 4종(광역입지도·
-  건물용도현황·입지현황·조망분석)은 PPTX 슬라이드로만 존재 — 같은 데이터를 독립
-  파일로도 뽑는 옵션부터. DXF·GLB 는 이 앱에 없는 새 포맷이라 4종 다 되는 걸 먼저
-  만들고 나머지 8장은 그다음.
-
-⚠️ **semantic-svg(SVG 요소에 출처 메타데이터)는 여기 대상이 아니다** — 이 앱의 덱은
-python-pptx 네이티브 편집가능 도형이 설계 원칙이라(§8.14 윗줄 "전부 컬러·네이티브
-편집가능") SVG 라이브러리 도입과 충돌한다. 그 아이디어의 진짜 자리는 concept-studio
-P3(`concept-studio/CLAUDE.md` 참조).
+- [ ] **다이어그램을 독립 파일로도 출력 (+ semantic-svg 로 출처 추적)** — Sitedia
+  벤치마크: 대지+반경 → 현황 다이어그램 12장을 SVG·PNG·DXF·GLB 로 뽑아준다. 지금
+  `map_slides.py` 의 4종(광역입지도·건물용도현황·입지현황·조망분석)은 PPTX 슬라이드로만
+  존재 — 같은 데이터를 독립 SVG 파일로도 뽑는 옵션부터, DXF·GLB 는 그다음. **이 SVG
+  출력 경로에 `semantic-svg`(AlexAI-MCP)를 엔진으로 쓴다** — 요소마다 `id`·
+  `data-source-ref` 를 심어 다이어그램의 어느 도형을 눌러도 근거(터읽기의 어느 API
+  응답에서 왔는지)가 따라오게 한다(2026-08-25 결정, [[semantic-svg-both-tracks]]).
+  ⚠️ **PPTX 트랙은 그대로 둔다** — `map_slides.py`·`board_slides.py` 의 python-pptx
+  네이티브 편집가능 도형(§8.14 위 "전부 컬러·네이티브 편집가능")은 손대지 않는다.
+  semantic-svg 는 PPTX 를 대체하는 게 아니라 **독립 SVG 출력이라는 별도 산출물**의
+  엔진일 뿐 — 같은 소스 데이터(`map_slides.py`가 이미 쓰는 것)에서 두 트랙이 각자
+  나온다. concept-studio P3 렌더러도 같은 라이브러리를 쓸 수 있지만(`concept-studio/CLAUDE.md`
+  참조) 그건 별개 앱·별개 착수 시점.
 
 ---
 
