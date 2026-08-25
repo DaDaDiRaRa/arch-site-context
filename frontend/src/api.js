@@ -42,6 +42,10 @@ export const facilities = (address, kinds, radii) =>
 export const facilitiesMap = (address, kinds, radii, basemap = "vworld") =>
   post("/facilities/map", { address, kinds, radii, basemap });
 
+// 주변시설 A3 편집가능 PPTX (위성 현황도 + 개수표 + 시설목록) → { url, ... }
+export const facilitiesPptx = (address, kinds, radii, basemap = "vworld") =>
+  post("/facilities/pptx", { address, kinds, radii, basemap });
+
 export const diagnose = (address, radius, resolution = "시군구", use_type = null) =>
   post("/diagnose", { address, radius, resolution, use_type });
 
@@ -102,8 +106,31 @@ export async function boardPptx(address, use_type, radius = 1000, resolution = "
   }
   if (!res.ok) {
     let msg = "종합읽기 PPT 생성 실패";
-    try { const j = await res.json(); msg = j.detail || j.message || msg; } catch {}
-    throw new ApiError(msg, { status: res.status });
+    let code;
+    try { const j = await res.json(); msg = j.detail || j.message || msg; code = j.code; } catch {}
+    throw new ApiError(msg, { status: res.status, code });
+  }
+  return await res.blob();
+}
+
+// 종합읽기 HWP(HWPX) 보고서 — /board/pptx 와 같은 내용을 문서형으로 (§8.15).
+// kordoc 이 서버에 설치돼 있지 않으면(현재 로컬 전용) code:"KORDOC_UNAVAILABLE" 로 실패.
+export async function boardHwp(address, use_type, radius = 1000, resolution = "시군구", concept = false) {
+  let res;
+  try {
+    res = await fetch("/board/hwp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ address, use_type, radius, resolution, concept }),
+    });
+  } catch (e) {
+    throw new ApiError("서버에 연결할 수 없습니다.");
+  }
+  if (!res.ok) {
+    let msg = "종합읽기 HWP 생성 실패";
+    let code;
+    try { const j = await res.json(); msg = j.detail || j.message || msg; code = j.code; } catch {}
+    throw new ApiError(msg, { status: res.status, code });
   }
   return await res.blob();
 }

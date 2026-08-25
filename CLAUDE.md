@@ -190,7 +190,8 @@ git push        # 작업 후 GitHub에 올리기
 | POST | `/surroundings/pptx` | C7 | 주변현황도 A3 PPTX — 위성 반경현황도(카테고리 색점)+카테고리표+서술문 → `/files/packs/*.pptx`. `services/surroundings_pptx.py` |
 | POST | `/deck/full` | - | 종합 대지분석 덱(지도 4종 + 데이터 + 시설 종류별 상세) A3 편집가능 PPTX. deck-builder 흡수, `app/deck/`. 생성이력 자동저장 |
 | POST | `/board/pptx` | S4·T | 종합 대지 읽기 → A3 편집가능 PPTX(deck.style 디자인·종합결론·동네프로필차트·①해석·②의견 벽분리·드라이버·교차·POR). S4 종합 기본 포함. **`concept=true`(opt-in)면 컨셉·설계방향 제안 커버 슬라이드 1장 추가** — AI 창작(컨셉명+키워드3, `services/concept.py`, Opus). S4 원칙의 *의도적·격리된 예외*(§8.14): 벽/라벨·근거인용 유지하되 **BoardResult/board_brief/project_seed/MCP 계약엔 절대 미포함**(competition 형제앱이 실측인 척 삼키는 것 차단 — PPTX 덱 렌더에서만 소비). `app/deck/board_slides.py`. 생성이력 자동저장 |
-| GET | `/history` | - | 생성 이력 목록(최신순) + `/history/{id}/file`(재다운로드). 덱·종합읽기 PPT를 GCS/로컬에 보관(최대 60건). `services/history.py`. 프론트 M탭 |
+| POST | `/board/hwp` | S4·T | `/board/pptx` 와 같은 내용을 **HWP(HWPX) 문서**로 (§8.15, 심의·조합 제출 표준 대응). 같은 BoardResult dict 를 `app/deck/board_report_md.py` 가 마크다운으로 조립 → kordoc(`markdownToHwpx`, CLI subprocess, `services/kordoc_client.py`)이 HWPX 생성. 새 숫자 0·①②벽/라벨 유지. kordoc 미설치(현재 Cloud Run 기본) 시 `KORDOC_UNAVAILABLE` 422 — 로컬 전용, 추정 없이 명확히 멈춤. 생성이력 자동저장(pptx 와 같은 이력 목록) |
+| GET | `/history` | - | 생성 이력 목록(최신순) + `/history/{id}/file`(재다운로드). 덱·종합읽기 PPT·**HWP**를 GCS/로컬에 보관(최대 60건, 확장자별 콘텐츠타입). `services/history.py`. 프론트 M탭 |
 | GET | `/health` | - | 헬스체크 |
 | GET | `/api` · `POST /basemap` | - | 진입 안내(`/api`) · 위성 basemap 합성(`/basemap`, `routers/facilities.py`) |
 
@@ -544,23 +545,62 @@ A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/�
 `docs/plan-app-consolidation.md`(4단계 선행 계획)·`docs/benchmark-2026.md`(6-2) 참조 —
 여기선 이 앱에서 뭘 하면 되는지만 적는다.
 
-- [ ] **HWP 내보내기** — 랜드북 벤치마크: 심의·조합 제출은 HWP 가 사실상 표준인데
-  우리는 PPTX 하나뿐. `kordoc` 의 `markdownToHwpx`·`fillHwpx` 를 쓴다(concept-studio 가
-  이미 CLI subprocess 로 검증한 경로 — 새 라이브러리 조사 불필요). `app/deck/` 의 PPTX
-  내보내기 옆에 옵션 하나 추가하는 규모로 시작.
-- [ ] **다이어그램을 독립 파일로도 출력 (+ semantic-svg 로 출처 추적)** — Sitedia
+- [x] **HWP 내보내기** ✅ 코드 완료(2026-08-25)·⬜ Cloud Run 미배선(아래) — 랜드북 벤치마크:
+  심의·조합 제출은 HWP 가 사실상 표준인데 우리는 PPTX 하나뿐. `kordoc` 의
+  `markdownToHwpx`(`generate` 서브커맨드)를 CLI subprocess 로 쓴다(concept-studio 가
+  ADR-001 로 이미 검증한 경로 그대로 — `fillHwpx`/`parse` 는 기존 문서를 채우는 반대
+  방향이라 안 씀, 우리는 항상 생성 방향). `POST /board/hwp` — `/board/pptx` 옆에 문서형
+  옵션으로 추가. 구현: `app/services/kordoc_client.py`(subprocess 래퍼, `KORDOC_CLI` env —
+  PATH 의 `kordoc` 또는 `node <경로>/dist/cli.js`)·`app/deck/board_report_md.py`
+  (`/board/pptx` 와 같은 BoardResult dict 를 받아 같은 내용 — 아키타입·①②종합(벽+라벨
+  유지)·설계드라이버·교차시사점·POR·방법론 — 을 마크다운으로 조립, 새 숫자 0)·
+  `services/history.py`(생성이력이 pptx 전용이었던 걸 확장자별 콘텐츠타입/파일로
+  일반화 — hwpx 도 같이 보관). kordoc 이 없으면(로컬 미설치) `KORDOC_UNAVAILABLE` 422로
+  명확히 멈춘다(추정 없음, 절대 원칙 3) — Dockerfile 은 아직 node+kordoc 을 안 태워
+  **Cloud Run 배포본에선 현재 이 옵션이 항상 이 경로로 빠진다**(로컬 전용). 배포 배선은
+  다음 증분(node stage 추가 + kordoc dist 복사).
+- [x] **다이어그램을 독립 파일로도 출력** ✅ SVG·DXF·GLB 전부 완료(2026-08-25) — Sitedia
   벤치마크: 대지+반경 → 현황 다이어그램 12장을 SVG·PNG·DXF·GLB 로 뽑아준다. 지금
   `map_slides.py` 의 4종(광역입지도·건물용도현황·입지현황·조망분석)은 PPTX 슬라이드로만
-  존재 — 같은 데이터를 독립 SVG 파일로도 뽑는 옵션부터, DXF·GLB 는 그다음. **이 SVG
-  출력 경로에 `semantic-svg`(AlexAI-MCP)를 엔진으로 쓴다** — 요소마다 `id`·
-  `data-source-ref` 를 심어 다이어그램의 어느 도형을 눌러도 근거(터읽기의 어느 API
-  응답에서 왔는지)가 따라오게 한다(2026-08-25 결정, [[semantic-svg-both-tracks]]).
+  존재했음 — 같은 데이터를 독립 파일로도 뽑는 3트랙(SVG→DXF→GLB) 전부 완료.
+  ⚠️ **semantic-svg(AlexAI-MCP)는 평가 후 배제** — 실제 리포(schema·compiler.mjs·예제
+  JSON)를 뜯어보니 이건 **지식그래프 전용 컴파일러**다: 노드=원, 엣지=곡선 path, 좌표는
+  0~1 정규화, 배경 래스터 이미지·임의 폴리곤·호(arc)·좌표계 변환이 전부 스키마에 없다.
+  우리 지도 4종은 정반대(위성 배경+건물 폴리곤+방향별 호+위경도 정밀 배치)라 이 컴파일러의
+  프리미티브로 표현 불가능 — CLAUDE.md 작성 시점엔 미검증 상태로 적혀 있었다(사용자
+  확인 후 폐기 결정). **대신 직접 SVG 생성**: `app/deck/map_svg.py` 가 `map_slides.py`
+  와 **같은 데이터·같은 계산**(건물매싱·용도분류·조망섹터, 새 로직 0)에서 lxml로 SVG를
+  직접 그린다. semantic-svg가 하려던 "도형을 누르면 근거가 따라온다"는 목표는 **자체
+  provenance 규약**(데이터에 묶인 도형마다 안정 `id`+`data-source-ref` — 예:
+  `arch-site-model:geometry.buildings`, `kakao:facilities.results[name=...]`,
+  `law:zone_use`)으로 직접 구현. `POST /deck/svg` — 지도 4종 SVG를 zip으로 스트리밍,
+  생성이력(`services/history.py`, `.zip` 확장) 자동저장. 실패한 개별 지도는 건너뛰고
+  나머지로 진행(부분 결과 허용 — 절대 원칙 3). 상세 메모리 `svg-diagram-track`.
   ⚠️ **PPTX 트랙은 그대로 둔다** — `map_slides.py`·`board_slides.py` 의 python-pptx
-  네이티브 편집가능 도형(§8.14 위 "전부 컬러·네이티브 편집가능")은 손대지 않는다.
-  semantic-svg 는 PPTX 를 대체하는 게 아니라 **독립 SVG 출력이라는 별도 산출물**의
-  엔진일 뿐 — 같은 소스 데이터(`map_slides.py`가 이미 쓰는 것)에서 두 트랙이 각자
-  나온다. concept-studio P3 렌더러도 같은 라이브러리를 쓸 수 있지만(`concept-studio/CLAUDE.md`
-  참조) 그건 별개 앱·별개 착수 시점.
+  네이티브 편집가능 도형(§8.14 위 "전부 컬러·네이티브 편집가능")은 손대지 않았다.
+  `map_svg.py` 는 **독립 SVG 출력이라는 별도 산출물**일 뿐 — 같은 소스 데이터에서 두
+  트랙이 각자 나온다(렌더러 두 벌 유지비용은 감수 — §8.15 재검토 메모 그대로 유효).
+  **DXF(`POST /deck/dxf`, `app/deck/site_dxf.py`)** — SVG 4장처럼 쪼개지 않고 **통합
+  CAD 대지계획도 1개**로(2026-08-25 사용자 결정, AutoCAD·Civil3D·Rhino에 바로 불러
+  쓰도록). 위성사진·범례패널·캡션밴드는 CAD에 의미 없어 제외 — SITE 경계(law
+  parcel_geometry)·건물 평면(용도별 레이어 BLDG-주거/상업/업무/공업/공공/미상)·반경
+  참조원(100/200/350m)·방위만. **좌표는 실제 미터 단위, 대지=원점(0,0)** — arch-site-model
+  의 건물 footprint(그 앱 자체 origin_offset 기준)를 위경도로 왕복 변환해 대지-원점
+  좌표계로 재투영(모델의 임의 원점에 기대지 않음). 신규 의존성 `ezdxf`(순수 파이썬).
+  ⚠️ ezdxf 로 텍스트/레이어명에 한글을 쓸 때 `doc.write(io.StringIO())` 만으로는 기본
+  인코딩(cp1252)이 걸려 깨진다 — 반드시 `doc.encode(buf.getvalue())` 로 한 번 더
+  감싸야 R2007+(UTF-8) 인코딩이 올바로 적용된다(실측 확인, 2026-08-25).
+  **GLB(`POST /deck/glb`, `app/deck/site_glb.py`)** — arch-site-model 은 `.3dm`(rhino3dm)·
+  `.skp`(SketchUp 코드)만 지원하고 **glTF/GLB 는 지원하지 않는다**(형제앱 소스 직접
+  확인 — `src/pipeline.py` 가 outputs 에서 "3dm"/"skp" 만 분기, glb 문자열은 코드베이스
+  어디에도 없음, §8.15 GLB 접근 결정 시 이미 확인 완료). 그래서 그 앱이 이미 돌려주는
+  `geometry.buildings[]`(footprint+height — 우리 `map_slides.py`/`map_svg.py`가 이미
+  쓰는 바로 그 데이터)를 우리가 직접 박스 압출(자체 이어클리핑 삼각분할, 오목 다각형도
+  처리)해 GLB 로 만든다. 신규 의존성 `pygltflib`(순수 파이썬, numpy 는 이미 shapely
+  의존성으로 설치돼 있음). 건물마다 별도 Node+Mesh, `extras`에 높이·
+  `source_ref:"arch-site-model:geometry.buildings"` — SVG/DXF 트랙과 같은 provenance
+  관례 유지. 재질은 doubleSided(권선방향 정합성 불필요, 단순화). 좌표계는 glTF Y-up
+  우핸드로 매핑(동=X, 높이=Y, 북=−Z). 상세 메모리 `svg-diagram-track`.
 
 ---
 

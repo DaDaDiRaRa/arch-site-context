@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { board, boardView, boardPptx } from "./api.js";
+import { board, boardView, boardPptx, boardHwp } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes, ProximityChip } from "./ui.jsx";
 
 import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
@@ -51,6 +51,7 @@ export default function TabI({ address }) {
   const [loading, setLoading] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportingPptx, setExportingPptx] = useState(false);
+  const [exportingHwp, setExportingHwp] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
 
@@ -98,6 +99,25 @@ export default function TabI({ address }) {
       setError(e);
     } finally {
       setExportingPptx(false);
+    }
+  }
+
+  async function exportHwp() {
+    if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
+    setExportingHwp(true);
+    setError(null);
+    try {
+      const blob = await boardHwp(address, useType, radius, resolution, concept);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `종합읽기_${address.replace(/\s+/g, "")}.hwpx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e);
+    } finally {
+      setExportingHwp(false);
     }
   }
 
@@ -172,6 +192,15 @@ export default function TabI({ address }) {
           style={{ background: "var(--canvas-elevated)", color: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--radius-sm)" }}
         >
           {exportingPptx ? "PPT 생성 중…" : "종합읽기 PPT ↓"}
+        </button>
+        <button
+          onClick={exportHwp}
+          disabled={exportingHwp}
+          title="같은 내용을 HWP(HWPX) 문서로 내려받습니다 — 심의·조합 제출용 (§8.15). 서버에 kordoc 이 설치돼 있어야 하며(현재 로컬 개발 전용), 배포 서버에선 지원 전까지 실패할 수 있습니다."
+          className="px-4 py-2 font-medium disabled:opacity-50"
+          style={{ background: "var(--canvas-elevated)", color: "var(--brand)", border: "1px solid var(--brand)", borderRadius: "var(--radius-sm)" }}
+        >
+          {exportingHwp ? "HWP 생성 중…" : "종합읽기 HWP ↓"}
         </button>
       </div>
 

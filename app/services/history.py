@@ -19,21 +19,37 @@ from app.services.cache import default_cache, make_key
 
 _MANIFEST_KEY = "gen_history_v1"
 _MAX = 60  # 이력 상한 (초과분은 blob 삭제 후 매니페스트에서 제거)
-_MEDIA = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
+#: 확장자별 콘텐츠타입 — PPTX(덱·종합읽기)·HWPX(§8.15 HWP 내보내기)에 이어
+#: ZIP(지도 4종 SVG, `/deck/svg`)·DXF(CAD 대지계획도, `/deck/dxf`)·GLB(건물매싱 3D, `/deck/glb`)도
+#: 이력에 남는다(§8.15).
+_MEDIA_BY_EXT = {
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".hwpx": "application/haansofthwp",
+    ".zip": "application/zip",
+    ".dxf": "application/dxf",
+    ".glb": "model/gltf-binary",
+}
+_DEFAULT_EXT = ".pptx"
 
 
 def _bucket() -> Optional[str]:
     return os.getenv("GCS_CACHE_BUCKET")
 
 
-def _gcs_blob(gid: str):
+def _ext_of(filename: str) -> str:
+    ext = os.path.splitext(filename or "")[1].lower()
+    return ext if ext in _MEDIA_BY_EXT else _DEFAULT_EXT
+
+
+def _gcs_blob(gid: str, ext: str = _DEFAULT_EXT):
     from google.cloud import storage  # 지연 임포트 (로컬 미설치 가능)
 
-    return storage.Client().bucket(_bucket()).blob(f"history/{gid}.pptx")
+    return storage.Client().bucket(_bucket()).blob(f"history/{gid}{ext}")
 
 
-def _local_path(gid: str):
-    return OUT_DIR / "history" / f"{gid}.pptx"
+def _local_path(gid: str, ext: str = _DEFAULT_EXT):
+    return OUT_DIR / "history" / f"{gid}{ext}"
 
 
 def _entries() -> list:
@@ -41,26 +57,28 @@ def _entries() -> list:
     return list(data.get("items", []))
 
 
-def _write_blob(gid: str, data: bytes) -> str:
+def _write_blob(gid: str, data: bytes, ext: str) -> str:
     """blob 저장. 반환 backend('gcs'|'local'). GCS 실패 시 로컬 폴백."""
+    media = _MEDIA_BY_EXT.get(ext, "application/octet-stream")
     if _bucket():
         try:
-            _gcs_blob(gid).upload_from_string(data, content_type=_MEDIA)
+            _gcs_blob(gid, ext).upload_from_string(data, content_type=media)
             return "gcs"
         except Exception:  # noqa: BLE001 — GCS 실패해도 로컬로 남김(이력 유실 방지)
             pass
-    p = _local_path(gid)
+    p = _local_path(gid, ext)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(data)
     return "local"
 
 
 def _delete_blob(entry: dict) -> None:
+    ext = _ext_of(entry.get("filename", ""))
     try:
         if entry.get("backend") == "gcs":
-            _gcs_blob(entry["id"]).delete()
+            _gcs_blob(entry["id"], ext).delete()
         else:
-            _local_path(entry["id"]).unlink(missing_ok=True)
+            _local_path(entry["id"], ext).unlink(missing_ok=True)
     except Exception:  # noqa: BLE001 — 정리 실패는 비치명
         pass
 
@@ -68,8 +86,10 @@ def _delete_blob(entry: dict) -> None:
 def save(kind: str, title: str, params: dict, filename: str, data: bytes) -> dict:
     """생성물 1건 저장 + 매니페스트 등록. best-effort — 실패해도 예외 안 냄(생성은 이미 성공)."""
     created = datetime.now().isoformat(timespec="seconds")
-    gid = make_key(kind, title, json.dumps(params, sort_keys=True, ensure_ascii=False), created)[:16]
-    backend = _write_blob(gid, data)
+    # filename 도 키에 포함 — 같은 (kind,title,params)로 같은 초에 PPTX·HWPX 를 둘 다 저장해도
+    # (§8.15, /board/pptx + /board/hwp) id 가 충돌해 한쪽이 재다운로드 불가능해지지 않도록.
+    gid = make_key(kind, title, json.dumps(params, sort_keys=True, ensure_ascii=False), filename, created)[:16]
+    backend = _write_blob(gid, data, _ext_of(filename))
     entry = {
         "id": gid, "kind": kind, "title": title, "params": params,
         "filename": filename, "created": created, "size": len(data), "backend": backend,
@@ -94,13 +114,14 @@ def read(gid: str) -> Optional[tuple]:
     entry = next((e for e in _entries() if e.get("id") == gid), None)
     if not entry:
         return None
-    fn = entry.get("filename") or f"{gid}.pptx"
+    ext = _ext_of(entry.get("filename", ""))
+    fn = entry.get("filename") or f"{gid}{ext}"
     if entry.get("backend") == "gcs":
         try:
-            return _gcs_blob(gid).download_as_bytes(), fn
+            return _gcs_blob(gid, ext).download_as_bytes(), fn
         except Exception:  # noqa: BLE001
             return None
-    p = _local_path(gid)
+    p = _local_path(gid, ext)
     if p.exists():
         return p.read_bytes(), fn
     return None

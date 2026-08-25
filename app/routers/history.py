@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import io
+import mimetypes
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -16,6 +17,7 @@ from app.services import history
 router = APIRouter(tags=["history"])
 
 _MEDIA = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+mimetypes.add_type("application/haansofthwp", ".hwpx")
 
 
 @router.get("/history")
@@ -26,12 +28,18 @@ def history_list() -> dict:
 
 @router.get("/history/{gid}/file")
 def history_file(gid: str):
-    """이력 1건 재다운로드 (pptx 스트리밍). 파일명은 프론트가 title 로 지정."""
+    """이력 1건 재다운로드 (pptx·hwpx 스트리밍). 콘텐츠타입은 저장된 확장자를 따른다.
+
+    Content-Disposition 의 filename 은 ASCII 로 고정(실제 한글 제목은 프론트가 manifest 의
+    filename 으로 저장 시 지정 — api.js downloadHistory, 헤더 인코딩 문제 회피).
+    """
     r = history.read(gid)
     if not r:
         return JSONResponse(status_code=404, content={"detail": "이력을 찾을 수 없습니다 (만료·삭제됨)."})
-    data, _fn = r
+    data, fn = r
+    ext = ".hwpx" if fn.lower().endswith(".hwpx") else ".pptx"
+    media = mimetypes.guess_type(fn)[0] or _MEDIA
     return StreamingResponse(
-        io.BytesIO(data), media_type=_MEDIA,
-        headers={"Content-Disposition": 'attachment; filename="download.pptx"'},
+        io.BytesIO(data), media_type=media,
+        headers={"Content-Disposition": f'attachment; filename="download{ext}"'},
     )

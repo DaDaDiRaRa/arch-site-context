@@ -26,6 +26,7 @@ router = APIRouter(tags=["mode-b"])
 # 저장 위치: OUT_DIR/maps (StaticFiles 로 /files 에 마운트). 타일 캐시: OUT_DIR/tile_cache
 _MAPS_DIR = OUT_DIR / "maps"
 _TILE_CACHE = OUT_DIR / "tile_cache"
+_PACKS_DIR = OUT_DIR / "packs"  # PPTX 산출 (/files/packs, board/view 패턴)
 
 
 class BasemapRequest(BaseModel):
@@ -115,5 +116,46 @@ def facilities_map(req: MapRequest) -> dict:
         "basemap": req.basemap,
         "source": result.source,
         "base_date": result.base_date,
+        "notes": result.notes,
+    }
+
+
+@router.post("/facilities/pptx")
+def facilities_pptx(req: MapRequest) -> dict:
+    """주변시설 A3 편집가능 PPTX (위성 현황도 + 개수표 + 시설목록) 저장 후 공유 URL 반환."""
+    from app.services.facilities_pptx import build_facilities_pptx
+
+    kinds = req.kinds or list(DEFAULT_KINDS)
+    radii = req.radii or list(DEFAULT_RADII)
+    try:
+        result = build_facility_result(req.address, kinds, radii)
+
+        iso = None
+        if req.isochrone and tmap._TMAP_KEY:
+            try:
+                iso = tmap.compute_isochrone(result.center.lat, result.center.lon)
+            except Exception:
+                result.notes.append("TMAP 등시선 계산 실패 — 직선반경으로 표시.")
+
+        # 지도는 사용자가 보는 합성 PNG 를 그대로 슬라이드에 임베드 (한글 라벨 포함)
+        try:
+            map_png = compose_map(result, radii, basemap=req.basemap, isochrone=iso,
+                                  cache_dir=_TILE_CACHE)
+        except BasemapError:
+            map_png = None  # 지도 실패해도 표만으로 PPT 생성 (graceful)
+    except KakaoError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    data = build_facilities_pptx(result, sorted(radii), map_png)
+    _PACKS_DIR.mkdir(parents=True, exist_ok=True)
+    sig = f"fac|{req.address}|{','.join(kinds)}|{','.join(map(str, sorted(radii)))}|{req.basemap}"
+    fname = "facilities_" + hashlib.sha1(sig.encode("utf-8")).hexdigest()[:16] + ".pptx"
+    (_PACKS_DIR / fname).write_bytes(data)
+    return {
+        "url": f"/files/packs/{fname}",
+        "counts": result.counts,
+        "source": result.source,
+        "base_date": result.base_date,
+        "size_bytes": len(data),
         "notes": result.notes,
     }

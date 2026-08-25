@@ -424,6 +424,62 @@ def board_pptx(req: BoardRequest):
     )
 
 
+@router.post("/board/hwp", response_model=None)
+def board_hwp(req: BoardRequest):
+    """종합 대지 읽기 → HWP(HWPX) 보고서. `/board/pptx` 옆의 문서형 옵션 (§8.15).
+
+    심의·조합 제출은 HWP 가 사실상 표준(랜드북 벤치마크) — PPTX(슬라이드)와 같은 내용을
+    마크다운으로 조립해 kordoc(`markdownToHwpx`, CLI subprocess)로 HWPX 생성. kordoc 이
+    설치돼 있지 않으면(로컬 전용·Cloud Run 미배선) 추정 없이 명확히 멈춘다(절대 원칙 3).
+    """
+    import io as _io
+
+    from fastapi.responses import StreamingResponse
+
+    from app.deck.board_report_md import build_board_report_md
+    from app.services import kordoc_client
+
+    if not kordoc_client.available():
+        return _error(
+            "KORDOC_UNAVAILABLE",
+            "HWP 변환기(kordoc)가 이 서버에 설치돼 있지 않습니다. PPTX 내보내기를 이용하세요.",
+        )
+
+    full = board(BoardRequest(**{**req.model_dump(), "brief": False, "synthesize": True}))
+    if isinstance(full, JSONResponse):
+        return full
+    deck_input = full.model_dump()
+    if req.concept:
+        try:
+            from app.services.concept import derive_concept
+            con = derive_concept(
+                req.use_type, full.facts, full.diagnoses, full.hazards,
+                full.cross_implications, full.design_drivers, full.archetype,
+            )
+            if con:
+                deck_input["concept"] = con
+        except Exception:  # noqa: BLE001 — 컨셉 실패는 비치명, 나머지 보고서는 그대로
+            pass
+
+    markdown = build_board_report_md(deck_input)
+    try:
+        data = kordoc_client.markdown_to_hwpx(markdown)
+    except kordoc_client.KordocError as e:
+        return _error("KORDOC_FAILED", f"HWP 변환 실패: {e}")
+
+    try:
+        from app.services import history
+        history.save("board", req.address, {"use_type": req.use_type, "radius": req.radius},
+                     f"종합읽기_{req.address.replace(' ', '')}.hwpx", data)
+    except Exception:  # noqa: BLE001
+        pass
+    return StreamingResponse(
+        _io.BytesIO(data),
+        media_type="application/haansofthwp",
+        headers={"Content-Disposition": 'attachment; filename="site_synthesis.hwpx"'},
+    )
+
+
 def _hazard_state(hazards) -> str:
     """재해 확보 내용 요약 (in_zone 사실만)."""
     parts = []

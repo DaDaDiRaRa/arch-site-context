@@ -36,9 +36,14 @@ _PALETTE = [
 _CENTER_COLOR = (255, 255, 255)
 
 _FONT_CANDIDATES = [
-    r"C:\Windows\Fonts\malgun.ttf",       # 맑은 고딕 (한글)
+    r"C:\Windows\Fonts\malgun.ttf",       # 맑은 고딕 (한글, Windows 로컬)
     r"C:\Windows\Fonts\malgunbd.ttf",
     r"C:\Windows\Fonts\NanumGothic.ttf",
+    # 리눅스/Cloud Run — Dockerfile 이 fonts-nanum 설치 (없으면 한글 깨짐)
+    "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
 ]
 
 

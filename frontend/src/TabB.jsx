@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { facilities, facilitiesMap } from "./api.js";
+import { facilities, facilitiesMap, facilitiesPptx } from "./api.js";
 import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
 
 const KIND_OPTIONS = ["어린이집", "경로당", "학교", "병원", "약국", "공원", "도서관", "지하철역", "버스정류장", "카페"];
@@ -15,6 +15,9 @@ export default function TabB({ address }) {
   const [mapLoading, setMapLoading] = useState(false);
   const [mapError, setMapError] = useState(null);
   const [map, setMap] = useState(null);
+
+  const [pptLoading, setPptLoading] = useState(false);
+  const [pptError, setPptError] = useState(null);
 
   function toggle(list, setList, v) {
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -42,6 +45,18 @@ export default function TabB({ address }) {
       setMapError(e);
     } finally {
       setMapLoading(false);
+    }
+  }
+
+  async function makePpt() {
+    setPptLoading(true); setPptError(null);
+    try {
+      const res = await facilitiesPptx(address, kinds, [...radii].sort((a, b) => a - b));
+      window.open(res.url, "_blank");
+    } catch (e) {
+      setPptError(e);
+    } finally {
+      setPptLoading(false);
     }
   }
 
@@ -182,21 +197,38 @@ export default function TabB({ address }) {
 
           {/* 위성 PNG */}
           <div>
-            <button
-              onClick={makeMap}
-              disabled={mapLoading}
-              className="px-4 py-2 font-medium disabled:opacity-50"
-              style={{
-                border: '1px solid var(--brand)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--brand)',
-                background: 'var(--canvas-elevated)',
-              }}
-            >
-              위성 지도 PNG 생성
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={makeMap}
+                disabled={mapLoading}
+                className="px-4 py-2 font-medium disabled:opacity-50"
+                style={{
+                  border: '1px solid var(--brand)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--brand)',
+                  background: 'var(--canvas-elevated)',
+                }}
+              >
+                위성 지도 PNG 생성
+              </button>
+              <button
+                onClick={makePpt}
+                disabled={pptLoading}
+                className="px-4 py-2 font-medium disabled:opacity-50"
+                style={{
+                  border: '1px solid var(--brand)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--brand)',
+                  background: 'var(--canvas-elevated)',
+                }}
+              >
+                PPT로 내보내기
+              </button>
+            </div>
             {mapLoading && <Spinner label="VWorld 위성 타일 합성 중…" />}
+            {pptLoading && <Spinner label="A3 편집가능 PPT 생성 중…" />}
             <div className="mt-3"><ErrorBox error={mapError} /></div>
+            <div className="mt-3"><ErrorBox error={pptError} /></div>
             {map && (
               <div className="mt-3">
                 <img
