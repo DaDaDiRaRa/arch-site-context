@@ -190,7 +190,7 @@ git push        # 작업 후 GitHub에 올리기
 | POST | `/surroundings/pptx` | C7 | 주변현황도 A3 PPTX — 위성 반경현황도(카테고리 색점)+카테고리표+서술문 → `/files/packs/*.pptx`. `services/surroundings_pptx.py` |
 | POST | `/deck/full` | - | 종합 대지분석 덱(지도 4종 + 데이터 + 시설 종류별 상세) A3 편집가능 PPTX. deck-builder 흡수, `app/deck/`. 생성이력 자동저장 |
 | POST | `/board/pptx` | S4·T | 종합 대지 읽기 → A3 편집가능 PPTX(deck.style 디자인·종합결론·동네프로필차트·①해석·②의견 벽분리·드라이버·교차·POR). S4 종합 기본 포함. **`concept=true`(opt-in)면 컨셉·설계방향 제안 커버 슬라이드 1장 추가** — AI 창작(컨셉명+키워드3, `services/concept.py`, Opus). S4 원칙의 *의도적·격리된 예외*(§8.14): 벽/라벨·근거인용 유지하되 **BoardResult/board_brief/project_seed/MCP 계약엔 절대 미포함**(competition 형제앱이 실측인 척 삼키는 것 차단 — PPTX 덱 렌더에서만 소비). `app/deck/board_slides.py`. 생성이력 자동저장 |
-| POST | `/board/hwp` | S4·T | `/board/pptx` 와 같은 내용을 **HWP(HWPX) 문서**로 (§8.15, 심의·조합 제출 표준 대응). 같은 BoardResult dict 를 `app/deck/board_report_md.py` 가 마크다운으로 조립 → kordoc(`markdownToHwpx`, CLI subprocess, `services/kordoc_client.py`)이 HWPX 생성. 새 숫자 0·①②벽/라벨 유지. kordoc 미설치(현재 Cloud Run 기본) 시 `KORDOC_UNAVAILABLE` 422 — 로컬 전용, 추정 없이 명확히 멈춤. 생성이력 자동저장(pptx 와 같은 이력 목록) |
+| POST | `/board/hwp` | S4·T | `/board/pptx` 와 같은 내용을 **HWP(HWPX) 문서**로 (§8.15, 심의·조합 제출 표준 대응). 같은 BoardResult dict 를 `app/deck/board_report_md.py` 가 마크다운으로 조립 → kordoc(`markdownToHwpx`, CLI subprocess, `services/kordoc_client.py`)이 HWPX 생성. 새 숫자 0·①②벽/라벨 유지. **Dockerfile 에 node+kordoc@3.4.1 배선 완료**(실빌드 검증) — 로컬·Cloud Run 둘 다 동작. kordoc 미설치 시에만 `KORDOC_UNAVAILABLE` 422(추정 없이 명확히 멈춤). 생성이력 자동저장(pptx 와 같은 이력 목록) |
 | GET | `/history` | - | 생성 이력 목록(최신순) + `/history/{id}/file`(재다운로드). 덱·종합읽기 PPT·**HWP**를 GCS/로컬에 보관(최대 60건, 확장자별 콘텐츠타입). `services/history.py`. 프론트 M탭 |
 | GET | `/health` | - | 헬스체크 |
 | GET | `/api` · `POST /basemap` | - | 진입 안내(`/api`) · 위성 basemap 합성(`/basemap`, `routers/facilities.py`) |
@@ -545,7 +545,7 @@ A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/�
 `docs/plan-app-consolidation.md`(4단계 선행 계획)·`docs/benchmark-2026.md`(6-2) 참조 —
 여기선 이 앱에서 뭘 하면 되는지만 적는다.
 
-- [x] **HWP 내보내기** ✅ 코드 완료(2026-08-25)·⬜ Cloud Run 미배선(아래) — 랜드북 벤치마크:
+- [x] **HWP 내보내기** ✅ 완료(2026-08-25, 코드+Cloud Run 배선) — 랜드북 벤치마크:
   심의·조합 제출은 HWP 가 사실상 표준인데 우리는 PPTX 하나뿐. `kordoc` 의
   `markdownToHwpx`(`generate` 서브커맨드)를 CLI subprocess 로 쓴다(concept-studio 가
   ADR-001 로 이미 검증한 경로 그대로 — `fillHwpx`/`parse` 는 기존 문서를 채우는 반대
@@ -555,10 +555,19 @@ A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/�
   (`/board/pptx` 와 같은 BoardResult dict 를 받아 같은 내용 — 아키타입·①②종합(벽+라벨
   유지)·설계드라이버·교차시사점·POR·방법론 — 을 마크다운으로 조립, 새 숫자 0)·
   `services/history.py`(생성이력이 pptx 전용이었던 걸 확장자별 콘텐츠타입/파일로
-  일반화 — hwpx 도 같이 보관). kordoc 이 없으면(로컬 미설치) `KORDOC_UNAVAILABLE` 422로
-  명확히 멈춘다(추정 없음, 절대 원칙 3) — Dockerfile 은 아직 node+kordoc 을 안 태워
-  **Cloud Run 배포본에선 현재 이 옵션이 항상 이 경로로 빠진다**(로컬 전용). 배포 배선은
-  다음 증분(node stage 추가 + kordoc dist 복사).
+  일반화 — hwpx 도 같이 보관). kordoc 이 없으면 `KORDOC_UNAVAILABLE` 422로 명확히
+  멈춘다(추정 없음, 절대 원칙 3).
+  **Cloud Run 배선**(`Dockerfile`): `frontend` 스테이지(기존 `node:22-slim`)에서
+  `npm install kordoc@3.4.1 --omit=optional` 도 같이 설치 — **버전은 검증한 것(concept-studio
+  TESTED_VERSION)으로 고정**, latest 아님(2026-08-25 확인 시 로컬 체크아웃이 origin 대비
+  222커밋·v3.4.1→v4.9.2 뒤처져 있었음 — 최신은 미검증). 무거운 선택적 OCR/PDF 의존성
+  (sharp·onnxruntime 등)은 `--omit=optional` 로 제외(33MB). 최종 Python 스테이지엔
+  `node` 바이너리를 다른 베이스에서 복사하지 않고 **`apt-get install nodejs`로 직접
+  설치**(실측: `python:3.11-slim`이 지금 Debian trixie 베이스라 `node:22-slim`과 베이스가
+  다를 수 있어 바이너리 복사보다 apt 설치가 안전) + `kordoc/node_modules` 만 COPY +
+  `ENV KORDOC_CLI=/app/kordoc/node_modules/kordoc/dist/cli.js`. **실제 `docker build` +
+  컨테이너 실행으로 검증 완료**: `node --version` v20.19.2(요구사항 `>=18` 충족)·
+  `node $KORDOC_CLI --version`→`3.4.1`·`generate` 실행 → 유효 HWPX(zip, `PK\x03\x04`) 생성.
 - [x] **다이어그램을 독립 파일로도 출력** ✅ SVG·DXF·GLB 전부 완료(2026-08-25) — Sitedia
   벤치마크: 대지+반경 → 현황 다이어그램 12장을 SVG·PNG·DXF·GLB 로 뽑아준다. 지금
   `map_slides.py` 의 4종(광역입지도·건물용도현황·입지현황·조망분석)은 PPTX 슬라이드로만
