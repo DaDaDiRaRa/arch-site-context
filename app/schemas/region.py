@@ -74,7 +74,7 @@ class Region(BaseModel):
 
     name: str = Field(..., examples=["영등포구"])
     code: str = Field(..., description="행정구역 코드", examples=["11560"])
-    resolution: Resolution = Field(..., description="통계 해상도 (시군구/읍면동)")
+    resolution: Resolution = Field(..., description="통계 해상도 (시군구/읍면동/반경)")
 
 
 class Fact(BaseModel):

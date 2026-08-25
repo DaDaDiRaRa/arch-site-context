@@ -142,3 +142,13 @@ def test_board_view_renders_model_section() -> None:
 def test_board_view_no_model_section_when_absent() -> None:
     html = render_board_html(_min_board().model_dump())
     assert "물리 모델" not in html
+
+
+def test_board_view_elev_range_non_numeric_does_not_crash() -> None:
+    """render_board_html 은 Any 타입 dict 를 받는 계약이라, summarize_model 을 거치지 않은
+    raw dict(예: MCP·다른 소비자가 직접 조립)의 elev_range_m 이 숫자가 아니어도 죽지 않아야 함
+    (2026-07 리뷰 발굴 — er[0]:.0f 가 비-float 에 그대로 적용되던 결함, 2026-08-25 수정)."""
+    board = _min_board().model_dump()
+    board["model"] = {"elev_range_m": ["없음", None]}
+    html = render_board_html(board)  # 예외 없이 렌더 — 표고 문구만 생략
+    assert "표고" not in html

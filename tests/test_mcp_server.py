@@ -39,6 +39,17 @@ def test_read_site_context_error_maps_to_error_json(monkeypatch) -> None:
     assert "주소 해석 불가" in out["message"]
 
 
+def test_read_site_context_unexpected_exception_is_graceful(monkeypatch) -> None:
+    """board() 내부에서 못 잡은 예외(예: build_site 의 PNU 조회 네트워크 오류)도 MCP 도구
+    계약대로 JSON 에러 문자열로 — 예외가 그대로 새어나가 도구 호출이 깨지면 안 된다."""
+    def _boom(req):
+        raise TimeoutError("network hiccup")
+    monkeypatch.setattr("app.routers.board.board", _boom)
+    out = json.loads(server.read_site_context("서울 영등포구 여의대로 24"))
+    assert out["error"] == "UNEXPECTED_ERROR"
+    assert "TimeoutError" in out["message"]
+
+
 def test_diagnose_supply_addr_error(monkeypatch) -> None:
     from app.services.kakao import KakaoError
 

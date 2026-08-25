@@ -72,8 +72,12 @@ def read_site_context(
     from app.routers.board import board
     from app.schemas.board import BoardRequest
 
-    r = board(BoardRequest(address=address, use_type=use_type, radius=radius,
-                           resolution=resolution, synthesize=synthesize, brief=True))
+    try:
+        r = board(BoardRequest(address=address, use_type=use_type, radius=radius,
+                               resolution=resolution, synthesize=synthesize, brief=True))
+    except Exception as e:  # noqa: BLE001 — board() 내부에서 못 잡은 예외까지 MCP 계약대로 정직한 에러로
+        return json.dumps({"error": "UNEXPECTED_ERROR",
+                           "message": f"확인 불가: {type(e).__name__}"}, ensure_ascii=False)
     if isinstance(r, JSONResponse):
         return _err(r)
     return json.dumps(r, ensure_ascii=False, indent=2)  # brief=True → 이미 dict

@@ -29,9 +29,12 @@ def build_site(
         loc = resolve_address(address, client=client)
         pnu = ""
         if with_pnu:
-            lp, _ = vworld.fetch_land_price(loc.lon, loc.lat, client=client)
-            if lp:
-                pnu = lp.get("pnu", "") or ""
+            try:
+                lp, _ = vworld.fetch_land_price(loc.lon, loc.lat, client=client)
+                if lp:
+                    pnu = lp.get("pnu", "") or ""
+            except Exception:  # noqa: BLE001 — PNU는 best-effort, 네트워크 실패로 site 해석 전체를 막지 않음(원칙3)
+                pass
         return Site(
             address=loc.address,
             lat=loc.lat,

@@ -170,7 +170,7 @@ def derive_design_drivers(
         out.append(DesignDriver(
             rank=rank,
             name=rule.get("name", ""),
-            response=rule.get("then") or rule.get("response", ""),
+            response=rule.get("response", ""),
             strength=round(strength, 2),
             evidence=evidence,
             tag=rule.get("tag", "참고"),

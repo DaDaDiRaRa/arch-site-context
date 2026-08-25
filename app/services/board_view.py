@@ -190,7 +190,7 @@ def render_board_html(board: Any, satellite_data_uri: Optional[str] = None,
         if _g(model, "cadastral_parcels") is not None:
             bits.append(f"필지 {_e(_g(model, 'cadastral_parcels'))}")
         er = _g(model, "elev_range_m")
-        if er and len(er) >= 2:
+        if er and len(er) >= 2 and all(isinstance(v, (int, float)) for v in er[:2]):
             bits.append(f"표고 {er[0]:.0f}~{er[1]:.0f}m")
         prov = _g(model, "provenance") or {}
         bsrc = prov.get("building_src") if isinstance(prov, dict) else None
