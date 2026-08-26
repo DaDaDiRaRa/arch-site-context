@@ -20,6 +20,7 @@ import os
 from typing import Any, List, Optional, Tuple
 
 from app.schemas.board import Synthesis
+from app.services import grounding
 
 _INTERP_MODEL = "claude-sonnet-5"   # ① 서술 — 싸고 충분
 _JUDGE_MODEL = "claude-opus-4-8"    # ② 판단 — 추론 정교
@@ -256,10 +257,15 @@ def _call(model: str, system: str, user: str, *, thinking: bool, effort: str,
         return None
 
 
-def compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers=None, archetype=None) -> Tuple[str, str, str]:
-    """① 사실 종합(해석). (text, source, model)."""
+def compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers=None,
+                           archetype=None) -> Tuple[str, str, str, List[str]]:
+    """① 사실 종합(해석). (text, source, model, notes).
+
+    수치 무결성 백스톱(services/grounding.py) 통과분만 AI 서술로 쓴다 — 풀에 없는 숫자가
+    있으면 규칙 서술로 대체(교정 재요청 없음: 여기엔 코드가 만든 안전한 대안이 이미 있다).
+    """
     if not os.getenv("ANTHROPIC_API_KEY"):
-        return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", ""
+        return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", "", []
     user = (
         f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross, drivers, archetype)}\n\n"
         f"위 사실의 수치만 사용해 규칙대로 이 필지를 3문장 이내로 간결히 서술하라."
@@ -267,14 +273,24 @@ def compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers=N
     text = _call(_INTERP_MODEL, _INTERP_SYSTEM, user,
                  thinking=False, effort="low", max_tokens=1500, timeout=45.0)
     if text is None:
-        return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", ""
-    return text, "ai", _INTERP_MODEL
+        return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", "", []
+    ok, bad = grounding.verify(text, user)
+    if not ok:
+        note = (f"① 사실 종합에 풀에 없는 수치({', '.join(bad)})가 있어 규칙 서술로 대체했습니다 "
+                "(수치 무결성 백스톱).")
+        return _rule_interpretation(use_type, facts, diagnoses, hazards, cross), "rule_based_fallback", "", [note]
+    return text, "ai", _INTERP_MODEL, []
 
 
-def compose_judgment(use_type, facts, diagnoses, hazards, cross, drivers=None, archetype=None) -> Tuple[str, str, str]:
-    """② AI 판단(의견). (text, source, model). 폴백은 '판단 유보'(가짜 의견 금지)."""
+def compose_judgment(use_type, facts, diagnoses, hazards, cross, drivers=None,
+                     archetype=None) -> Tuple[str, str, str, List[str]]:
+    """② AI 판단(의견). (text, source, model, notes). 폴백은 '판단 유보'(가짜 의견 금지).
+
+    ②의 3조건 중 하나가 '새 숫자 금지'다 — 백스톱이 그걸 코드로 지킨다. 걸리면 의견을 버리고
+    '판단 유보'로 간다: 신뢰할 수 없는 의견을 내느니 안 내는 게 설계 의도(§8.11)다.
+    """
     if not os.getenv("ANTHROPIC_API_KEY"):
-        return _rule_judgment(), "rule_based_fallback", ""
+        return _rule_judgment(), "rule_based_fallback", "", []
     user = (
         f"건물 용도: {use_type}\n\n[검증된 사실]\n{_pool_text(facts, diagnoses, hazards, cross, drivers, archetype)}\n\n"
         f"위 사실 위에서 {use_type} 용도 관점의 의견을 3조건(근거 인용·가정 명시·새 숫자 금지)을 지켜 쓰라."
@@ -283,8 +299,13 @@ def compose_judgment(use_type, facts, diagnoses, hazards, cross, drivers=None, a
     text = _call(_JUDGE_MODEL, system, user,
                  thinking=True, effort="medium", max_tokens=6000, timeout=90.0)
     if text is None:
-        return _rule_judgment(), "rule_based_fallback", ""
-    return text, "ai", _JUDGE_MODEL
+        return _rule_judgment(), "rule_based_fallback", "", []
+    ok, bad = grounding.verify(text, user)
+    if not ok:
+        note = (f"② AI 판단에 풀에 없는 수치({', '.join(bad)})가 있어 '판단 유보'로 대체했습니다 "
+                "(새 숫자 금지 — 3조건 위반).")
+        return _rule_judgment(), "rule_based_fallback", "", [note]
+    return text, "ai", _JUDGE_MODEL, []
 
 
 def synthesize(use_type, facts=None, diagnoses=None, hazards=None, cross=None, drivers=None, archetype=None) -> Synthesis:
@@ -301,10 +322,12 @@ def synthesize(use_type, facts=None, diagnoses=None, hazards=None, cross=None, d
             judgment=msg, judgment_source="no_data", judgment_label=JUDGMENT_LABEL,
         )
 
-    itext, isrc, imodel = compose_interpretation(use_type, facts, diagnoses, hazards, cross, drivers, archetype)
-    jtext, jsrc, jmodel = compose_judgment(use_type, facts, diagnoses, hazards, cross, drivers, archetype)
+    itext, isrc, imodel, inotes = compose_interpretation(
+        use_type, facts, diagnoses, hazards, cross, drivers, archetype)
+    jtext, jsrc, jmodel, jnotes = compose_judgment(
+        use_type, facts, diagnoses, hazards, cross, drivers, archetype)
     return Synthesis(
         interpretation=itext, interpretation_source=isrc, interpretation_model=imodel,
         judgment=jtext, judgment_source=jsrc, judgment_model=jmodel,
-        judgment_label=JUDGMENT_LABEL,
+        judgment_label=JUDGMENT_LABEL, notes=inotes + jnotes,
     )

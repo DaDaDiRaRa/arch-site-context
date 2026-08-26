@@ -173,7 +173,7 @@ git push        # 작업 후 GitHub에 올리기
 | --- | --- | --- | --- |
 | POST | `/facilities` | B | 반경 시설 목록·개수 |
 | POST | `/facilities/map` | B | 위성 PNG (핀·반경) |
-| POST | `/analyze` | A | 지역 통계 + 함의 + 문단 |
+| POST | `/analyze` | A | 지역 통계 + 함의 + 문단. 한 문단 서술은 **수치 무결성 백스톱**(`services/grounding.py`) 통과분만 AI — facts 밖 숫자가 있으면 규칙 문단으로 대체 + notes 표기 |
 | GET | `/matrix` | A | 용도별 항목 목록 (투명성). 법적 용도 입력 시 해석된 프로파일도 반환 |
 | GET | `/use-types` | A | 2계층 용도 카탈로그 — 분석 프로파일 7개 + 법적 용도(별표1) 그룹핑 + 매핑 + 데이터 한정 목록. 프론트 드롭다운용 (`use_type_map.json`) |
 | POST | `/diagnose` | P11 | 수급진단 (A수요×B공급 교차) ★간판 |
@@ -440,6 +440,7 @@ A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/�
   - **② AI 판단 (의견)** — 명확히 분리·라벨("아래는 AI 의견·검증/재현 보장 없음·최종결정은 사람"). 용도 관점 적합신호(±)·종합 의견. **조건: (a) 근거 fact 인용 (b) 가정 명시 (c) 새 숫자 안 만듦**. **모델 Opus(claude-opus-4-8)**(추론 정교·adaptive thinking·effort medium).
   - 둘 다 Claude(원칙 6 유지)·2콜·그라운디드·규칙 폴백. **OpenAI 불필요**(한국어 도메인 그라운디드 합성은 Opus/Sonnet 최상급·병목은 모델 아닌 그라운딩 구조·다벤더는 잡음).
   - **구현**: `app/services/synthesis.py`(`synthesize(use_type, facts, diagnoses, hazards, cross)` → `Synthesis`). `compose_interpretation`(①,Sonnet)·`compose_judgment`(②,Opus)·`_pool_text`(풀→그라운딩 텍스트, 근접도·출처 포함). **라벨은 코드가 항상 부착**(`JUDGMENT_LABEL`, 모델에 안 맡김). **그라운딩 사실 없으면 `no_data`**(환각 금지, 절대 원칙 3). 폴백: 키없음·오류·refusal → ①규칙서술·②'판단 유보'(가짜 의견 안 만듦). `POST /board`에 **`synthesize:bool=False` opt-in**(기본 off — Claude 2콜이라 느림), `BoardResult.synthesis`. 프론트 I탭 "AI 종합 해석 생성" 체크박스 + **벽 분리 렌더**(①green 검증된 사실·②amber AI 의견+⚠라벨). 테스트 `test_synthesis.py`(규칙폴백·no_data·라벨·풀텍스트, 비네트워크). **실API E2E 검증**(여의도 풀): ①Sonnet=시군구 단위 명시·수치만·참고 / ②Opus=3조건 준수(근거 인용·"~가정하면"·"별도 확인 필요"·"최종 판단은 사업 주체 몫", 금액 단정 0). §2.5·§2.6 문구 갱신 완료.
+  - **수치 무결성 백스톱 배선 (2026-08-26)**: ①②가 프롬프트 규칙만으로 '새 숫자 금지'를 지키던 것을 코드로 막는다 — `grounding.verify(text, user)` 가 풀(=보낸 프롬프트 텍스트) 밖 숫자를 잡으면 ①은 규칙 서술, ②는 **'판단 유보'**로 대체하고 `Synthesis.notes` 에 사유를 남긴다(조용히 안 바꿈). `/ask` 와 달리 **교정 재요청 없음** — 여기엔 코드가 만든 안전한 폴백이 이미 있어 공짜 대안이 있다. 실API 검증(여의도 ①12개·②4개 수치): 오탐 0·백스톱 미발동. test_synthesis +4.
 
 ### 정직성을 지키는 핵심 = 분리 + 라벨
 

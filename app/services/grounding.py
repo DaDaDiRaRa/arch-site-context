@@ -84,3 +84,15 @@ def check_numbers(answer: str, pool: Set[float]) -> Tuple[List[str], List[str]]:
             continue
         unverified.append(token)
     return checked, unverified
+
+
+def verify(text: str, prompt_text: str) -> Tuple[bool, List[str]]:
+    """(통과 여부, 미검증 토큰) — 풀 생성 + 검사를 한 번에.
+
+    `/ask` 처럼 checked 목록까지 노출할 필요 없이 "쓸 수 있나"만 알면 되는 호출부용
+    (narrative P6 · synthesis S4). 그쪽은 실패 시 **이미 있는 규칙 기반 폴백**으로 떨어지므로
+    교정 재요청 없이 즉시 판정만 하면 된다 — `/ask` 는 폴백이 없어(차단하면 답 전체를 잃음)
+    재시도를 한 번 두는 것과 대비된다.
+    """
+    _checked, unverified = check_numbers(text, allowed_pool(prompt_text))
+    return (not unverified), unverified

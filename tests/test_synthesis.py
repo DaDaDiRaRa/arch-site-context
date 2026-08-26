@@ -80,3 +80,50 @@ def test_has_grounding_detects_hazard_only(monkeypatch) -> None:
     hz = SiteHazards(flood=HazardZone(in_zone=True), landslide=HazardZone(in_zone=False))
     s = synthesize("주거", [], [], hz, [])
     assert s.interpretation_source == "rule_based_fallback"  # no_data 아님
+
+
+# ── 수치 무결성 백스톱 — 풀 밖 숫자가 섞이면 AI 블록을 버리고 기존 폴백으로 ──────────
+# ②의 3조건 중 '새 숫자 금지'를 코드가 지킨다. 신뢰 못 할 의견은 내느니 '판단 유보'가 맞다(§8.11).
+
+def test_interpretation_with_ungrounded_number_falls_back(monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(synthesis, "_call", lambda *a, **k: "고령인구비율 22.1%, 1인가구비율 47.3%입니다.")
+
+    text, source, model, notes = synthesis.compose_interpretation(
+        "주거", _facts(), _diags(), None, [])
+
+    assert source == "rule_based_fallback" and model == ""
+    assert notes and "47.3" in notes[0]
+    assert "47.3" not in text
+
+
+def test_judgment_with_ungrounded_number_becomes_reserved(monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(synthesis, "_call", lambda *a, **k: "수익률 8.5% 수준이 기대됩니다.")
+
+    text, source, _model, notes = synthesis.compose_judgment("주거", _facts(), _diags(), None, [])
+
+    assert source == "rule_based_fallback"
+    assert notes and "8.5" in notes[0] and "3조건" in notes[0]
+    assert text == _rule_judgment() and "8.5" not in text
+
+
+def test_grounded_blocks_are_kept_and_notes_empty(monkeypatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(synthesis, "_call", lambda *a, **k: "고령인구비율 22.1%(전국 19.5%)로 높은 편입니다.")
+
+    s = synthesize("주거", _facts(), _diags(), None, [])
+    assert s.interpretation_source == "ai" and s.judgment_source == "ai"
+    assert s.notes == []
+    assert s.judgment_label == JUDGMENT_LABEL
+
+
+def test_synthesis_notes_surface_both_blocks(monkeypatch) -> None:
+    """①②가 둘 다 걸리면 두 note 가 다 올라온다 — 조용히 바뀌지 않는다."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(synthesis, "_call", lambda *a, **k: "없는 수치 99.9% 입니다.")
+
+    s = synthesize("주거", _facts(), _diags(), None, [])
+    assert len(s.notes) == 2
+    assert s.interpretation_source == "rule_based_fallback"
+    assert s.judgment_source == "rule_based_fallback"

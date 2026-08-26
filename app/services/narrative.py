@@ -11,6 +11,8 @@ from __future__ import annotations
 import os
 from typing import List, Tuple
 
+from app.services import grounding
+
 _MODEL = "claude-opus-4-8"
 _TIMEOUT_S = 30.0
 
@@ -99,10 +101,16 @@ def compose_narrative(
     use_type: str,
     facts: List[dict],
     implications: List[dict],
-) -> Tuple[str, str]:
-    """(문단, source) 반환. source 는 'ai' 또는 'rule_based_fallback'."""
+) -> Tuple[str, str, List[str]]:
+    """(문단, source, notes). source 는 'ai' 또는 'rule_based_fallback'.
+
+    AI 문단은 **수치 무결성 백스톱**(services/grounding.py)을 통과해야 쓴다 — facts 에 없는
+    숫자가 하나라도 있으면 규칙 기반 문단으로 대체한다. `/ask` 와 달리 교정 재요청을 하지
+    않는 이유: 여기엔 이미 코드가 만든 규칙 폴백이 있어(정의상 그라운디드) 공짜로 안전한
+    대안이 있다. 대체한 사실은 notes 로 올린다 — 조용히 바꾸지 않는다(절대 원칙 3).
+    """
     if not os.getenv("ANTHROPIC_API_KEY"):
-        return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback"
+        return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback", []
 
     try:
         import anthropic
@@ -121,11 +129,16 @@ def compose_narrative(
             messages=[{"role": "user", "content": user}],
         )
         if resp.stop_reason == "refusal":
-            return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback"
+            return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback", []
         text = "".join(b.text for b in resp.content if b.type == "text").strip()
         if not text:
-            return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback"
-        return text, "ai"
+            return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback", []
+        ok, bad = grounding.verify(text, user)
+        if not ok:
+            note = (f"AI 문단에 제공 facts 로 확인되지 않는 수치({', '.join(bad)})가 있어 "
+                    "규칙 기반 문단으로 대체했습니다 (수치 무결성 백스톱).")
+            return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback", [note]
+        return text, "ai", []
     except Exception:
         # 키 오류·타임아웃·네트워크·SDK 오류 등 무엇이든 → 규칙 폴백 (facts 보존)
-        return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback"
+        return _rule_based(region_name, year, use_type, facts, implications), "rule_based_fallback", []

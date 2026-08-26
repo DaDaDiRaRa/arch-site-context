@@ -158,7 +158,8 @@ def analyze(req: AnalyzeRequest):
         region_name = gu_name
 
     # 5) 한 문단 서술 (Claude 1회, 실패 시 규칙 폴백). 기준 지역·연도 명시 (절대 원칙 4)
-    draft, source = compose_narrative(region_name, year or 0, req.use_type, facts, imps)
+    draft, source, nnotes = compose_narrative(region_name, year or 0, req.use_type, facts, imps)
+    notes += nnotes  # 수치 무결성 백스톱이 규칙 폴백으로 바꿨으면 그 사실을 표기
 
     region_stat = RegionStat(
         region=region,

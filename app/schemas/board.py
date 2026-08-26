@@ -79,6 +79,10 @@ class Synthesis(BaseModel):
     judgment_label: str = Field(
         ..., description="② 고정 라벨 — 사실과 혼동 방지 (코드가 항상 부착)"
     )
+    notes: List[str] = Field(
+        default_factory=list,
+        description="생성 과정 표기 — 수치 무결성 백스톱이 AI 블록을 규칙 폴백으로 대체했을 때 등",
+    )
 
 
 class DomainCoverage(BaseModel):
