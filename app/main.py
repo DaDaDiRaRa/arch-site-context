@@ -5,11 +5,12 @@
 
 from __future__ import annotations
 
+import hmac
 import os
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from starlette.responses import PlainTextResponse
@@ -58,7 +59,8 @@ class _McpAuthMiddleware:
         headers = dict(scope.get("headers") or [])
         token = headers.get(b"authorization", b"").decode("latin-1")
         expected = f"Bearer {_MCP_SHARED_KEY}" if _MCP_SHARED_KEY else None
-        if not expected or token != expected:
+        # compare_digest — 토큰 비교 시간이 일치 길이에 따라 달라지지 않도록
+        if not expected or not hmac.compare_digest(token, expected):
             resp = PlainTextResponse("Unauthorized", status_code=401)
             await resp(scope, receive, send)
             return
@@ -105,13 +107,21 @@ app.add_middleware(
 
 
 @app.get("/api")
-def api_info() -> dict:
-    """서비스 안내 (루트 / 는 프론트가 차지)."""
+def api_info(request: Request) -> dict:
+    """서비스 안내 (루트 / 는 프론트가 차지).
+
+    endpoints 는 **OpenAPI 스키마에서 생성**한다 — 손으로 적은 목록은 엔드포인트가 늘 때마다
+    낡는다(실제로 board·deck·history·facilities/pptx 가 빠져 있었다). `app.routes` 를 직접
+    훑지 않는 이유: include_router 한 라우터가 `_IncludedRouter` 로 중첩돼 들어가 평면 순회로는
+    1개(`/api`)만 잡힌다(실측). 스키마는 FastAPI 가 첫 호출 후 캐시한다.
+    `request.app` 은 이 FastAPI 인스턴스 — 모듈 전역 `app` 은 아래에서 MCP 래퍼로 재바인딩된다.
+    """
+    paths = sorted(request.app.openapi().get("paths", {}))
     return {
         "service": "arch-site-context",
         "team": "터읽기",
         "docs": "/docs",
-        "endpoints": ["/health", "/facilities", "/facilities/map", "/analyze", "/matrix", "/diagnose", "/compare", "/ask", "/site", "/seed", "/readout", "/board", "/context-pack", "/context-pack/pptx", "/surroundings", "/surroundings/pptx"],
+        "endpoints": paths,
     }
 
 

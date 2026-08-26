@@ -68,3 +68,26 @@ def test_deck_glb_addr_error(monkeypatch) -> None:
     r = client.post("/deck/glb", json={"address": "x"})
     assert r.status_code == 422
     assert "주소" in r.json()["detail"]
+
+
+def test_build_site_glb_missing_origin_offset_is_value_error(monkeypatch) -> None:
+    """stats.origin_offset 없으면 KeyError(→500) 가 아니라 하드블록(→422 사유 표시).
+
+    '건물 모델 없음' 과 같은 계열의 실패다 — 좌표원점 없이는 대지-원점 재투영을 할 수 없다.
+    """
+    import pytest
+
+    monkeypatch.setattr("app.services.site_seed.build_site", lambda addr: _FakeSite())
+    for bad in ({}, {"stats": {}}, {"stats": {"origin_offset": []}}, {"stats": {"origin_offset": [1.0]}}):
+        monkeypatch.setattr(sg.clients, "fetch_model", lambda *a, _m=bad, **kw: dict(_m, geometry={"buildings": []}))
+        with pytest.raises(ValueError, match="좌표원점"):
+            sg.build_site_glb("서울 영등포구 여의대로 24")
+
+
+def test_deck_glb_missing_origin_offset_returns_422(monkeypatch) -> None:
+    """라우터까지 — 500 이 아니라 사유가 담긴 422."""
+    monkeypatch.setattr("app.services.site_seed.build_site", lambda addr: _FakeSite())
+    monkeypatch.setattr(sg.clients, "fetch_model", lambda *a, **kw: {"stats": {}, "geometry": {"buildings": []}})
+    r = client.post("/deck/glb", json={"address": "서울 영등포구 여의대로 24"})
+    assert r.status_code == 422
+    assert "좌표원점" in r.json()["detail"]

@@ -88,8 +88,12 @@ def _building_geometry(fp2d, height: float):
     return positions, indices
 
 
-def build_site_glb(address: str, model_radius_m: int = 350) -> bytes:
-    """주소 → 반경 내 건물 매싱 GLB(box-extrude, 대지=원점, 미터 단위)."""
+def build_site_glb(address: str, model_radius_m: int = k.DEFAULT_PLAN_RADIUS_M) -> bytes:
+    """주소 → 반경 내 건물 매싱 GLB(box-extrude, 대지=원점, 미터 단위).
+
+    `model_radius_m` = **도면 범위**(site_dxf 와 같은 축) — `/deck/full` 의 `radius`(시설·상권
+    데이터 반경)와 다르다. 상한은 arch-site-model `/api/generate` 계약(2000m).
+    """
     from app.services.site_seed import build_site
     try:
         s = build_site(address)
@@ -103,7 +107,12 @@ def build_site_glb(address: str, model_radius_m: int = 350) -> bytes:
     if not model:
         raise ValueError("건물 모델 없음 — arch-site-model 응답 실패(env SITEMODEL_URL 확인)")
 
-    model_ox, model_oy = (model.get("stats") or {})["origin_offset"]
+    # 좌표원점이 없으면 건물을 대지-원점 좌표로 옮길 수 없다 — 위 '건물 모델 없음' 과 같은
+    # 하드블록으로 올린다(라우터가 422 로 사유를 알려줌. KeyError 로 새면 500 이 된다).
+    origin = (model.get("stats") or {}).get("origin_offset") or []
+    if len(origin) < 2:
+        raise ValueError("건물 모델 좌표원점 없음 — arch-site-model 응답에 stats.origin_offset 필요")
+    model_ox, model_oy = origin[0], origin[1]
     site_x, site_y = k.latlon_to_local(lat, lon, model_ox, model_oy)
 
     all_positions: list[tuple[float, float, float]] = []

@@ -150,7 +150,8 @@ export const surroundings = (address, radius = 1000) =>
 export const surroundingsPptx = (address, radius = 1000) =>
   post("/surroundings/pptx", { address, radius });
 
-// 대지분석 덱 (deck-builder 서비스, :8100 프록시) — pptx blob 다운로드
+// 대지분석 덱 — pptx blob 다운로드. 구 deck-builder(:8100) 는 2026-07-15 터읽기에 흡수돼
+// `/deck/full` 이 in-process 로 처리한다(별도 서비스 없음, CLAUDE.md §5 TabL).
 export async function generateDeck(address) {
   let res;
   try {
@@ -160,7 +161,7 @@ export async function generateDeck(address) {
       body: JSON.stringify({ address, use_type: "주거" }),
     });
   } catch (e) {
-    throw new ApiError("deck-builder 서비스에 연결할 수 없습니다 (:8100 이 떠 있는지 확인).");
+    throw new ApiError("서버에 연결할 수 없습니다.");
   }
   if (!res.ok) {
     let msg = "덱 생성 실패";

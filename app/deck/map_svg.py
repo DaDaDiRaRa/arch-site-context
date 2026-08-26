@@ -498,11 +498,16 @@ def svg_viewring(address, lat, lon, model, parcel=None) -> Optional[str]:
     return _serialize(root)
 
 
-def build_map_svgs(address: str, use_type: str = "주거", radius: int = 1000) -> dict:
+def build_map_svgs(address: str) -> dict:
     """주소 → 지도 4종(광역·용도·높이·조망) SVG dict. 실패한 개별 지도는 건너뛴다(부분 결과 허용).
 
     데이터 fetch·건물매싱·용도분류·조망섹터 계산은 `map_slides.build_full_deck`과 동일 —
     새 계산 로직 0, 렌더 타깃만 SVG.
+
+    ⚠ `radius`·`use_type` 을 받지 않는다: 지도 4종은 **각자 설계된 축척**을 쓴다(광역 2km ·
+    용도/높이 320m · 조망 600m). 다이어그램마다 역할이 달라 반경 노브 하나로 뭉갤 수 없다 —
+    예전엔 두 파라미터를 받아놓고 쓰지 않아 계약이 거짓말이었다. 도면 범위를 고르는 건
+    CAD·3D 산출물의 몫(`site_dxf`·`site_glb` 의 `model_radius_m`).
     """
     from app.services.site_seed import build_site
     try:

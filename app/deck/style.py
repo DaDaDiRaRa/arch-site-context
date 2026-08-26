@@ -22,6 +22,10 @@ from app.services.tiles import latlon_to_global_px as _latlon_to_global_px
 A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
 A3_W, A3_H = Cm(42.0), Cm(29.7)
 
+#: CAD·3D 산출물의 기본 **도면 반경**(m) — site_dxf·site_glb·routers/deck 가 공유.
+#: 상한(2000)은 arch-site-model `/api/generate` 의 radius_m 계약과 같다.
+DEFAULT_PLAN_RADIUS_M = 350
+
 # ── 색 토큰 ──
 NAVY = RGBColor(0x1B, 0x24, 0x38); PANEL = RGBColor(0x26, 0x33, 0x4D)
 RED = RGBColor(0xE1, 0x24, 0x2B); WHITE = RGBColor(0xFF, 0xFF, 0xFF)
@@ -138,8 +142,11 @@ def site_pill(sl, ex, ey, cx, cy, label="SITE"):
        bold=True, align=PP_ALIGN.CENTER, anchor=MSO_ANCHOR.MIDDLE)
 
 
-def parcel_canvas(geom, z, mcx, mcy, size):
-    """law parcel_geometry(MultiPolygon/Polygon, WGS84) → 최대 외곽링의 canvas px 목록."""
+def parcel_ring(geom):
+    """law parcel_geometry(MultiPolygon/Polygon, WGS84) → 최대 외곽링 [(lon,lat),...]. 없으면 [].
+
+    캔버스 투영(parcel_canvas)과 실좌표 도면(site_dxf) 둘 다 이 링을 쓴다 — 추출 규칙은 한 곳에.
+    """
     if not geom:
         return []
     t, coords = geom.get("type"), geom.get("coordinates") or []
@@ -148,9 +155,14 @@ def parcel_canvas(geom, z, mcx, mcy, size):
         rings = [poly[0] for poly in coords if poly]
     elif t == "Polygon":
         rings = [coords[0]] if coords else []
-    if not rings:
+    return max(rings, key=len) if rings else []
+
+
+def parcel_canvas(geom, z, mcx, mcy, size):
+    """law parcel_geometry(MultiPolygon/Polygon, WGS84) → 최대 외곽링의 canvas px 목록."""
+    ring = parcel_ring(geom)
+    if not ring:
         return []
-    ring = max(rings, key=len)
     from app.services.tiles import latlon_to_global_px as _latlon_to_global_px
     out = []
     for pt in ring:

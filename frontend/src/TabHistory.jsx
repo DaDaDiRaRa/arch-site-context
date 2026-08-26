@@ -2,8 +2,12 @@ import { useState, useEffect } from "react";
 import { getHistory, downloadHistory } from "./api.js";
 import { Spinner, ErrorBox } from "./ui.jsx";
 
+// history.save(kind=...) 와 짝 — 라우터가 kind 를 늘리면 여기도 같이(없으면 원시 키가 그대로 노출).
 const KIND = {
   deck: { label: "대지분석 덱", color: "var(--brand)" },
+  deck_svg: { label: "지도 SVG", color: "#5A6B8C" },
+  deck_dxf: { label: "CAD 대지계획도", color: "#8B6B3D" },
+  deck_glb: { label: "건물매싱 3D", color: "#6B4B8B" },
   board: { label: "종합읽기", color: "#2AA198" },
 };
 
@@ -41,7 +45,7 @@ export default function TabHistory() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm" style={{ color: "var(--mute)" }}>
-          만든 <b>대지분석 덱 · 종합읽기 PPT</b>를 보관합니다 — 재생성 없이 다시 내려받기.
+          만든 <b>대지분석 덱 · 종합읽기(PPT·HWP) · 지도 SVG·DXF·GLB</b>를 보관합니다 — 재생성 없이 다시 내려받기.
         </p>
         <button
           onClick={load}
@@ -63,7 +67,7 @@ export default function TabHistory() {
       {loading && !items && <div className="flex items-center gap-2 text-sm" style={{ color: "var(--mute)" }}><Spinner /> 불러오는 중…</div>}
       {items && items.length === 0 && (
         <div className="text-sm py-8 text-center" style={{ color: "var(--mute)" }}>
-          아직 생성한 PPT가 없습니다. <b>대지분석 덱(L)</b>·<b>종합읽기(I)</b>에서 만들면 여기 쌓입니다.
+          아직 생성한 산출물이 없습니다. <b>대지분석 덱(L)</b>·<b>종합읽기(I)</b>에서 만들면 여기 쌓입니다.
         </div>
       )}
 

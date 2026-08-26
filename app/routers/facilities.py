@@ -146,7 +146,7 @@ def facilities_pptx(req: MapRequest) -> dict:
     except KakaoError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
-    data = build_facilities_pptx(result, sorted(radii), map_png)
+    data = build_facilities_pptx(result, map_png)
     _PACKS_DIR.mkdir(parents=True, exist_ok=True)
     sig = f"fac|{req.address}|{','.join(kinds)}|{','.join(map(str, sorted(radii)))}|{req.basemap}"
     fname = "facilities_" + hashlib.sha1(sig.encode("utf-8")).hexdigest()[:16] + ".pptx"

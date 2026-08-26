@@ -9,9 +9,13 @@ from __future__ import annotations
 
 import io
 
+from typing import Any, Optional
+
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
+
+from app.deck.style import DEFAULT_PLAN_RADIUS_M
 
 router = APIRouter(tags=["deck"])
 
@@ -19,7 +23,50 @@ router = APIRouter(tags=["deck"])
 class DeckRequest(BaseModel):
     address: str = Field(..., description="대지 주소", examples=["서울특별시 영등포구 당산동3가 385"])
     use_type: str = Field("주거", description="건물 용도 — matrix.json 키")
-    radius: int = Field(1000, ge=100, le=5000, description="시설·상권 반경(m)")
+    radius: int = Field(1000, ge=100, le=5000, description="시설·상권 **데이터** 반경(m)")
+    plan_radius: Optional[int] = Field(
+        None, ge=10, le=2000,
+        description="CAD·3D **도면 범위**(m). /deck/dxf·/deck/glb 전용 — 건물 매싱을 받아올 반경. "
+                    "미지정이면 350m. 상한 2000 은 arch-site-model /api/generate 계약과 같다.",
+    )
+
+    @property
+    def plan_radius_m(self) -> int:
+        """도면 반경 — 미지정이면 기본값. `radius`(데이터 반경)와 다른 축이라 섞지 않는다."""
+        return self.plan_radius or DEFAULT_PLAN_RADIUS_M
+
+
+class RenderRequest(BaseModel):
+    """`deck_render/1.0` — **밖에서 준 내용**을 우리 스타일로 그린다.
+
+    첫 사용처는 컨셉 스튜디오(`:8200`)의 컨셉 장표다. 그 앱이 「무엇을 적을 것인가」를
+    알고 우리가 「어떻게 그릴 것인가」를 안다 — **우리는 「컨셉」이 무엇인지 모른다.**
+    받는 낱말은 `cover`·`kpi`·`cards`·`table`·`text` 다섯뿐이고 전부 이미 우리 어휘다.
+
+    여기에 도메인 분기를 넣기 시작하면 deck-builder 가 접힌 이유를 되풀이한다.
+    """
+
+    schema_version: str = Field("deck_render/1.0")
+    title: str = Field(..., description="덱 제목 — 파일 이름과 표지에 쓴다")
+    subtitle: str = ""
+    filename: str = Field("deck.pptx", description="내려받을 이름")
+    slides: list[dict[str, Any]] = Field(default_factory=list)
+
+
+@router.post("/deck/render")
+def deck_render(req: RenderRequest):
+    """슬라이드 목록 → A3 편집가능 PPTX. 데이터를 우리가 모으지 않는 유일한 덱 엔드포인트."""
+    from app.deck.render_slides import build
+    try:
+        data = build(req.model_dump())
+    except ValueError as e:      # 빈 목록 등 — 추정 대신 명확히 멈춘다 (절대 원칙 3)
+        return JSONResponse(status_code=422, content={"detail": str(e)})
+    name = (req.filename or "deck.pptx").replace('"', "")
+    return StreamingResponse(
+        io.BytesIO(data),
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{name}"'},
+    )
 
 
 @router.post("/deck/full")
@@ -55,7 +102,7 @@ def deck_svg(req: DeckRequest):
 
     from app.deck.map_svg import build_map_svgs
     try:
-        svgs = build_map_svgs(req.address, req.use_type, req.radius)
+        svgs = build_map_svgs(req.address)
     except ValueError as e:  # 주소 해석 실패 — 추정 대신 명확히 멈춤 (절대 원칙 3)
         return JSONResponse(status_code=422, content={"detail": str(e)})
     if not svgs:
@@ -68,7 +115,7 @@ def deck_svg(req: DeckRequest):
     data = buf.getvalue()
     try:
         from app.services import history
-        history.save("deck_svg", req.address, {"use_type": req.use_type, "radius": req.radius},
+        history.save("deck_svg", req.address, {"scales": "광역2km·용도/높이320m·조망600m"},
                      f"대지분석지도_{req.address.replace(' ', '')}.zip", data)
     except Exception:  # noqa: BLE001
         pass
@@ -87,12 +134,12 @@ def deck_dxf(req: DeckRequest):
     """
     from app.deck.site_dxf import build_site_dxf
     try:
-        data = build_site_dxf(req.address, req.use_type, req.radius)
+        data = build_site_dxf(req.address, req.use_type, req.plan_radius_m)
     except ValueError as e:
         return JSONResponse(status_code=422, content={"detail": str(e)})
     try:
         from app.services import history
-        history.save("deck_dxf", req.address, {"use_type": req.use_type, "radius": req.radius},
+        history.save("deck_dxf", req.address, {"use_type": req.use_type, "plan_radius": req.plan_radius_m},
                      f"대지계획도_{req.address.replace(' ', '')}.dxf", data)
     except Exception:  # noqa: BLE001
         pass
@@ -110,12 +157,12 @@ def deck_glb(req: DeckRequest):
     """
     from app.deck.site_glb import build_site_glb
     try:
-        data = build_site_glb(req.address)
+        data = build_site_glb(req.address, req.plan_radius_m)
     except ValueError as e:
         return JSONResponse(status_code=422, content={"detail": str(e)})
     try:
         from app.services import history
-        history.save("deck_glb", req.address, {"use_type": req.use_type, "radius": req.radius},
+        history.save("deck_glb", req.address, {"plan_radius": req.plan_radius_m},
                      f"건물매싱_{req.address.replace(' ', '')}.glb", data)
     except Exception:  # noqa: BLE001
         pass

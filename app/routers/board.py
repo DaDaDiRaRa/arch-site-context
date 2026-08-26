@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
@@ -38,6 +39,9 @@ router = APIRouter(tags=["board"])
 _BOARD_CACHE: Dict[str, Tuple[float, BoardResult]] = {}
 _BOARD_TTL = 300.0  # 5분 — 대지 분석 보드는 분 단위로 안 바뀜
 _BOARD_CACHE_MAX = 64
+# evict 는 dict 를 순회한다(min) — 동시 요청이 그 사이 삽입하면 RuntimeError.
+# 조회/저장 자체는 GIL 원자성으로 충분하지만 순회 구간은 락으로 감싼다.
+_BOARD_CACHE_LOCK = threading.Lock()
 
 
 def _board_cache_key(req: BoardRequest) -> str:
@@ -58,10 +62,11 @@ def _board_cache_get(key: str) -> Optional[BoardResult]:
 
 
 def _board_cache_put(key: str, val: BoardResult) -> None:
-    if len(_BOARD_CACHE) >= _BOARD_CACHE_MAX and key not in _BOARD_CACHE:
-        oldest = min(_BOARD_CACHE, key=lambda k: _BOARD_CACHE[k][0])  # 가장 오래된 항목 evict
-        _BOARD_CACHE.pop(oldest, None)
-    _BOARD_CACHE[key] = (time.time(), val)
+    with _BOARD_CACHE_LOCK:
+        if len(_BOARD_CACHE) >= _BOARD_CACHE_MAX and key not in _BOARD_CACHE:
+            oldest = min(_BOARD_CACHE, key=lambda k: _BOARD_CACHE[k][0])  # 가장 오래된 항목 evict
+            _BOARD_CACHE.pop(oldest, None)
+        _BOARD_CACHE[key] = (time.time(), val)
 
 
 def _error(code: str, message: str) -> JSONResponse:

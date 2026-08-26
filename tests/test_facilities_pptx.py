@@ -27,7 +27,7 @@ def _result():
 
 def test_build_facilities_pptx_no_map():
     # 지도 실패해도 개수표·시설목록만으로 PPT 생성 (graceful)
-    data = build_facilities_pptx(_result(), [500, 1000], None)
+    data = build_facilities_pptx(_result(), None)
     assert data[:2] == b"PK"
     prs = Presentation(io.BytesIO(data))
     assert abs(prs.slide_width - Cm(42.0)) < 1000

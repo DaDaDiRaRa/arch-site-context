@@ -62,3 +62,32 @@ def test_history_save_and_read_roundtrip_by_extension(tmp_path, monkeypatch) -> 
     assert (data, fn) == (b"HWPXBYTES", "종합읽기_주소1.hwpx")
     assert (tmp_path / "history" / f"{pptx_entry['id']}.pptx").exists()
     assert (tmp_path / "history" / f"{hwpx_entry['id']}.hwpx").exists()
+
+
+def test_history_file_uses_saved_extension_for_all_formats(monkeypatch) -> None:
+    """§8.15 — zip(SVG)·dxf·glb 도 저장된 확장자·콘텐츠타입 그대로 내려간다.
+
+    라우터가 확장자 표를 따로 들고 있어(pptx/hwpx 2종만) zip 이 `download.pptx` 로 나가던 것.
+    이제 services.history.content_type 하나만 본다.
+    """
+    import app.services.history as h
+
+    cases = [
+        ("대지분석지도_x.zip", ".zip", "application/zip"),
+        ("대지계획도_x.dxf", ".dxf", "application/dxf"),
+        ("건물매싱_x.glb", ".glb", "model/gltf-binary"),
+    ]
+    for fn, ext, media in cases:
+        monkeypatch.setattr(h, "read", lambda gid, _f=fn: (b"BLOB", _f))
+        r = client.get("/history/any/file")
+        assert r.status_code == 200
+        assert r.headers.get("content-type", "").startswith(media), fn
+        assert r.headers["content-disposition"].endswith(f'download{ext}"'), fn
+
+
+def test_content_type_falls_back_for_unknown_extension() -> None:
+    """모르는 확장자는 pptx 로 가정(저장 때 _ext_of 와 같은 규칙) — 표가 한 곳뿐이라 항상 일치."""
+    import app.services.history as h
+
+    assert h.content_type("x.zip") == (".zip", "application/zip")
+    assert h.content_type("x.unknown")[0] == h._ext_of("x.unknown")

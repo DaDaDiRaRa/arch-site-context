@@ -60,6 +60,11 @@ def collect_density_facts(
     nat_pop = fetch_total_pop(_NATIONAL_CODE, cache=cache)
     if not sgg_pop or not nat_pop:
         return [], ["census 밀도: 인구 분모(시군구·전국) 미확보 — 건너뜀."]
+    # 분자(census, 조사연도)와 분모(주민등록, 최신연도)의 기준연도가 다를 수 있다.
+    # 지수는 시군구·전국이 같은 분모를 쓰므로 영향 없지만, per-천명 절대값은 그렇지 않다
+    # → 분모 출처·연도를 notes 로 명시한다 (절대 원칙 4: 출처·기준연도).
+    pop_note = ("census 밀도: 인구 분모는 주민등록 총인구(DT_1B04005N, 최신 시점) — "
+                "census 조사연도와 다를 수 있음(지수는 분자·분모 동일 기준이라 무관).")
 
     facts: List[dict] = []
     notes: List[str] = []
@@ -94,4 +99,6 @@ def collect_density_facts(
     finally:
         if own:
             client.close()
+    if facts:
+        notes.append(pop_note)
     return facts, notes

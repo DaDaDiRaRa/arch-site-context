@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import os
 from datetime import date
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import httpx
 
-from app.schemas.ask import AskRequest, AskResult, WebSource
+from app.schemas.ask import AskRequest, AskResult, Grounding, WebSource
 from app.schemas.region import Fact
-from app.services import compare
+from app.services import compare, grounding
 from app.services.narrative import _facts_block
 
 _MODEL = "claude-opus-4-8"
@@ -31,7 +31,23 @@ _SYSTEM_GROUNDED = (
     "3) 좋다/나쁘다·사업성·전망·권고 같은 단정을 쓰지 않는다. 수치를 근거로 사실만 서술하고, "
     "수급진단 등 해석성 항목은 '참고'로만 부드럽게 언급한다 (판단은 사람).\n"
     "4) 통계는 시군구 평균값이며 대지 고유값이 아님을 필요 시 밝힌다. 2~4문장으로 간결히.\n"
-    "5) 인용한 수치에는 가능하면 출처표(source_tbl)나 '전국 대비'를 함께 언급한다."
+    "5) 인용한 수치에는 가능하면 출처표(source_tbl)나 '전국 대비'를 함께 언급한다.\n"
+    # 6·7 은 원칙 2(LLM 은 새 숫자를 만들지 않는다)를 문장으로 못박은 것 — 코드 백스톱
+    # (services/grounding.py)이 이 둘을 검사하므로, 어기면 답변이 차단된다.
+    "6) 계산하지 않는다. 두 수치의 차이·비율·배수를 직접 구하지 말고 각각의 값을 그대로 인용한다.\n"
+    "7) 단위를 바꾸지 않는다. [데이터]에 적힌 단위·표기 그대로 쓴다 (1000m 를 1km 로, "
+    "29,281 을 2.9만 으로 바꾸지 않는다). 반올림해 말할 때도 원래 값을 함께 밝힌다.\n"
+    # 실측(2026-08-26)에서 모델이 "규칙상 두 값의 차이는 계산하지 않으며…" 라고 답변 본문에
+    # 규칙을 노출했다. 사용자가 볼 것은 결과이지 우리 내부 지침이 아니다.
+    "8) 이 규칙들을 답변에 언급하지 않는다. '규칙상', '제공된 데이터에는' 같은 말로 지침을 "
+    "설명하지 말고, 값을 그대로 제시하는 문장만 쓴다."
+)
+
+#: 1차 답변이 수치 검사에 걸렸을 때 보내는 교정 지시 (재시도 1회 — 설계 결정 A+C).
+_RETRY_TEMPLATE = (
+    "방금 답변의 다음 수치는 [데이터]에 없다: {bad}.\n"
+    "[데이터]에 있는 값만 그대로 인용해 다시 답하라. 계산·단위변환 금지. "
+    f"[데이터]로 답할 수 없으면 다른 말 없이 '{_NO_DATA_PREFIX}: ' 로 시작해 답하라."
 )
 
 _SYSTEM_WEB = (
@@ -55,19 +71,29 @@ def _bundle_context(facts: List[dict], counts: dict, diagnoses: list) -> str:
     return "\n".join(parts)
 
 
-def answer_grounded(bundle: dict, question: str) -> Tuple[str, bool, str, List[str]]:
-    """(answer, answerable, source, notes). 키 없으면 ai_unavailable(환각 안 함)."""
+def _text_of(resp) -> str:
+    return "".join(b.text for b in resp.content if b.type == "text").strip()
+
+
+def answer_grounded(bundle: dict, question: str) -> Tuple[str, bool, str, List[str], Optional[Grounding]]:
+    """(answer, answerable, source, notes, grounding). 키 없으면 ai_unavailable(환각 안 함).
+
+    답변을 받은 뒤 **수치 무결성 백스톱**(services/grounding.py)을 통과시킨다 — 제공 데이터에
+    없는 숫자가 있으면 위반 수치를 짚어 1회 교정 재요청하고, 그래도 남으면 답변을 버리고
+    '확인 불가'로 멈춘다(절대 원칙 3). 프롬프트 규칙만 믿지 않는다.
+    """
     if not os.getenv("ANTHROPIC_API_KEY"):
         return (
             "물어보기(AI)가 설정되지 않았습니다. ANTHROPIC_API_KEY 가 필요합니다.",
             False,
             "ai_unavailable",
             [],
+            None,
         )
     try:
         import anthropic
 
-        client = anthropic.Anthropic()
+        client = anthropic.Anthropic().with_options(timeout=_TIMEOUT_S)
         region = bundle.get("region")
         rname = region.name if region else "해당 지역"
         ctx = _bundle_context(bundle["facts"], bundle["counts"], bundle["diagnoses"])
@@ -75,23 +101,68 @@ def answer_grounded(bundle: dict, question: str) -> Tuple[str, bool, str, List[s
             f"지역: {rname} (시군구 평균)\n\n[데이터]\n{ctx}\n\n"
             f"질문: {question}\n\n위 [데이터]의 수치만 사용해 규칙대로 답하라."
         )
-        resp = client.with_options(timeout=_TIMEOUT_S).messages.create(
-            model=_MODEL,
-            max_tokens=1024,
-            output_config={"effort": "medium"},
-            system=_SYSTEM_GROUNDED,
-            messages=[{"role": "user", "content": user}],
-        )
-        if resp.stop_reason == "refusal":
-            return (f"{_NO_DATA_PREFIX}: 요청을 처리할 수 없습니다.", False, "no_data", [])
-        text = "".join(b.text for b in resp.content if b.type == "text").strip()
-        if not text:
-            return (f"{_NO_DATA_PREFIX}: 답변을 생성하지 못했습니다.", False, "no_data", [])
-        answerable = not text.startswith(_NO_DATA_PREFIX)
-        return text, answerable, ("ai" if answerable else "no_data"), []
+        # ★ 허용 풀은 '실제로 보낸 첫 프롬프트'에서 한 번만 만든다 — 교정 메시지엔 위반 수치가
+        #   적히므로, 재시도 후 다시 만들면 방금 잡은 환각이 풀에 들어간다.
+        pool = grounding.allowed_pool(user)
+
+        messages = [{"role": "user", "content": user}]
+
+        def _ask() -> Tuple[Optional[str], Optional[Tuple]]:
+            """(text, early_return) — 거부·빈응답은 early_return 으로 그대로 올린다."""
+            resp = client.messages.create(
+                model=_MODEL,
+                max_tokens=1024,
+                output_config={"effort": "medium"},
+                system=_SYSTEM_GROUNDED,
+                messages=messages,
+            )
+            if resp.stop_reason == "refusal":
+                return None, (f"{_NO_DATA_PREFIX}: 요청을 처리할 수 없습니다.", False, "no_data", [], None)
+            body = _text_of(resp)
+            if not body:
+                return None, (f"{_NO_DATA_PREFIX}: 답변을 생성하지 못했습니다.", False, "no_data", [], None)
+            return body, None
+
+        text, early = _ask()
+        if early:
+            return early
+
+        # 이미 '확인 불가'로 멈춘 답은 검사 대상이 아니다 — 사유 문장 안의 숫자를 잡아
+        # 깨끗한 거절을 이중 차단하지 않도록.
+        if text.startswith(_NO_DATA_PREFIX):
+            return text, False, "no_data", [], None
+
+        checked, unverified = grounding.check_numbers(text, pool)
+        retried = False
+        if unverified:
+            retried = True
+            messages.append({"role": "assistant", "content": text})
+            messages.append({"role": "user", "content": _RETRY_TEMPLATE.format(bad=", ".join(unverified))})
+            text2, early = _ask()
+            if early:
+                return early
+            text = text2
+            if text.startswith(_NO_DATA_PREFIX):
+                return text, False, "no_data", [], Grounding(
+                    verified=True, checked=[], unverified=[], retried=True,
+                )
+            checked, unverified = grounding.check_numbers(text, pool)
+
+        gr = Grounding(verified=not unverified, checked=checked, unverified=unverified, retried=retried)
+        if unverified:
+            # 하드블록 — 제공 데이터에 없는 수치가 남았다 = 데이터로 답할 수 없다 (절대 원칙 3).
+            bad = ", ".join(unverified)
+            return (
+                f"{_NO_DATA_PREFIX}: 답변에 제공 데이터로 확인할 수 없는 수치가 있어 표시하지 않습니다 (미검증: {bad}).",
+                False,
+                "no_data",
+                [f"수치 무결성 검사에서 미검증 수치({bad})가 나와 답변을 차단했습니다 — 재요청 후에도 남음."],
+                gr,
+            )
+        return text, True, "ai", [], gr
     except Exception as e:
         # 키오류·타임아웃 등 — 추정하지 않고 정직하게 멈춤 (환각 금지)
-        return (f"{_NO_DATA_PREFIX}: AI 응답 실패({type(e).__name__}).", False, "no_data", [])
+        return (f"{_NO_DATA_PREFIX}: AI 응답 실패({type(e).__name__}).", False, "no_data", [], None)
 
 
 def _collect_sources(content) -> List[WebSource]:
@@ -182,8 +253,8 @@ def build_answer(req: AskRequest) -> AskResult:
             source=source, web_sources=sources, **{**base, "notes": base["notes"] + wnotes}
         )
 
-    answer, answerable, source, anotes = answer_grounded(bundle, req.question)
+    answer, answerable, source, anotes, gr = answer_grounded(bundle, req.question)
     return AskResult(
-        answer=answer, answerable=answerable, source=source,
+        answer=answer, answerable=answerable, source=source, grounding=gr,
         **{**base, "notes": base["notes"] + anotes},
     )

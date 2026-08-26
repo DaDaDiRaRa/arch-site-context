@@ -186,6 +186,17 @@ export default function TabE({ address }) {
             </div>
             <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{color:'var(--body)'}}>{data.answer}</p>
 
+            {/* 수치 무결성 검사 — 답변의 숫자가 전부 제공 데이터 안의 값이었나 (services/grounding.py).
+                사실검증이 아니라 '숫자가 우리 데이터에서 왔는지'만 본다 — 문구를 그렇게 유지. */}
+            {data.grounding && (
+              <p className="mt-3 text-xs" style={{color: data.grounding.verified ? 'var(--mute)' : 'var(--warn)'}}>
+                {data.grounding.verified
+                  ? `✓ 수치 검증 — 답변의 수치 ${data.grounding.checked.length}개가 모두 제공 데이터의 값입니다`
+                  : `⚠ 미검증 수치: ${data.grounding.unverified.join(', ')} — 제공 데이터에서 확인되지 않아 답변을 차단했습니다`}
+                {data.grounding.retried && ' (교정 재요청 1회)'}
+              </p>
+            )}
+
             {/* 웹 출처 */}
             {isWeb && data.web_sources?.length > 0 && (
               <ul className="mt-3 text-xs space-y-1">

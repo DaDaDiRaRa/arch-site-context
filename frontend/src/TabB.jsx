@@ -52,7 +52,7 @@ export default function TabB({ address }) {
     setPptLoading(true); setPptError(null);
     try {
       const res = await facilitiesPptx(address, kinds, [...radii].sort((a, b) => a - b));
-      window.open(res.url, "_blank");
+      window.open(res.url, "_blank", "noopener");
     } catch (e) {
       setPptError(e);
     } finally {

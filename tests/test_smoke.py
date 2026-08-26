@@ -22,3 +22,18 @@ def test_matrix_has_use_types() -> None:
     r = client.get("/matrix")
     assert r.status_code == 200
     assert "주거" in r.json()["use_types"]
+
+
+def test_api_info_lists_every_endpoint() -> None:
+    """`/api` 안내 목록은 손으로 적지 않고 OpenAPI 스키마에서 만든다 — 낡을 수 없도록.
+
+    (예전엔 하드코딩이라 board·deck·history·facilities/pptx 가 빠져 있었다.)
+    """
+    r = client.get("/api")
+    assert r.status_code == 200
+    eps = r.json()["endpoints"]
+    for path in ("/health", "/analyze", "/facilities", "/board", "/board/hwp",
+                 "/deck/full", "/deck/svg", "/deck/dxf", "/deck/glb",
+                 "/history", "/facilities/pptx", "/context-pack", "/surroundings"):
+        assert path in eps, path
+    assert eps == sorted(set(eps))

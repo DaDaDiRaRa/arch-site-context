@@ -74,7 +74,7 @@ def test_svg_use_renders_building_polygon_with_provenance(monkeypatch) -> None:
 
 
 def test_deck_svg_streams_zip(monkeypatch) -> None:
-    def fake_build(address, use_type, radius):
+    def fake_build(address):
         return {"wide": "<svg xmlns='http://www.w3.org/2000/svg'/>", "use": "<svg xmlns='http://www.w3.org/2000/svg'/>"}
 
     monkeypatch.setattr("app.deck.map_svg.build_map_svgs", fake_build)

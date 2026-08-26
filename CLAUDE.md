@@ -178,7 +178,7 @@ git push        # 작업 후 GitHub에 올리기
 | GET | `/use-types` | A | 2계층 용도 카탈로그 — 분석 프로파일 7개 + 법적 용도(별표1) 그룹핑 + 매핑 + 데이터 한정 목록. 프론트 드롭다운용 (`use_type_map.json`) |
 | POST | `/diagnose` | P11 | 수급진단 (A수요×B공급 교차) ★간판 |
 | POST | `/compare` | P9 | 여러 후보지 A·B·P11 나란히 비교 |
-| POST | `/ask` | P10 | 물어보기 (데이터 위에서만 + 웹검색 opt-in 폴백) |
+| POST | `/ask` | P10 | 물어보기 (데이터 위에서만 + 웹검색 opt-in 폴백). **수치 무결성 백스톱**(`services/grounding.py`, 2026-08-26) — 답변의 숫자가 프롬프트로 보낸 텍스트 안의 값인지 코드로 검사(반올림 허용·계산/단위변환 금지), 위반 시 짚어서 1회 교정 재요청 → 그래도 남으면 답변 버리고 '확인 불가'(원칙 3). 결과는 `AskResult.grounding`. ⚠ 사실검증기 아님 — 숫자 아닌 환각·항목↔값 짝짓기 오류는 범위 밖 |
 | POST | `/site` | P14 | 대지 기본정보 (개별공시지가=VWorld·실거래·건축물대장 + **재해위험**=SGIS 홍수·산사태 영향범위, §8.10). 공시지가는 data.go.kr 미승인 → VWorld `LP_PA_CBND_BUBUN` 우회 |
 | POST | `/seed` | P14 | 보드 합본 진입점 — 공유 site(좌표·pnu) + context(상권·학교·어린이집·문화시설·부동산지수·날씨·생활인구·공연시설). `schemas/project_seed.ProjectSeed`. law·knowledge는 형제앱 자리(INTEGRATION). 8블록 ThreadPoolExecutor 병렬 |
 | POST | `/readout` | - | 공동주택 대지 readout — 인구·가구(matrix) + 산업·주거·복지·**의료·부동산**(KOSIS 다차원 census 크랙: 사업체수·빈집·신혼부부·등록장애인·**의료인력(DT_HIRA4U)·아파트·주택거래량(DT_408, KOSIS Phase3 2026-07-15)**) + 파생(사업체밀도·장애인비율·신혼부부/세대·**의료인력/천명·아파트거래비중**) + 유형 프리셋(재건축/재개발/민간/주상복합). `services/{readout,census_multidim}.py`. 전국 작동 |
@@ -244,7 +244,10 @@ git push        # 작업 후 GitHub에 올리기
 { "question":"...","answer":"...","answerable":true,
   "source":"ai",          // ai(그라운디드) | ai_web(외부폴백) | no_data | ai_unavailable
   "region":{...},"facts":[...],"counts":{...},"diagnoses":[...],
-  "web_sources":[{"title":"...","url":"..."}], "base_date":"...","notes":[] }
+  "web_sources":[{"title":"...","url":"..."}],
+  // 수치 무결성 백스톱 결과 (그라운디드 답변에만 — 웹 폴백은 외부라 해당 없음)
+  "grounding":{"verified":true,"checked":["19.2","7"],"unverified":[],"retried":false},
+  "base_date":"...","notes":[] }
 ```
 
 ### 설정 파일 (외부 JSON, 건축가 편집)
@@ -593,9 +596,15 @@ A(인구 수요) × B(시설 공급)를 교차해 "이 동네 무엇이 부족/�
   CAD 대지계획도 1개**로(2026-08-25 사용자 결정, AutoCAD·Civil3D·Rhino에 바로 불러
   쓰도록). 위성사진·범례패널·캡션밴드는 CAD에 의미 없어 제외 — SITE 경계(law
   parcel_geometry)·건물 평면(용도별 레이어 BLDG-주거/상업/업무/공업/공공/미상)·반경
-  참조원(100/200/350m)·방위만. **좌표는 실제 미터 단위, 대지=원점(0,0)** — arch-site-model
+  참조원·방위만. **좌표는 실제 미터 단위, 대지=원점(0,0)** — arch-site-model
   의 건물 footprint(그 앱 자체 origin_offset 기준)를 위경도로 왕복 변환해 대지-원점
   좌표계로 재투영(모델의 임의 원점에 기대지 않음). 신규 의존성 `ezdxf`(순수 파이썬).
+  ★ **`radius`(시설·상권 **데이터** 반경) ↔ `plan_radius`(CAD·3D **도면 범위**)는 다른 축**
+  (2026-08-26 분리). `/deck/dxf`·`/deck/glb` 는 `plan_radius`(ge=10·**le=2000** =
+  arch-site-model `/api/generate` 계약, 미지정 시 350 = `style.DEFAULT_PLAN_RADIUS_M`)로
+  건물 매싱 반경을 정하고, 참조원(`_ref_radii`)·방위·표제가 전부 거기서 파생된다. 초과는
+  조용한 clamp 없이 422. `/deck/svg` 는 반경을 **안 받는다** — 지도 4종이 각자 설계 축척
+  (광역2km·용도/높이320m·조망600m)을 쓰기 때문(반경 노브 하나로 못 뭉갬).
   ⚠️ ezdxf 로 텍스트/레이어명에 한글을 쓸 때 `doc.write(io.StringIO())` 만으로는 기본
   인코딩(cp1252)이 걸려 깨진다 — 반드시 `doc.encode(buf.getvalue())` 로 한 번 더
   감싸야 R2007+(UTF-8) 인코딩이 올바로 적용된다(실측 확인, 2026-08-25).

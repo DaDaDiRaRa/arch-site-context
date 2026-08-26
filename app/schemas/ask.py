@@ -34,6 +34,21 @@ class WebSource(BaseModel):
     url: str = Field(..., examples=["https://..."])
 
 
+class Grounding(BaseModel):
+    """답변 **수치 무결성** 검사 결과 (services/grounding.py).
+
+    검사 대상은 오직 "답변의 숫자가 제공 데이터에 있던 값인가" 하나다 — 사실검증기가 아니다.
+    숫자 아닌 환각(없는 시설명·인과관계)과 항목↔값 짝짓기 오류는 설계상 못 잡는다.
+    """
+
+    verified: bool = Field(..., description="답변 수치가 전부 제공 데이터 안의 값이었나")
+    checked: List[str] = Field(default_factory=list, description="답변에서 검사한 수치 토큰")
+    unverified: List[str] = Field(
+        default_factory=list, description="제공 데이터에서 확인 못 한 수치 (있으면 답변 차단)"
+    )
+    retried: bool = Field(False, description="1차 위반 후 교정 재요청을 했나")
+
+
 class AskResult(BaseModel):
     """POST /ask 출력 (P10)."""
 
@@ -49,5 +64,8 @@ class AskResult(BaseModel):
     counts: Dict[str, int] = Field(default_factory=dict)
     diagnoses: List[Diagnosis] = Field(default_factory=list)
     web_sources: List[WebSource] = Field(default_factory=list)
+    grounding: Optional[Grounding] = Field(
+        None, description="수치 무결성 검사 결과 (그라운디드 답변에만 — 웹 폴백은 외부라 해당 없음)"
+    )
     base_date: str = Field(..., examples=["2026-06-25"])
     notes: List[str] = Field(default_factory=list)

@@ -90,7 +90,8 @@ def build_facility_result(
         osm_contributed = False
         if osm_kinds:
             try:
-                osm_results = search_osm(clat, clon, max_radius, osm_kinds, client=client)
+                osm_results, osm_notes = search_osm(clat, clon, max_radius, osm_kinds, client=client)
+                notes += osm_notes  # 미응답·건너뜀을 정직하게 표기 (절대 원칙 3)
                 for d in osm_results:
                     key = _dedup_key(d["name"], d["lat"], d["lon"])
                     if key in seen:

@@ -42,6 +42,16 @@ def _ext_of(filename: str) -> str:
     return ext if ext in _MEDIA_BY_EXT else _DEFAULT_EXT
 
 
+def content_type(filename: str) -> tuple:
+    """(확장자, 콘텐츠타입). 라우터가 다운로드 헤더에 쓴다 — 저장할 때와 **같은 표**를 본다.
+
+    표를 두 군데서 관리하면 형식이 늘 때 한쪽만 갱신돼(실제로 zip·dxf·glb 가 그랬다)
+    zip 을 `download.pptx` 로 내려주게 된다.
+    """
+    ext = _ext_of(filename)
+    return ext, _MEDIA_BY_EXT.get(ext, "application/octet-stream")
+
+
 def _gcs_blob(gid: str, ext: str = _DEFAULT_EXT):
     from google.cloud import storage  # 지연 임포트 (로컬 미설치 가능)
 

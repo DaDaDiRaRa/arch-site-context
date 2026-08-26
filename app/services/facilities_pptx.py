@@ -35,7 +35,8 @@ def _set_font(cell, size, bold=False, color=None, align=None):
             run.font.color.rgb = color
 
 
-def build_facilities_pptx(result: FacilityResult, radii: list[int], map_png: bytes | None) -> bytes:
+def build_facilities_pptx(result: FacilityResult, map_png: bytes | None) -> bytes:
+    """반경밴드·종류는 `result.counts`·`result.results` 에서 나온다 — 요청 radii 를 따로 받지 않는다."""
     prs = Presentation()
     prs.slide_width, prs.slide_height = _A3_W, _A3_H
     slide = prs.slides.add_slide(prs.slide_layouts[6])
