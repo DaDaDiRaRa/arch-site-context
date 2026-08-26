@@ -71,7 +71,7 @@ def _draw_footprints(sl, ex, ey, blds, color_fn, alpha_fn=lambda b: 45):
 
 
 def _match_names(blds, fac):
-    for f in fac.get("results", []):
+    for f in (fac or {}).get("results", []):
         base = re.sub(r"\s*\d+동.*$", "", str(f.get("name") or "")).strip()
         if not base.endswith(_BLDG_SUFFIX) or f.get("lat") is None:
             continue
@@ -94,10 +94,31 @@ def _blank(prs):
     sl = prs.slides.add_slide(prs.slide_layouts[6]); k.dark_frame(sl); return sl
 
 
+#: VWorld 연속지적도 jibun 의 지번 부분 — '385대'·'산12임'·'24-1대' 의 앞머리.
+_JIBUN_NUM = re.compile(r"^\s*(?:산\s*)?\d+(?:-\d+)?\s*")
+
+
+def parse_jimok(jibun) -> str:
+    """jibun('385대'·'산12임') → 지목('대'·'임'). 못 떼면 빈 문자열(호출부가 '확인필요' 처리).
+
+    VWorld 는 지번+지목을 한 문자열로 준다(schemas/site.Land.jibun examples '24대').
+    지번은 주소마다 다르므로 정규식으로 떼어낸다 — 특정 주소의 지번을 하드코딩하지 않는다.
+    지목 부호는 한 글자(대·전·답·임…)이므로, 떼고 남은 값에 숫자가 섞였거나 2글자를 넘으면
+    지목으로 믿을 수 없다고 보고 비운다 — 엉뚱한 값을 지목 칸에 앉히지 않는다(절대 원칙 3).
+    """
+    rest = _JIBUN_NUM.sub("", str(jibun or "")).strip()
+    if not rest or len(rest) > 2 or any(ch.isdigit() for ch in rest):
+        return ""
+    return rest
+
+
 # ── 슬라이드 1: 광역입지도 ──
 def slide_wide(prs, address, lat, lon, law, site):
     fac = clients.fetch_facilities(address, ["지하철역"], 2000)
-    meta, png = clients.fetch_basemap(lat, lon, 2000, 1500)
+    res = clients.fetch_basemap(lat, lon, 2000, 1500)
+    if not res:  # 타일 실패 → 이 슬라이드만 건너뜀 (덱 전체는 계속 — 절대 원칙 3)
+        return False
+    meta, png = res
     png = k.prep_satellite(png); size = 1500
     z, mcx, mcy, rpx = int(meta["zoom"]), float(meta["cx"]), float(meta["cy"]), float(meta["radius_px"])
     lp = (site or {}).get("land_price") or {}; bd = (site or {}).get("building") or {}
@@ -105,7 +126,7 @@ def slide_wide(prs, address, lat, lon, law, site):
 
     def sbase(n): return re.sub(r"\(.*?\)", "", re.sub(r"\s*\d+번출구.*$", "", re.sub(r"\s*\d+호선.*$", "", n))).strip()
     stations = {}
-    for f in fac.get("results", []):
+    for f in (fac or {}).get("results", []):
         base = sbase(str(f.get("name") or ""))
         if not base.endswith("역") or f.get("lat") is None:
             continue
@@ -116,7 +137,7 @@ def slide_wide(prs, address, lat, lon, law, site):
     sl = _blank(prs)
     k.bracket_title(sl, "광역입지현황", "PROJECT POSITIONING")
     y = 4.2
-    for key, val in [("위치", address), ("지목", (lp.get("jibun") or "").replace("385", "").strip() or "확인필요"),
+    for key, val in [("위치", address), ("지목", parse_jimok(lp.get("jibun")) or "확인필요"),
                      ("용도지역", law.get("zone_use") or "확인필요"),
                      ("개별공시지가", f"{lp.get('price_per_sqm'):,}원/㎡ ({lp.get('year')})" if lp.get("price_per_sqm") else "확인필요"),
                      ("현황", bd.get("name") or "나대지"), ("PNU", law.get("pnu") or (site or {}).get("pnu") or "-")]:
@@ -163,11 +184,14 @@ def _name_use(name):
 def slide_use(prs, address, lat, lon, model, parcel=None):
     kinds = list(KIND_USE.keys())
     fac = clients.fetch_facilities(address, kinds, 320)
-    meta, png = clients.fetch_basemap(lat, lon, 320, 1500)
+    res = clients.fetch_basemap(lat, lon, 320, 1500)
+    if not res:
+        return False
+    meta, png = res
     png = k.prep_satellite(png); size = 1500
     z, mcx, mcy = int(meta["zoom"]), float(meta["cx"]), float(meta["cy"])
     strong, weak = [], []
-    for f in fac.get("results", []):
+    for f in (fac or {}).get("results", []):
         u = KIND_USE.get(f.get("kind"))
         nm = str(f.get("name") or "")
         if u and f.get("lat") is not None:
@@ -223,7 +247,10 @@ def slide_use(prs, address, lat, lon, model, parcel=None):
 # ── 슬라이드 3: 입지현황 (높이) ──
 def slide_site(prs, address, lat, lon, model, parcel=None):
     fac = clients.fetch_facilities(address, _BLDG_KINDS, 320)
-    meta, png = clients.fetch_basemap(lat, lon, 320, 1500)
+    res = clients.fetch_basemap(lat, lon, 320, 1500)
+    if not res:
+        return False
+    meta, png = res
     png = k.prep_satellite(png); size = 1500
     z, mcx, mcy = int(meta["zoom"]), float(meta["cx"]), float(meta["cy"])
     blds = _buildings(model, lat, lon, z, mcx, mcy, size)
@@ -257,7 +284,10 @@ def slide_site(prs, address, lat, lon, model, parcel=None):
 # ── 슬라이드 4: 방향별 조망 ──
 def slide_viewring(prs, address, lat, lon, model, parcel=None):
     fac = clients.fetch_facilities(address, _BLDG_KINDS, 600)
-    meta, png = clients.fetch_basemap(lat, lon, 600, 1500)
+    res = clients.fetch_basemap(lat, lon, 600, 1500)
+    if not res:
+        return False
+    meta, png = res
     png = k.prep_satellite(png); size = 1500
     z, mcx, mcy = int(meta["zoom"]), float(meta["cx"]), float(meta["cy"])
     ox, oy = (model.get("stats") or {})["origin_offset"]
@@ -390,12 +420,20 @@ def build_full_deck(address: str, use_type: str = "주거", radius: int = 1000) 
     prs = Presentation(); prs.slide_width, prs.slide_height = k.A3_W, k.A3_H
     _cover(prs, address, law, site)
 
-    # 지도 4종 (매싱 3종은 model 필요 — 없으면 건너뜀)
-    slide_wide(prs, address, lat, lon, law, site)
+    # 지도 4종 (매싱 3종은 model 필요 — 없으면 건너뜀). 개별 실패는 그 슬라이드만 건너뛰고
+    # 나머지 덱은 그대로 — 지도 하나 때문에 덱 전체가 500 나지 않도록 (절대 원칙 3).
+    maps = [lambda: slide_wide(prs, address, lat, lon, law, site)]
     if model:
-        slide_use(prs, address, lat, lon, model, parcel)
-        slide_site(prs, address, lat, lon, model, parcel)
-        slide_viewring(prs, address, lat, lon, model, parcel)
+        maps += [
+            lambda: slide_use(prs, address, lat, lon, model, parcel),
+            lambda: slide_site(prs, address, lat, lon, model, parcel),
+            lambda: slide_viewring(prs, address, lat, lon, model, parcel),
+        ]
+    for make_map in maps:
+        try:
+            make_map()
+        except Exception:  # noqa: BLE001 — 지도 1종 실패는 비치명
+            pass
 
     # 데이터 팩트 (같은 디자인 언어·새 숫자 0)
     ds.slide_region_stats(prs, address, board.get("region"), board.get("facts"), board.get("implications"))

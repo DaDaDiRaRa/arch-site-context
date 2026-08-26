@@ -226,7 +226,7 @@ def svg_wide(address, lat, lon, law, site) -> Optional[str]:
     y = my + 70
     rows = [
         ("위치", address, "site-seed:address"),
-        ("지목", (lp.get("jibun") or "").replace("385", "").strip() or "확인필요", "vworld:land_price"),
+        ("지목", ms.parse_jimok(lp.get("jibun")) or "확인필요", "vworld:land_price"),
         ("용도지역", law.get("zone_use") or "확인필요", "law:zone_use"),
         ("개별공시지가",
          f"{lp.get('price_per_sqm'):,}원/㎡ ({lp.get('year')})" if lp.get("price_per_sqm") else "확인필요",

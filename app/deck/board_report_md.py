@@ -218,14 +218,24 @@ def _section_diagnoses(board: Dict) -> List[str]:
             _md_table(["항목", "수요", "공급", "신호"], rows), ""]
 
 
+def _zone_state(zone: Dict) -> str:
+    """in_zone 3상태 — True/False/None(조회 실패). None 을 '밖'으로 단정하지 않는다 (절대 원칙 3)."""
+    iz = zone.get("in_zone")
+    if iz is True:
+        return "영향범위 포함"
+    if iz is False:
+        return "영향범위 밖"
+    return "확인 불가"
+
+
 def _section_hazards(board: Dict) -> List[str]:
     hz = board.get("hazards") or {}
     if not hz:
         return []
     flood, landslide, heat = hz.get("flood") or {}, hz.get("landslide") or {}, hz.get("heatwave") or {}
     lines = ["## 재해위험 (참고 — 영향범위 포함 여부, SGIS)", ""]
-    lines.append(f"- 홍수: {'영향범위 포함' if flood.get('in_zone') else '영향범위 밖'}")
-    lines.append(f"- 산사태: {'영향범위 포함' if landslide.get('in_zone') else '영향범위 밖'}")
+    lines.append(f"- 홍수: {_zone_state(flood)}")
+    lines.append(f"- 산사태: {_zone_state(landslide)}")
     if heat:
         lines.append(
             f"- 폭염특보: 경보 {heat.get('alert_count', 0)}건 · 주의보 {heat.get('warning_count', 0)}건"

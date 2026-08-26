@@ -81,6 +81,19 @@ def test_hazards_section_reports_in_zone() -> None:
     assert "경보 11건 · 주의보 31건 (2024~2025)" in md
 
 
+def test_hazards_unknown_is_not_reported_as_outside_zone() -> None:
+    """in_zone=None(SGIS 조회 실패)을 '영향범위 밖'으로 단정하면 안 된다 (절대 원칙 3).
+
+    심의·조합 제출 문서라 검증 안 된 안전 사실을 단정으로 싣는 순간 원칙이 깨진다.
+    """
+    md = build_board_report_md(_board(hazards={
+        "flood": {"in_zone": None}, "landslide": {},
+    }))
+    assert "홍수: 확인 불가" in md
+    assert "산사태: 확인 불가" in md
+    assert "영향범위 밖" not in md
+
+
 # ── ★ §8.14 격리 — concept 은 board dict 에 주입돼 있을 때만 렌더 ─────────────
 
 
