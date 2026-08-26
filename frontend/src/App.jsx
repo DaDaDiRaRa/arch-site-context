@@ -11,6 +11,7 @@ import TabI from "./TabI.jsx";
 import TabJ from "./TabJ.jsx";
 import TabK from "./TabK.jsx";
 import TabL from "./TabL.jsx";
+import TabN from "./TabN.jsx";
 import TabHistory from "./TabHistory.jsx";
 import { downloadResultHtml } from "./exportHtml.jsx";
 
@@ -28,6 +29,7 @@ const TABS = [
   ["K", "주변현황도"],
   ["L", "대지분석 덱"],
   ["M", "생성 이력"],
+  ["N", "컨셉 스튜디오"],
 ];
 const TAB_LABEL = Object.fromEntries(TABS);
 
@@ -143,6 +145,10 @@ export default function App() {
         </div>
         <div ref={setRef("M")} className={tab === "M" ? "" : "hidden"}>
           <TabHistory />
+        </div>
+        {/* 유일하게 **남의 앱**을 여는 탭 — 주소만 넘기고 나머지는 컨셉 스튜디오가 한다. */}
+        <div ref={setRef("N")} className={tab === "N" ? "" : "hidden"}>
+          <TabN address={address} />
         </div>
 
         <footer className="mt-10" style={{color:'var(--mute)',fontFamily:'var(--font-mono)',fontSize:11}}>
