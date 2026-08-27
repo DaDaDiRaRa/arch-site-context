@@ -7,9 +7,25 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import _parse_cors_origins, app
 
 client = TestClient(app)
+
+
+def test_cors_origins_default_permissive_when_unset() -> None:
+    """CORS_ALLOWED_ORIGINS 미설정 시 기존 동작(로컬 개발 무설정) 유지 — 하위호환."""
+    assert _parse_cors_origins("") == ["*"]
+    assert _parse_cors_origins("   ") == ["*"]
+
+
+def test_cors_origins_restricted_when_set() -> None:
+    """설정하면 그 목록으로 제한 (2026-07 리뷰 발굴 — 배포 시 allowlist 하는 레버)."""
+    assert _parse_cors_origins("https://a.example.com") == ["https://a.example.com"]
+    assert _parse_cors_origins("https://a.example.com, https://b.example.com") == [
+        "https://a.example.com", "https://b.example.com",
+    ]
+    # 콤마 주변 공백·빈 항목 정리
+    assert _parse_cors_origins("https://a.example.com,, ") == ["https://a.example.com"]
 
 
 def test_health() -> None:

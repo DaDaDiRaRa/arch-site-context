@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { contextPack, contextPackPptx } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, useRequestGuard } from "./ui.jsx";
 
 const RADII = [500, 1000, 2000];
 const SECTIONS = [
@@ -51,6 +51,7 @@ export default function TabJ({ address }) {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [pptxUrl, setPptxUrl] = useState(null);
+  const guard = useRequestGuard();
 
   function validate() {
     if (!address.trim()) { setError({ message: "주소를 먼저 입력하세요." }); return null; }
@@ -69,10 +70,12 @@ export default function TabJ({ address }) {
 
   async function run() {
     const hh = validate(); if (!hh) return;
+    const reqId = guard.start();
     setLoading(true); setError(null); setData(null); setPptxUrl(null);
     try {
-      setData(await contextPack(address, hh, radius, parseAreas(existing), parseAreas(planned)));
-    } catch (e) { setError(e); } finally { setLoading(false); }
+      const res = await contextPack(address, hh, radius, parseAreas(existing), parseAreas(planned));
+      if (guard.isCurrent(reqId)) setData(res);
+    } catch (e) { if (guard.isCurrent(reqId)) setError(e); } finally { if (guard.isCurrent(reqId)) setLoading(false); }
   }
 
   async function download() {
@@ -107,7 +110,7 @@ export default function TabJ({ address }) {
           <span className="block mb-1.5" style={lbl}>조사범위 반경 (m)</span>
           <div className="flex gap-2">
             {RADII.map((r) => (
-              <button key={r} onClick={() => setRadius(r)} className="px-3 py-2 text-sm"
+              <button key={r} onClick={() => setRadius(r)} aria-pressed={radius === r} className="px-3 py-2 text-sm"
                 style={{ border: radius === r ? "1px solid var(--brand)" : "1px solid var(--hairline)", borderRadius: "var(--radius-sm)", background: radius === r ? "var(--brand)" : "var(--canvas-elevated)", color: radius === r ? "#fff" : "var(--body)" }}>
                 {r}
               </button>

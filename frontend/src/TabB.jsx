@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { facilities, facilitiesMap, facilitiesPptx } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, useRequestGuard } from "./ui.jsx";
 
 const KIND_OPTIONS = ["어린이집", "경로당", "학교", "병원", "약국", "공원", "도서관", "지하철역", "버스정류장", "카페"];
 const RADII_OPTIONS = [500, 1000, 2000];
@@ -18,6 +18,7 @@ export default function TabB({ address }) {
 
   const [pptLoading, setPptLoading] = useState(false);
   const [pptError, setPptError] = useState(null);
+  const guard = useRequestGuard();
 
   function toggle(list, setList, v) {
     setList(list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -27,13 +28,15 @@ export default function TabB({ address }) {
     if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
     if (kinds.length === 0) return setError({ message: "시설 종류를 하나 이상 선택하세요." });
     if (radii.length === 0) return setError({ message: "반경을 하나 이상 선택하세요." });
+    const reqId = guard.start();
     setLoading(true); setError(null); setData(null); setMap(null); setMapError(null);
     try {
-      setData(await facilities(address, kinds, [...radii].sort((a, b) => a - b)));
+      const res = await facilities(address, kinds, [...radii].sort((a, b) => a - b));
+      if (guard.isCurrent(reqId)) setData(res);
     } catch (e) {
-      setError(e);
+      if (guard.isCurrent(reqId)) setError(e);
     } finally {
-      setLoading(false);
+      if (guard.isCurrent(reqId)) setLoading(false);
     }
   }
 
@@ -78,6 +81,7 @@ export default function TabB({ address }) {
             <button
               key={k}
               onClick={() => toggle(kinds, setKinds, k)}
+              aria-pressed={kinds.includes(k)}
               className="px-3 py-1.5 text-sm"
               style={{
                 border: kinds.includes(k) ? '1px solid var(--brand)' : '1px solid var(--hairline)',
@@ -105,6 +109,7 @@ export default function TabB({ address }) {
             <button
               key={r}
               onClick={() => toggle(radii, setRadii, r)}
+              aria-pressed={radii.includes(r)}
               className="px-3 py-1.5 text-sm"
               style={{
                 border: radii.includes(r) ? '1px solid var(--brand)' : '1px solid var(--hairline)',

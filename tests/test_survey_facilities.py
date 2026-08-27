@@ -45,6 +45,22 @@ def test_collect_categories_dedup_radius(monkeypatch):
     assert any("면적" in n for n in by["작은도서관"].notes)
 
 
+def test_dedup_within_uses_6_decimal_precision_not_4():
+    """같은 이름·~5m 떨어진 서로 다른 실제 시설이 반올림 때문에 하나로 합쳐지면 안 된다
+    (2026-07 리뷰 발굴 — round(lat,4)≈11m 오차로 밀집지역 언더카운트 위험.
+    2026-08-26 수정: facilities.py._dedup_key 와 동일한 6자리(~0.1m)로 정밀도 통일)."""
+    lat_a = 37.5
+    lat_b = 37.5 + 0.00004  # ~4.4m 북쪽 — 4자리 반올림에선 같은 값, 6자리에선 다른 값
+    assert round(lat_a, 4) == round(lat_b, 4)
+    assert round(lat_a, 6) != round(lat_b, 6)
+    items = [
+        {"name": "경로당", "lat": lat_a, "lon": 127.0, "dist_m": 10},
+        {"name": "경로당", "lat": lat_b, "lon": 127.0, "dist_m": 15},
+    ]
+    out = sf._dedup_within(items, radius=1000)
+    assert len(out) == 2  # 4자리였다면 1개로 합쳐졌을 것
+
+
 def test_category_graceful_on_error(monkeypatch):
     def boom(kw, lat, lon, radius, client=None):
         raise RuntimeError("kakao down")

@@ -32,6 +32,22 @@ _RED = RGBColor(0xC6, 0x28, 0x28)
 _HEAD = RGBColor(0xDD, 0xE3, 0xF0)
 _F = "맑은 고딕"
 _MAP_PX = 1000
+_MIN_ROW_H = 0.5  # cm — 이보다 낮은 행 높이를 요청해도 PowerPoint 는 폰트+여백만큼은 렌더한다.
+                  # 요청 높이가 실제 렌더 높이보다 작으면 표가 예상 영역 밖으로 넘친다(2026-07 리뷰
+                  # 발굴 — "표 높이 math 긴 목록서 오버플로", 2026-08-26 수정).
+
+
+def _table_height_cm(n: int, default_row_h: float, cap_h: float) -> float:
+    """표 전체 높이(cm) — 행이 많아도 요청 높이가 실제 최소 렌더 높이 밑으로 안 내려가게.
+
+    n≤cap_h/default_row_h 면 default_row_h/행. 넘으면 cap_h 안에 욱여넣되 _MIN_ROW_H 미만으론
+    안 줄인다 — 대신 표가 cap_h 를 넘어가더라도(캡션 등 아래 요소는 이 실제 높이를 써야 함,
+    매직넘버로 따로 계산하면 드리프트) 렌더가 실제로 필요로 하는 만큼 정직하게 요청한다.
+    """
+    row_h = max(min(default_row_h, cap_h / max(n, 1)), _MIN_ROW_H)
+    return row_h * n
+
+
 _PIN_RGB = {"작은도서관": (0x21, 0x96, 0xF3), "경로당": (0xE9, 0x1E, 0x63),
             "어린이집": (0x4C, 0xAF, 0x50)}
 
@@ -68,7 +84,8 @@ def _survey_slide(prs, a: QuotaAssessment) -> None:
     hdr = ["구분", "총인구", "총세대", "비고(걸침율)", "적용인구", "적용세대"]
     rows = a.survey.dongs
     n = 1 + len(rows) + 1
-    tbl = slide.shapes.add_table(n, 6, Cm(2.0), Cm(2.6), Cm(30), Cm(min(1.0, 22.0 / max(n, 1)) * n)).table
+    tbl_h = _table_height_cm(n, 1.0, 22.0)
+    tbl = slide.shapes.add_table(n, 6, Cm(2.0), Cm(2.6), Cm(30), Cm(tbl_h)).table
     for i, w in enumerate([Cm(6), Cm(5), Cm(5), Cm(5.5), Cm(4.5), Cm(4.5)]):
         tbl.columns[i].width = w
     for j, h in enumerate(hdr):
@@ -88,7 +105,7 @@ def _survey_slide(prs, a: QuotaAssessment) -> None:
     for j, v in enumerate(tot):
         _setcell(tbl.cell(n - 1, j), v, bold=True, fill=_HEAD, size=11)
     ym_label = f"{a.ym[:4]}.{a.ym[4:]} 기준" if len(a.ym) == 6 else "기준월 미상"
-    cap = slide.shapes.add_textbox(Cm(2.0), Cm(2.6) + Cm(1.0 * n) + Cm(0.2), Cm(30), Cm(1.2)).text_frame
+    cap = slide.shapes.add_textbox(Cm(2.0), Cm(2.6) + Cm(tbl_h) + Cm(0.2), Cm(30), Cm(1.2)).text_frame
     cap.text = (f"반경 {a.radius}m 걸침 행정동 · {ym_label}(행안부 주민등록) · "
                 "걸침율=행정동 면적 대비 조사범위 교차비율 · ⚠타시군구 동은 '계' 제외(생활권 검토·사람 확정)")
     if cap.paragraphs[0].runs:
@@ -169,7 +186,7 @@ def _facility_slide(prs, a: QuotaAssessment, cat: FacilityCategory,
 
     # ── 오른쪽(또는 아래): 현황 표 (번호=핀 번호) ──
     n = 1 + len(cat.items) + 1
-    tbl = slide.shapes.add_table(n, 4, tx, Cm(2.4), Cm(19.5), Cm(min(0.62, 24.0 / max(n, 1)) * n)).table
+    tbl = slide.shapes.add_table(n, 4, tx, Cm(2.4), Cm(19.5), Cm(_table_height_cm(n, 0.62, 24.0))).table
     for i, w in enumerate([Cm(1.5), Cm(7.0), Cm(8.5), Cm(2.5)]):
         tbl.columns[i].width = w
     for j, h in enumerate(["번호", "이름", "주소", "면적"]):

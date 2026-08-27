@@ -35,14 +35,23 @@ def _g(o: Any, k: str, d: Any = None) -> Any:
 
 
 def _match_source(source_tbl: Optional[str], source_type: Optional[str], reg: dict) -> str:
-    """fact 의 source_tbl/source_type → 레지스트리 정규 키. 없으면 원시 키 (지어내지 않음)."""
+    """fact 의 source_tbl/source_type → 레지스트리 정규 키. 없으면 원시 키 (지어내지 않음).
+
+    여러 항목의 match 접두사가 걸릴 수 있으면 **가장 긴(구체적인) 것**이 이긴다 — dict 순회
+    순서(등록 순서)에 의존하면 짧은 접두사가 먼저 걸려 더 구체적인 항목을 가릴 수 있었다
+    (감사용 방법론 부록 기능이라 오귀속이면 조용히 틀린 출처를 보여줌, 2026-08-26 수정).
+    """
     st = (source_tbl or "").strip()
     if st and st in reg:
         return st
+    best_key, best_len = None, -1
     for key, meta in reg.items():
         for m in meta.get("match", []):
-            if (st and st.startswith(m)) or (source_type and source_type == m):
-                return key
+            matched = (st and st.startswith(m)) or (source_type and source_type == m)
+            if matched and len(m) > best_len:
+                best_key, best_len = key, len(m)
+    if best_key:
+        return best_key
     return st or (source_type or "미상")
 
 

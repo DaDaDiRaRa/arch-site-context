@@ -25,6 +25,12 @@ from mcp_server.server import mcp as _mcp
 
 load_dotenv()  # 로컬 .env 로드 (배포는 Secret Manager → env 주입)
 
+
+def _parse_cors_origins(env_value: str) -> list:
+    """CORS_ALLOWED_ORIGINS(콤마구분) → 목록. 미설정이면 ["*"](로컬 개발 무설정 유지)."""
+    v = (env_value or "").strip()
+    return [o.strip() for o in v.split(",") if o.strip()] if v else ["*"]
+
 # 합성 PNG 저장·서빙 경로. Cloud Run 은 OUT_DIR=/tmp/out 등 쓰기 가능 경로 지정.
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -97,10 +103,13 @@ app = FastAPI(
 )
 
 
-# 단일 서비스(프론트 정적 서빙)면 CORS 불필요하나, 별도 호스팅 대비 허용 유지.
+# 단일 서비스(프론트 정적 서빙)면 CORS 불필요하나, 별도 호스팅(로컬 Vite 등) 대비 허용 유지.
+# CORS_ALLOWED_ORIGINS(콤마구분) 설정 시에만 그 목록으로 제한 — 미설정이면 기존 "*" 그대로
+# (하위호환, 로컬 개발 무설정 유지). 임의 출처가 Anthropic·업스트림 API 비용을 유발할 수 있어
+# 배포 시엔 설정 권장(2026-07 리뷰 발굴 — 코드는 "배포 시점 결정"을 환경변수로 열어둠).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_parse_cors_origins(os.getenv("CORS_ALLOWED_ORIGINS", "")),
     allow_methods=["*"],
     allow_headers=["*"],
 )

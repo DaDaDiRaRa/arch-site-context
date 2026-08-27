@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { seed } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, useRequestGuard } from "./ui.jsx";
 import { useUseTypeCatalog, UseTypeOptions } from "./useTypes.jsx";
 
 const RADII = [500, 1000, 2000];
@@ -48,13 +48,15 @@ export default function TabG({ address }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const guard = useRequestGuard();
 
   async function run() {
     if (!address.trim()) { setError({ message: "주소를 먼저 입력하세요." }); return; }
+    const reqId = guard.start();
     setLoading(true); setError(null); setData(null);
-    try { setData(await seed(address, radius, useType || null)); }
-    catch (e) { setError(e); }
-    finally { setLoading(false); }
+    try { const res = await seed(address, radius, useType || null); if (guard.isCurrent(reqId)) setData(res); }
+    catch (e) { if (guard.isCurrent(reqId)) setError(e); }
+    finally { if (guard.isCurrent(reqId)) setLoading(false); }
   }
 
   const ctx = data?.context;
@@ -74,6 +76,7 @@ export default function TabG({ address }) {
               <button
                 key={r}
                 onClick={() => setRadius(r)}
+                aria-pressed={radius === r}
                 className="px-3 py-1.5 text-sm font-medium"
                 style={{
                   border: radius === r ? '1px solid var(--brand)' : '1px solid var(--hairline)',

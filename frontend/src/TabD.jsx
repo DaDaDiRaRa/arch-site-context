@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { compare } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, useRequestGuard } from "./ui.jsx";
 
 import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 const KIND_OPTIONS = ["어린이집", "경로당", "학교", "병원", "약국", "공원", "도서관", "지하철역", "버스정류장", "카페"];
@@ -36,6 +36,7 @@ export default function TabD() {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [sort, setSort] = useState(null);
+  const guard = useRequestGuard();
 
   function setAddr(i, v) { setAddresses(addresses.map((a, idx) => (idx === i ? v : a))); }
   function addRow() { if (addresses.length < 5) setAddresses([...addresses, ""]); }
@@ -45,13 +46,15 @@ export default function TabD() {
   async function run() {
     const addrs = addresses.map((a) => a.trim()).filter(Boolean);
     if (addrs.length < 2) return setError({ message: "후보지 주소를 2개 이상 입력하세요." });
+    const reqId = guard.start();
     setLoading(true); setError(null); setData(null); setSort(null);
     try {
-      setData(await compare(addrs, useType, radius, kinds));
+      const res = await compare(addrs, useType, radius, kinds);
+      if (guard.isCurrent(reqId)) setData(res);
     } catch (e) {
-      setError(e);
+      if (guard.isCurrent(reqId)) setError(e);
     } finally {
-      setLoading(false);
+      if (guard.isCurrent(reqId)) setLoading(false);
     }
   }
 
@@ -162,6 +165,7 @@ export default function TabD() {
               <button
                 key={r}
                 onClick={() => setRadius(r)}
+                aria-pressed={radius === r}
                 className="px-3 py-1.5"
                 style={{
                   border: radius === r ? '1px solid var(--brand)' : '1px solid var(--hairline)',
@@ -188,6 +192,7 @@ export default function TabD() {
             <button
               key={k}
               onClick={() => toggleKind(k)}
+              aria-pressed={kinds.includes(k)}
               className="px-3 py-1.5 text-sm"
               style={{
                 border: kinds.includes(k) ? '1px solid var(--brand)' : '1px solid var(--hairline)',

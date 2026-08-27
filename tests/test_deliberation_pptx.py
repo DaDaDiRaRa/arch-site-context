@@ -74,6 +74,36 @@ def test_build_pptx_structure(monkeypatch):
     assert "부족시설" in allt and "충족시설" in allt
 
 
+def test_table_height_cm_caps_but_respects_min_row_height():
+    """정상 범위는 n*기본행높이. n 이 아주 크면 캡(cap_h)보다 최소행높이(_MIN_ROW_H)를 우선해
+    표가 실제로 필요한 높이를 정직하게 요청한다(2026-07 리뷰 발굴 — 표 높이 math 오버플로)."""
+    assert dp._table_height_cm(5, 1.0, 22.0) == 5.0          # 캡 안 걸림
+    assert dp._table_height_cm(22, 1.0, 22.0) == 22.0         # 캡 경계
+    n = 100
+    h = dp._table_height_cm(n, 1.0, 22.0)
+    assert h == dp._MIN_ROW_H * n
+    assert h > 22.0  # 캡을 넘더라도 숨기지 않음 — 아래 요소가 이 값을 그대로 써야 어긋나지 않는다
+
+
+def test_survey_caption_follows_table_when_many_dongs(monkeypatch):
+    """행정동이 많아 표 높이가 캡에 걸려도, 캡션은 항상 표 바로 아래(드리프트 없음).
+
+    이전엔 캡션 위치가 `1.0 * n`(캡 미적용) 고정식이라, n>22 부터 표의 실제 높이(캡 적용)와
+    어긋나 표 밑에 큰 공백이 생기거나 슬라이드 밖으로 밀려났다."""
+    monkeypatch.setattr(dp, "_basemap", lambda lat, lon, radius, client: None)
+    a = _assessment()
+    dong = a.survey.dongs[0]
+    a.survey.dongs = [dong.model_copy(update={"name": f"동{i}"}) for i in range(30)]  # n=32 → 캡 발동
+    data = dp.build_pptx(a)
+    prs = Presentation(io.BytesIO(data))
+    slide0 = list(prs.slides)[0]
+    tbl_shape = next(sh for sh in slide0.shapes if sh.has_table)
+    cap_shape = next(sh for sh in slide0.shapes
+                     if sh.has_text_frame and "걸침율=" in (sh.text_frame.text or ""))
+    gap_cm = (cap_shape.top - (tbl_shape.top + tbl_shape.height)) / 360000  # EMU → cm
+    assert 0 <= gap_cm < 1.0
+
+
 def test_build_pptx_map_when_basemap_ok(monkeypatch):
     """위성 타일이 되면 도서관 슬라이드에 그림(배경) + 도형(핀) 이 붙는다."""
     from PIL import Image

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { site } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, useRequestGuard } from "./ui.jsx";
 
 function fmtMoney(val10k) {
   if (val10k == null) return "—";
@@ -30,13 +30,15 @@ export default function TabF({ address }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const guard = useRequestGuard();
 
   async function run() {
     if (!address.trim()) { setError({ message: "주소를 먼저 입력하세요." }); return; }
+    const reqId = guard.start();
     setLoading(true); setError(null); setData(null);
-    try { setData(await site(address)); }
-    catch (e) { setError(e); }
-    finally { setLoading(false); }
+    try { const res = await site(address); if (guard.isCurrent(reqId)) setData(res); }
+    catch (e) { if (guard.isCurrent(reqId)) setError(e); }
+    finally { if (guard.isCurrent(reqId)) setLoading(false); }
   }
 
   return (

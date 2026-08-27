@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { board, boardView, boardPptx, boardHwp } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes, ProximityChip } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, ProximityChip, useRequestGuard } from "./ui.jsx";
 
 import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 const RESOLUTIONS = ["시군구", "읍면동", "반경"];
@@ -12,6 +12,7 @@ function ToggleBtn({ active, onClick, children, title }) {
     <button
       onClick={onClick}
       title={title}
+      aria-pressed={!!active}
       className="px-3 py-1.5 text-sm"
       style={{
         border: active ? "1px solid var(--brand)" : "1px solid var(--hairline)",
@@ -54,18 +55,21 @@ export default function TabI({ address }) {
   const [exportingHwp, setExportingHwp] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const guard = useRequestGuard();
 
   async function run() {
     if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
+    const reqId = guard.start();
     setLoading(true);
     setError(null);
     setData(null);
     try {
-      setData(await board(address, useType, radius, resolution, synth));
+      const res = await board(address, useType, radius, resolution, synth);
+      if (guard.isCurrent(reqId)) setData(res);
     } catch (e) {
-      setError(e);
+      if (guard.isCurrent(reqId)) setError(e);
     } finally {
-      setLoading(false);
+      if (guard.isCurrent(reqId)) setLoading(false);
     }
   }
 

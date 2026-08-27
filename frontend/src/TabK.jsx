@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { surroundings, surroundingsPptx } from "./api.js";
-import { Spinner, ErrorBox, Notes } from "./ui.jsx";
+import { Spinner, ErrorBox, Notes, useRequestGuard } from "./ui.jsx";
 
 const RADII = [500, 1000, 2000];
 const lbl = {
@@ -17,13 +17,16 @@ export default function TabK({ address }) {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [pptxUrl, setPptxUrl] = useState(null);
+  const guard = useRequestGuard();
 
   async function run() {
     if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
+    const reqId = guard.start();
     setLoading(true); setError(null); setData(null); setPptxUrl(null);
     try {
-      setData(await surroundings(address, radius));
-    } catch (e) { setError(e); } finally { setLoading(false); }
+      const res = await surroundings(address, radius);
+      if (guard.isCurrent(reqId)) setData(res);
+    } catch (e) { if (guard.isCurrent(reqId)) setError(e); } finally { if (guard.isCurrent(reqId)) setLoading(false); }
   }
 
   async function download() {
@@ -47,7 +50,7 @@ export default function TabK({ address }) {
         <span className="block mb-1.5" style={lbl}>조사 반경 (m)</span>
         <div className="flex gap-2">
           {RADII.map((r) => (
-            <button key={r} onClick={() => setRadius(r)} className="px-3 py-2 text-sm"
+            <button key={r} onClick={() => setRadius(r)} aria-pressed={radius === r} className="px-3 py-2 text-sm"
               style={{ border: radius === r ? "1px solid var(--brand)" : "1px solid var(--hairline)", borderRadius: "var(--radius-sm)", background: radius === r ? "var(--brand)" : "var(--canvas-elevated)", color: radius === r ? "#fff" : "var(--body)" }}>
               {r}
             </button>

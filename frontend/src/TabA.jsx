@@ -1,6 +1,6 @@
 import { useState, Fragment } from "react";
 import { analyze } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes, CopyButton, ProximityChip, IndexBar } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, CopyButton, ProximityChip, IndexBar, useRequestGuard } from "./ui.jsx";
 
 import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 
@@ -27,6 +27,7 @@ function ToggleBtn({ active, onClick, children, title }) {
     <button
       onClick={onClick}
       title={title}
+      aria-pressed={!!active}
       className="px-3 py-1.5 text-sm"
       style={{
         border: active ? '1px solid var(--brand)' : '1px solid var(--hairline)',
@@ -50,21 +51,24 @@ export default function TabA({ address }) {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [open, setOpen] = useState({});  // T1 근거 드릴다운 (fact index → 열림 여부)
+  const guard = useRequestGuard();
 
   async function run() {
     if (!address.trim()) {
       setError({ message: "주소를 먼저 입력하세요." });
       return;
     }
+    const reqId = guard.start();
     setLoading(true);
     setError(null);
     setData(null);
     try {
-      setData(await analyze(address, useType, null, resolution, radius, density));
+      const res = await analyze(address, useType, null, resolution, radius, density);
+      if (guard.isCurrent(reqId)) setData(res);
     } catch (e) {
-      setError(e);
+      if (guard.isCurrent(reqId)) setError(e);
     } finally {
-      setLoading(false);
+      if (guard.isCurrent(reqId)) setLoading(false);
     }
   }
 

@@ -17,7 +17,7 @@ from app.schemas.diagnose import DemandSignal, Diagnosis, SupplySignal
 from app.schemas.project_seed import Site
 from app.schemas.region import Fact, Region
 from app.schemas.site import BuildingInfo, HazardZone, LandPrice, SiteHazards
-from app.services.methodology import build_methodology
+from app.services.methodology import _match_source, build_methodology
 
 
 def _f(item, value=20.0, national=15.0, unit="%", tbl="DT_1B04005N", stype="kosis",
@@ -43,6 +43,23 @@ def _diag(density_basis="", demand_scope="시군구"):
         supply=SupplySignal(kinds=["병원"], count=4, radius=1000, level="적음",
                             density_basis=density_basis),
         signal="", note="", tag="참고")
+
+
+# ── _match_source 접두 매칭 우선순위 ─────────────────────────────────────────
+def test_match_source_prefers_longest_prefix_over_dict_order() -> None:
+    """짧은 접두사(SGIS)가 dict 순회에서 먼저 나와도, 더 구체적인(긴) 접두사가 이겨야 한다
+    (2026-07 리뷰 발굴 — 이전엔 dict 순회 순서에 의존해 등록 순서가 바뀌면 오귀속 가능,
+    감사용 방법론 부록이라 조용히 틀린 출처를 보여주는 게 문제. 2026-08-26 수정)."""
+    reg = {
+        "SGIS 집계구": {"match": ["SGIS"]},          # 짧은 접두사 — dict 순서상 먼저
+        "SGIS 재해위험지도": {"match": ["SGIS 재해"]},  # 더 구체적(긴) 접두사 — 뒤에 등록
+    }
+    assert _match_source("SGIS 재해위험지도-영등포구", None, reg) == "SGIS 재해위험지도"
+    # 순서를 뒤집어도 결과가 같아야 함 (order-independent)
+    reg_reversed = dict(reversed(list(reg.items())))
+    assert _match_source("SGIS 재해위험지도-영등포구", None, reg_reversed) == "SGIS 재해위험지도"
+    # 구체적 접두사에 안 걸리는 값은 여전히 짧은 쪽으로
+    assert _match_source("SGIS 집계구-여의동", None, reg) == "SGIS 집계구"
 
 
 # ── 출처 매핑 ────────────────────────────────────────────────────────────────

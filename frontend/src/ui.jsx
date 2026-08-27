@@ -1,4 +1,18 @@
-import { useState } from "react";
+import { useCallback, useRef, useState } from "react";
+
+// 탭 요청 순서가드 — 느린 이전 요청(A)이 나중에 시작한 요청(B)보다 늦게 끝나면 A 가 B 의
+// 결과를 덮어쓰지 않도록. 버튼 disable 로 "같은 탭에서 같은 요청 중복 클릭"은 막혀 있었지만,
+// 주소를 바꾸고 재요청한 경우처럼 실제로 두 요청이 겹치는 경로는 안 막혀 있었다
+// (2026-07 리뷰 발굴 — "느린 A가 새 B 덮어씀", 2026-08-27 수정).
+//
+// 사용: const guard = useRequestGuard(); … const id = guard.start(); … await fetch …
+// setState 직전마다 guard.isCurrent(id) 로 감싸 — 더 최신 요청이 이미 시작됐으면 조용히 버림.
+export function useRequestGuard() {
+  const idRef = useRef(0);
+  const start = useCallback(() => { idRef.current += 1; return idRef.current; }, []);
+  const isCurrent = useCallback((id) => id === idRef.current, []);
+  return { start, isCurrent };
+}
 
 export function Spinner({ label = "불러오는 중…" }) {
   return (

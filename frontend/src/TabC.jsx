@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { diagnose } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes, ProximityChip, IndexBar } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, ProximityChip, IndexBar, useRequestGuard } from "./ui.jsx";
 import { useUseTypeCatalog, UseTypeOptions } from "./useTypes.jsx";
 
 const RADII_OPTIONS = [500, 1000, 2000];
@@ -18,18 +18,21 @@ export default function TabC({ address }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+  const guard = useRequestGuard();
 
   async function run() {
     if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
+    const reqId = guard.start();
     setLoading(true);
     setError(null);
     setData(null);
     try {
-      setData(await diagnose(address, radius, resolution, useType || null));
+      const res = await diagnose(address, radius, resolution, useType || null);
+      if (guard.isCurrent(reqId)) setData(res);
     } catch (e) {
-      setError(e);
+      if (guard.isCurrent(reqId)) setError(e);
     } finally {
-      setLoading(false);
+      if (guard.isCurrent(reqId)) setLoading(false);
     }
   }
 
@@ -53,6 +56,7 @@ export default function TabC({ address }) {
             <button
               key={r}
               onClick={() => setRadius(r)}
+              aria-pressed={radius === r}
               className="px-3 py-1.5 text-sm"
               style={{
                 border: radius === r ? '1px solid var(--brand)' : '1px solid var(--hairline)',
@@ -81,6 +85,7 @@ export default function TabC({ address }) {
               key={r}
               onClick={() => setResolution(r)}
               title="읍면동: 인구지표를 행정동 단위로. 반경: 진단 반경 내 실인구(SGIS 집계구 합산)로 수요·공급 동일 반경. 미지원 지표는 시군구 폴백"
+              aria-pressed={resolution === r}
               className="px-3 py-1.5 text-sm"
               style={{
                 border: resolution === r ? '1px solid var(--brand)' : '1px solid var(--hairline)',

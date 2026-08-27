@@ -31,7 +31,10 @@ def _dedup_within(items: List[dict], radius: int) -> List[dict]:
     for d in sorted(items, key=lambda x: x["dist_m"]):
         if d["dist_m"] > radius:
             continue
-        key = (d["name"].replace(" ", ""), round(d["lat"], 4), round(d["lon"], 4))
+        # 소수 6자리(~0.1m) — facilities.py._dedup_key 와 동일 정밀도. 4자리(~11m)였을 때는
+        # 밀집지역에서 이름이 같은 서로 다른 실제 시설(같은 이름 다른 지점)까지 합쳐져
+        # 심의 현황팩 개수를 언더카운트할 수 있었다(2026-07 리뷰 발굴, 2026-08-26 수정).
+        key = (d["name"].replace(" ", ""), round(d["lat"], 6), round(d["lon"], 6))
         if key in seen:
             continue
         seen.add(key)

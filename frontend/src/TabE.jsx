@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ask } from "./api.js";
-import { Spinner, ErrorBox, Badge, Notes, CopyButton } from "./ui.jsx";
+import { Spinner, ErrorBox, Badge, Notes, CopyButton, useRequestGuard } from "./ui.jsx";
 
 import { useUseTypeCatalog, UseTypeOptions, DEFAULT_USE_TYPE } from "./useTypes";
 const KIND_OPTIONS = ["어린이집", "경로당", "학교", "병원", "약국", "공원", "도서관", "지하철역", "버스정류장", "카페"];
@@ -29,22 +29,24 @@ export default function TabE({ address }) {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [textareaFocused, setTextareaFocused] = useState(false);
+  const guard = useRequestGuard();
 
   function toggleKind(k) { setKinds(kinds.includes(k) ? kinds.filter((x) => x !== k) : [...kinds, k]); }
 
   async function run(web = false) {
     if (!address.trim()) return setError({ message: "주소를 먼저 입력하세요." });
     if (!question.trim()) return setError({ message: "질문을 입력하세요." });
+    const reqId = guard.start();
     web ? setWebLoading(true) : setLoading(true);
     setError(null);
     if (!web) setData(null);
     try {
       const res = await ask(address, question, useType, radius, kinds, web);
-      setData(res);
+      if (guard.isCurrent(reqId)) setData(res);
     } catch (e) {
-      setError(e);
+      if (guard.isCurrent(reqId)) setError(e);
     } finally {
-      web ? setWebLoading(false) : setLoading(false);
+      if (guard.isCurrent(reqId)) (web ? setWebLoading(false) : setLoading(false));
     }
   }
 
@@ -82,6 +84,7 @@ export default function TabE({ address }) {
               <button
                 key={r}
                 onClick={() => setRadius(r)}
+                aria-pressed={radius === r}
                 className="px-3 py-1.5"
                 style={{
                   border: radius === r ? '1px solid var(--brand)' : '1px solid var(--hairline)',
@@ -108,6 +111,7 @@ export default function TabE({ address }) {
             <button
               key={k}
               onClick={() => toggleKind(k)}
+              aria-pressed={kinds.includes(k)}
               className="px-3 py-1.5 text-sm"
               style={{
                 border: kinds.includes(k) ? '1px solid var(--brand)' : '1px solid var(--hairline)',
@@ -125,12 +129,14 @@ export default function TabE({ address }) {
       {/* 질문 */}
       <div className="mt-4">
         <label
+          htmlFor="ask-question"
           className="block mb-1"
           style={{color:'var(--mute)',fontSize:11,fontFamily:'var(--font-mono)',letterSpacing:'0.06em',textTransform:'uppercase'}}
         >
           질문
         </label>
         <textarea
+          id="ask-question"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           rows={2}
