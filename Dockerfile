@@ -1,6 +1,8 @@
 # ── Stage 1: 프론트 빌드 (React+Vite) ───────────────────────
 FROM node:22-slim AS frontend
 WORKDIR /fe
+ARG VITE_CONCEPT_STUDIO_URL=https://concept-studio-dqj4exlefq-du.a.run.app
+ENV VITE_CONCEPT_STUDIO_URL=${VITE_CONCEPT_STUDIO_URL}
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./
