@@ -364,7 +364,7 @@ def svg_site(address, lat, lon, model, parcel=None) -> Optional[str]:
             ref += f"+kakao:facilities.results[name={b['name']}]"
         _polygon(root, b["pts"], mx, my, fill=_hex(k.hcol(b["h"])), opacity=55, id_=f"bldg-{i}", source_ref=ref)
     for i, b in enumerate(named):
-        fl = max(1, round(b["h"] / 3.0))
+        fl = b["fl"]  # map_slides._floors — arch-site-model 실측 층수
         _dot_label(root, mx, my, b["cx"], b["cy"], [b["name"][:12], f"{fl}층 · 약 {int(b['h'])}m"],
                   id_=f"label-{i}", source_ref=f"kakao:facilities.results[name={b['name']}]+arch-site-model:height")
     parcel_pts = k.parcel_canvas(parcel, z, mcx, mcy, size) if parcel else None

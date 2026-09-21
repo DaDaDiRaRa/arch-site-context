@@ -39,6 +39,16 @@ _USE_STRONG = {"아파트", "빌라", "연립", "공장", "지식산업센터", 
 HL = k.RGBColor(0xFF, 0xE0, 0x66)
 
 
+def _floors(model, b):
+    """층수 — arch-site-model이 주는 실측 층수(floors)를 쓴다. 없으면(구버전 응답·층수 누락)
+    높이 ÷ 그 응답의 층고(provenance.floor_height_m, 없으면 3.0)로 역산. 층고를 3.0으로 고정해
+    나누면 층고 기본값이 3.5로 바뀐 뒤 10층이 12층으로 표시됐다(2026-09-21)."""
+    if b.get("floors"):
+        return int(b["floors"])
+    fh = (model.get("provenance") or {}).get("floor_height_m") or 3.0
+    return max(1, round((b.get("height") or 0.0) / fh))
+
+
 # ── 건물 매싱 추출 (5186) ──
 def _buildings(model, lat0, lon0, z, mcx, mcy, size):
     ox, oy = (model.get("stats") or {})["origin_offset"]
@@ -52,7 +62,8 @@ def _buildings(model, lat0, lon0, z, mcx, mcy, size):
             continue
         clat, clon = k.local_to_latlon(sum(p[0] for p in fp) / len(fp), sum(p[1] for p in fp) / len(fp), ox, oy)
         out.append({"pts": pts, "cx": sum(p[0] for p in pts) / len(pts), "cy": sum(p[1] for p in pts) / len(pts),
-                    "clat": clat, "clon": clon, "h": b.get("height") or 0.0, "name": None, "use": "미상"})
+                    "clat": clat, "clon": clon, "h": b.get("height") or 0.0, "fl": _floors(model, b),
+                    "name": None, "use": "미상"})
     return out
 
 
@@ -261,7 +272,7 @@ def slide_site(prs, address, lat, lon, model, parcel=None):
     ex, ey, scale = k.add_map(sl, png, Cm(1.3), Cm(2.6), Cm(27.0), size)
     _draw_footprints(sl, ex, ey, blds, lambda b: k.hcol(b["h"]))
     for b in named:
-        fl = max(1, round(b["h"] / 3.0))  # 층고 3.0 고정 → gro_flo_co 정확
+        fl = b["fl"]  # arch-site-model 실측 층수(_floors) — 높이÷층고 역산 금지
         k.dot_label(sl, ex, ey, b["cx"], b["cy"], [b["name"][:12], f"{fl}층 · 약 {int(b['h'])}m"], box_alpha=74)
     k.site_marker(sl, ex, ey, size / 2, size / 2, k.parcel_canvas(parcel, z, mcx, mcy, size))
     k.bracket_title(sl, "입지현황", f"SITE CONTEXT · 주변 건물 매싱·높이 · {address}")
